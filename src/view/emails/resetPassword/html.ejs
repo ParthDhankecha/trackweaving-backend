@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title></title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+</head>
+
+<body>
+    <div style="background-color: #000; padding: 120px 0px;">
+        <div style="
+            margin: 0 auto;
+            padding: 40px;
+            width: auto;
+            max-width: 720px;
+            font-family: 'sans-serif';
+            color: #B4B3B3;
+            background-color: #1E1E1E;
+            border: 1px solid #363636;
+            border-radius: 6px;">
+            <h2 style="margin-bottom: 32px; font-size: 26px; font-weight: 700;">
+                Hi!,
+            </h2>
+            <p style="margin-bottom: 6px;">
+                please confirm your e-mail address is
+                <b>
+                    <%= ' ' + email + ' ' %>
+                </b>
+            </p>
+            <br />
+            <a style="color: #DAFF00;" target="_blank" href="<%= clientUrl + link %>">
+                Click here to reset your password.
+            </a>
+            <p>If you are enable to open link then copy and past blow link in your browser</p>
+            <p style="color: #FFF;">
+                <%= clientUrl + link %>
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>

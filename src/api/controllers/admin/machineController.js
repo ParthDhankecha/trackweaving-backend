@@ -1,0 +1,123 @@
+const machineService = require("../../services/machineService");
+const utilService = require("../../services/utilService");
+const { log, checkRequiredParams } = require("../../services/utilService")
+
+
+
+module.exports = {
+    create: async (req, res, next) => {
+        try {
+            checkRequiredParams(['serialNumber', 'machineCode', 'machineName', 'workspaceId', 'ip'], req.body);
+            const reqBody = req.body;
+
+            const isMachineExist = await machineService.findOne({ $or: [{ serialNumber: reqBody.serialNumber }, { machineCode: reqBody.machineCode }, { ip: reqBody.ip }], workspaceId: reqBody.workspaceId });
+            if (isMachineExist) {
+                throw global.config.message.IS_DUPLICATE;
+            }
+            const machine = await machineService.create(reqBody);
+
+            return res.created(machine, global.config.message.CREATED);
+        } catch (error) {
+            log(error)
+            return res.serverError(error)
+        }
+    },
+
+    getList: async (req, res, next) => {
+        try {
+            const body = req.body || {};
+            const pageObj = {
+                page: parseInt(body.page) || 1,
+                limit: parseInt(body.limit) || 10
+            };
+
+            const queryOption = utilService.getFilter(pageObj);
+            queryOption.populate = { path: 'workspaceId', select: 'firmName' };
+
+            const searchQuery = {};
+            if (body?.workspaceId) {
+                searchQuery.workspaceId = { $in: body.workspaceId };
+            }
+
+            const machines = await machineService.find(searchQuery, queryOption);
+            const totalCount = await machineService.countDocuments(searchQuery);
+
+            const result = {
+                machines,
+                totalCount
+            };
+
+            return res.ok(result, global.config.message.OK);
+        } catch (error) {
+            log(error)
+            return res.serverError(error)
+        }
+    },
+
+    getById: async (req, res, next) => {
+        try {
+            checkRequiredParams(['id'], req.params);
+            const machine = await machineService.findOne({ _id: req.params.id });
+            if (!machine) {
+                throw global.config.message.RECORD_NOT_FOUND;
+            }
+            return res.ok(machine, global.config.message.OK);
+        } catch (error) {
+            log(error)
+            return res.serverError(error)
+        }
+    },
+
+    update: async (req, res, next) => {
+        try {
+            checkRequiredParams(['id'], req.params);
+            const updateData = req.body;
+            if (Object.keys(updateData).length === 0) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            if (updateData.serialNumber || updateData.machineCode || updateData.ip) {
+                const existObj = { $or: [] };
+                if (updateData.serialNumber) {
+                    existObj.$or.push({ serialNumber: updateData.serialNumber });
+                }
+                if (updateData.machineCode) {
+                    existObj.$or.push({ machineCode: updateData.machineCode });
+                }
+                if (updateData.ip) {
+                    existObj.$or.push({ ip: updateData.ip });
+                }
+                const isMachineExist = await machineService.findOne({ ...existObj, _id: { $ne: req.params.id } });
+                if (isMachineExist) {
+                    throw global.config.message.IS_DUPLICATE;
+                }
+            }
+
+            const result = await machineService.findByIdAndUpdate(req.params.id, updateData);
+            if (!result) {
+                throw global.config.message.RECORD_NOT_FOUND;
+            }
+
+            return res.ok(result, global.config.message.UPDATED);
+        } catch (error) {
+            log(error)
+            return res.serverError(error)
+        }
+    },
+
+    delete: async (req, res, next) => {
+        try {
+            checkRequiredParams(['id'], req.params);
+
+            const result = await machineService.findByIdAndDelete(req.params.id);
+            if (!result) {
+                throw global.config.message.RECORD_NOT_FOUND;
+            }
+
+            return res.ok(result, global.config.message.OK);
+        } catch (error) {
+            log(error)
+            return res.serverError(error)
+        }
+    }
+}

@@ -1,0 +1,12 @@
+https://www.mongodb.com/developer/products/atlas/multiple-mongodb-connections-in-a-single-application/
+
+
+https://www.google.com/search?q=mongodb+multiple+connection+in+nodejs&oq=mongodb+multiple+connection+in+nodejs&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTIHCAEQIRiPAjIHCAIQIRiPAtIBCTE0NDM5ajBqMagCALACAA&sourceid=chrome&ie=UTF-8
+
+
+
+https://www.youtube.com/results?search_query=mongodb+multiple+connections
+
+
+https://www.youtube.com/watch?v=RXMuV-Zfrss
+https://www.youtube.com/watch?v=qt1nfmlx_ao

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title></title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+</head>
+
+<body>
+    <div style="background-color: #f8f9fa; padding: 120px 0px;">
+        <div
+            style="display: block; width: auto; max-width: 720px; font-family: 'sans-serif'; margin: 0 auto; background-color: #ffffff; padding: 40px; border: 1px solid #f0f0f0; border-radius: 6px;">
+            <h2 style="color: #333333; font-size: 26px; font-weight: 700; margin-bottom: 32px;">
+                Hi!,
+            </h2>
+            <p style="margin-bottom: 6px;">
+                Thanks for getting started with us!
+            </p>
+            <p style="margin-bottom: 6px;">
+                please confirm that
+                <span>
+                    <%= ' ' + email + ' ' %>
+                </span>
+                is your e-mail address by
+                clicking on the button below
+                within 1 hours.
+            </p>
+            <br />
+            <a target="_blank" href="<%= clientUrl + link %>">
+                Verify your email address
+            </a>
+        </div>
+    </div>
+</body>
+
+</html>

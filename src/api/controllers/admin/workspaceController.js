@@ -36,7 +36,7 @@ module.exports = {
             if (GSTNo) {
                 workspaceObj.GSTNo = GSTNo;
             }
-            if (isActive || isActive === false) {
+            if (typeof isActive === 'boolean') {
                 workspaceObj.isActive = isActive;
             }
             const workspace = await workspaceService.create(workspaceObj);

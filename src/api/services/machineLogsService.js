@@ -100,7 +100,8 @@ module.exports = {
                                 as: "machine"
                             }
                         },
-                        { $unwind: "$machine" }
+                        { $unwind: "$machine" },
+                        { $sort: { "machine._id": 1}}
                     ],
                     countsRaw: [
                         {

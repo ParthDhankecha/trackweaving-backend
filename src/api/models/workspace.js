@@ -7,11 +7,11 @@ const getSubSchema = (subSchema, schemaOptions = {}) => {
 
 const subShiftSchema = getSubSchema({
     startTime: {
-        type: Date,
+        type: String,
         default: null
     },
     endTime: {
-        type: Date,
+        type: String,
         default: null
     }
 });
@@ -39,6 +39,10 @@ const WorkspaceSchema = new Schema({
     nightShift: {
         type: subShiftSchema
     },
+    uid: {
+        type: Number,
+        default: null
+    },
     isActive: {
         type: Boolean,
         default: true
@@ -51,6 +55,14 @@ const WorkspaceSchema = new Schema({
 }, {
     versionKey: false,
     timestamps: true
+});
+
+WorkspaceSchema.pre('save', async function (next) {
+    if (this.isNew) {
+        const lastDoc = await workspaceModel.findOne().sort({ _id: -1 });
+        this.uId = lastDoc ? lastDoc.uid + 1 : 1;
+    }
+    next();
 });
 
 

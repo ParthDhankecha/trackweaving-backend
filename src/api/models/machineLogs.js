@@ -50,6 +50,10 @@ const machineLogsSchema = new Schema({
         default: 0
     },
     alarmsActive: {
+        type: [Schema.Types.Mixed],
+        default: []
+    },
+    loomStateCode: {
         type: Number,
         default: 0
     },

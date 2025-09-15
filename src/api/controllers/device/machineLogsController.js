@@ -106,16 +106,16 @@ module.exports = {
             let speed = 0;
             for(let data of machineLogsData.data) {
                 efficiency += data.efficiencyPercent;
-                pick += data.picksTotal;
+                pick += data.picksCurrentShift;
                 speed += data.speedRpm;
             }
 
             let machineData = [];
             for(let logData of machineLogsData.data) {
                 let data = {};
-                data.machineName = logData.machine.machineName;
+                data.machineName = logData.machine.machineCode;
                 data.efficiency = logData.efficiencyPercent;
-                data.picks = logData.picksTotal;
+                data.picks = logData.picksCurrentShift;
                 data.speed = logData.speedRpm;
                 data.pieceLengthM = logData.pieceLengthM;
                 data.stops = logData?.machine?.stopsCount || 0;
@@ -144,10 +144,10 @@ module.exports = {
 
             let response = {
                 aggregateReport: {
-                    efficiency: efficiency / machineLogsData?.data?.length,
+                    efficiency: Math.round(efficiency / machineLogsData?.data?.length),
                     pick: pick,
-                    avgSpeed: speed / machineLogsData?.data?.length,
-                    avgPicks: pick / machineLogsData?.data?.length,
+                    avgSpeed: Math.round(speed / machineLogsData?.data?.length),
+                    avgPicks: Math.round(pick / machineLogsData?.data?.length),
                     running: machineLogsData?.counts?.running || 0,
                     stopped: machineLogsData?.counts?.stopped || 0,
                     all: (machineLogsData?.counts?.running || 0) + (machineLogsData?.counts?.stopped || 0)

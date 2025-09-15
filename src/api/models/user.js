@@ -58,7 +58,8 @@ const UserSchema = new Schema({
             default: null
         },
         subUserLimit: {
-            type: Number
+            type: Number,
+            default: 0
         }
     }),
     isActive: {

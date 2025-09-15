@@ -1,3 +1,5 @@
+const utilService = require('./utilService');
+
 
 module.exports = {
     async findById(id, projection = {}) {
@@ -98,8 +100,23 @@ module.exports = {
         return await query;
     },
 
-    async findByIdAndUpdate(_id, data) {
-        return await userModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
+    async findByIdAndUpdate(_id, data, queryOptions = {}) {
+        queryOptions = {
+            projection: undefined,
+            populate: undefined,
+            ...queryOptions
+        };
+
+        if (data.password) {
+            data.password = await utilService.generateHashValue(data.password);
+        }
+
+        const query = userModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
+
+        if (queryOptions.projection) query.select(queryOptions.projection);
+        if (queryOptions.populate) query.populate(queryOptions.populate);
+
+        return await query;
     },
 
     async findByIdAndDelete(_id) {

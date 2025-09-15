@@ -9,24 +9,6 @@ const { masterOTP: _masterOTP } = require('../../config/env-vars');
 
 
 module.exports = {
-    /**
-     * Generates a hash value for the given input data.
-     * @param {string|Buffer} data - The data to hash
-     * @param {string|number} saltOrRounds - Salt string or number of rounds
-     * @returns {Promise<string>}
-     */
-    async generateHashValue(data, saltOrRounds = 10) {
-        if (!(typeof data === 'string' || Buffer.isBuffer(data))) {
-            throw new TypeError('Data must be a string or Buffer');
-        }
-        if (typeof data === 'string') {
-            data = data.trim();
-            if (data === '') throw new Error('Data cannot be empty string');
-        }
-
-        return await hash(data, saltOrRounds);
-    },
-
     async compareHashPassword(password, passwordHash) {
         return await compare(password, passwordHash);
     },
@@ -46,7 +28,7 @@ module.exports = {
 
     async createUser(data) {
         if (data.password) {
-            data.password = await this.generateHashValue(data.password?.trim());
+            data.password = await utilService.generateHashValue(data.password);
         }
 
         const createdUser = new userModel(data);
@@ -74,7 +56,7 @@ module.exports = {
             throw global.config.message.EMAIL_ALREADY_VERIFIED;
         }
 
-        let verificationToken = await this.generateHashValue(userData._id?.toString());
+        let verificationToken = await utilService.generateHashValue(userData._id?.toString());
         verificationToken = `${verificationToken.replace(/[^a-zA-Z ]/g, '')}${userData._id}`;
 
         /** update user verification details */
@@ -185,7 +167,7 @@ module.exports = {
             throw global.config.message.RESET_PASSWORD_LINK_EXPIRED;
         }
 
-        userData.password = await this.generateHashValue(body.password);
+        userData.password = await utilService.generateHashValue(body.password);
         userData.emailVerification = null; // Clear verification details
         userData.isEmailVerified = true; // Mark as verified after password reset
         await userData.save();

@@ -1,6 +1,5 @@
-const authService = require('../../services/authService');
 const usersService = require('../../services/usersService');
-const { log, checkRequiredParams } = require('../../services/utilService');
+const { log, checkRequiredParams, generateHashValue } = require('../../services/utilService');
 
 
 module.exports = {
@@ -43,7 +42,7 @@ module.exports = {
                 return res.badRequest(null, global.config.message.EMAIL_ALREADY_REGISTERED);
             }
 
-            if (body.password) body.password = await authService.generateHashValue(body.password);
+            if (body.password) body.password = await generateHashValue(body.password);
 
             const result = await usersService.findByIdAndUpdate(id, body);
             if (!result) {

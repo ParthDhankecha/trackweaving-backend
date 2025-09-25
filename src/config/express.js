@@ -22,7 +22,7 @@ expressApp.get('/dev', function (req, res, next) {
     return res.status(404).send({ message: 'Not Found' });
 });
 
-expressApp.use('/api/v1', routes);
+expressApp.use('/api', routes);
 
 expressApp.get('*', function (req, res) {
     return res.sendFile(path.join(__dirname, '..', '..', 'client', 'index.html'));

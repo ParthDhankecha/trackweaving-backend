@@ -2,6 +2,9 @@
     {
         "projectName": "TrackWeaving",
         "serverUrl": "http://localhost:3000",
-        "clientUrl": "http://localhost:4200"
+        "clientUrl": "http://localhost:4200",
+        "refreshInterval": 10,
+        "efficiencyGoodPer": 90,
+        "efficiencyAveragePer": 85
     }
 ]

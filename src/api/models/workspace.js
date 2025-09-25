@@ -61,6 +61,16 @@ WorkspaceSchema.pre('save', async function (next) {
     if (this.isNew) {
         const lastDoc = await workspaceModel.findOne().sort({ _id: -1 });
         this.uId = lastDoc ? lastDoc.uid + 1 : 1;
+        let categories = global.config.MAINTENANCE_CATEGORIES || [];
+        for(let category of categories) {
+            category.workspaceId = this._id;
+        }
+        await maintenanceCategoryModel.insertMany(categories);
+        let machineGroup = new machineGroupModel({
+            groupName: 'Jacquard',
+            workspaceId: this._id,
+        });
+        await machineGroup.save();
     }
     next();
 });

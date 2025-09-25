@@ -8,15 +8,14 @@ const MachineGroupSchema = new Schema({
         trim: true,
         required: true
     },
-    serialNumber: {
-        type: String,
-        trim: true,
-        default: ''
+    workspaceId: {
+        type: Schema.Types.ObjectId,
+        ref: 'workspace',
+        required: true
     },
     createdBy: {
         type: Types.ObjectId,
         ref: 'user',
-        required: true
     },
     isDeleted: {
         type: Boolean,

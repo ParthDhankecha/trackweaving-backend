@@ -1,11 +1,4 @@
-
-
 module.exports = {
-    create: async(body) =>{
-        const machine = new machineModel(body);
-        return await machine.save();
-    },
-
     async find(options = {}, queryOptions = {}){
         queryOptions = {
             sort: undefined,
@@ -17,7 +10,7 @@ module.exports = {
             ...queryOptions
         };
 
-        const query = machineModel.find({ ...options, isDeleted: false });
+        const query = maintenanceCategoryModel.find({ ...options, isDeleted: false });
 
         if (queryOptions.sort) query.sort(queryOptions.sort);
         if (queryOptions.skip) query.skip(queryOptions.skip);
@@ -37,7 +30,7 @@ module.exports = {
             ...queryOptions
         };
 
-        const query = machineModel.findOne({ ...options, isDeleted: false });
+        const query = maintenanceCategoryModel.findOne({ ...options, isDeleted: false });
 
         if (queryOptions.projection) query.select(queryOptions.projection);
         if (queryOptions.populate) query.populate(queryOptions.populate);
@@ -47,18 +40,18 @@ module.exports = {
     },
 
     async findByIdAndUpdate(_id, data) {
-        return await machineModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
+        return await maintenanceCategoryModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
     },
 
     async findByIdAndDelete(_id) {
-        return await machineModel.findByIdAndUpdate({ _id: _id }, { isDeleted: true }, { new: true });
+        return await maintenanceCategoryModel.findByIdAndUpdate({ _id: _id }, { isDeleted: true }, { new: true });
     },
 
     async countDocuments(filter = {}) {
-        return await machineModel.countDocuments({ ...filter, isDeleted: false });
+        return await maintenanceCategoryModel.countDocuments({ ...filter, isDeleted: false });
     },
 
     async findByIdAndUpdate(_id, data) {
-        return await machineModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
+        return await maintenanceCategoryModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
     },
 }

@@ -1,14 +1,14 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const machineLogsSchema = new Schema({
+const machineLatestLogsSchema = new Schema({
     machineId: {
         type: Schema.Types.ObjectId,
         ref: 'machine',
         required: true
     },
     rawData: {
-        type: Schema.Types.Mixed,
+        type: [Schema.Types.Mixed],
         default: []
     },
     workspaceId: {
@@ -56,10 +56,6 @@ const machineLogsSchema = new Schema({
         type: Number,
         default: 0
     },
-    runTime: {
-        type: String,
-        default: "00:00:00"
-    },
     isDeleted: {
         type: Boolean,
         default: false
@@ -69,7 +65,7 @@ const machineLogsSchema = new Schema({
     timestamps: true
 });
 
-machineLogsSchema.index({ machineId: 1, workspaceId: 1, createdAt: -1 });
+machineLatestLogsSchema.index({ machineId: 1, workspaceId: 1, createdAt: -1 });
 
-const machineLogs = mongoose.model('machineLogs', machineLogsSchema, 'machineLogs');
-module.exports = machineLogs;
+const machineLatestLogs = mongoose.model('machineLatestLogs', machineLatestLogsSchema, 'machineLatestLogs');
+module.exports = machineLatestLogs;

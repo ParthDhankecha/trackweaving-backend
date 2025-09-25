@@ -41,7 +41,7 @@ module.exports = {
             status: 400
         },
         TOKEN_EXPIRED: {
-            code: "E_TOKEN_EXPIRED",
+            code: "E_UNAUTHORIZED",
             message: "Your current session was expired. Please try to login again.",
             status: 401
         },
@@ -295,6 +295,11 @@ module.exports = {
             code: "E_DUPLICATE",
             message: "Machine group with this name already exist.",
             status: 409
+        },
+        INVALID_SHIFT: {
+            code: "E_BAD_REQUEST",
+            message: "Shift value is invalid, it should be either 'day' or 'night'.",
+            status: 400
         }
     }
 };

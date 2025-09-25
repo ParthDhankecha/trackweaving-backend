@@ -10,7 +10,7 @@ module.exports = {
 
             const isGroupExist = await machineGroupService.findOne({ groupName: reqBody.groupName });
             if (isGroupExist) {
-                return res.conflict(null, global.config.message.MACHINE_GROUP_ALREADY_EXIST);
+                throw global.config.message.MACHINE_GROUP_ALREADY_EXIST;
             }
             reqBody.createdBy = req.user.id;
             reqBody.workspaceId = req.user.workspaceId;
@@ -41,7 +41,7 @@ module.exports = {
 
             const machineGroup = await machineGroupService.findOne({ _id: req.params.id, workspaceId: req.user.workspaceId });
             if (!machineGroup) {
-                return res.notFound(null, global.config.message.RECORD_NOT_FOUND);
+               throw global.config.message.RECORD_NOT_FOUND;
             }
 
             return res.ok(machineGroup, global.config.message.OK);
@@ -58,7 +58,7 @@ module.exports = {
 
             const machineGroup = await machineGroupService.findOne({ _id: req.params.id, createdBy: req.user.id });
             if (!machineGroup) {
-                return res.notFound(null, global.config.message.RECORD_NOT_FOUND);
+               throw global.config.message.RECORD_NOT_FOUND;
             }
 
             const updateObj = {

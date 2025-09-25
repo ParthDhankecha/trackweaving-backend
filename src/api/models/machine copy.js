@@ -49,11 +49,6 @@ const machineSchema = new Schema({
         ref: 'workspace',
         required: true
     },
-    machineGroupId: {
-        type: Schema.Types.ObjectId,
-        ref: 'machineGroup',
-        default: null
-    },
     lastStopTime: {
         type: String,
         default: null
@@ -65,10 +60,6 @@ const machineSchema = new Schema({
     stopsCount: {
         type: Number,
         default: 0
-    },
-    isAlertActive: {
-        type: Boolean,
-        default: true
     },
     stopsData: {
         type: getSubSchema({

@@ -13,7 +13,7 @@ module.exports = {
             if (req.body.apiKey !== global.config.API_KEY) {
                 throw global.config.message.UNAUTHORIZED;
             }
-            const { apiKey, ...body } = req.body;
+            let { apiKey, ...body } = req.body;
 
             const sort = { createdAt: -1 };
             const machine = await machineService.findOne({ _id: body.machineId, workspaceId: body.workspaceId });
@@ -23,6 +23,7 @@ module.exports = {
 
             const machineLog = await machineLogsService.findOne({ machineId: body.machineId, workspaceId: body.workspaceId }, { sort });
 
+            body = machineLogsService.parseBlock(body);
             if ((!machineLog && body.stop !== 0) || (machineLog && machineLog.stop === 0 && body.stop !== 0)) {
                 machine.lastStopTime = moment();
             } else if (!machineLog && body.stop === 0) {

@@ -7,5 +7,7 @@ const isAuth = require('../../middleware/auth');
 
 router.get('/:id', isAuth, usersController.getById);
 
+router.get('/sync/data', usersController.syncData);
+
 
 module.exports = router;

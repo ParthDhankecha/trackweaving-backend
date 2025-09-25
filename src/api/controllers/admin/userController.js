@@ -10,7 +10,7 @@ module.exports = {
         try {
             checkRequiredParams(['data', 'date'], req.body);
             const reqBody = await authService.decryptData(req.body);
-            checkRequiredParams(['fullname', 'password', 'userName', 'firmName'], reqBody);
+            checkRequiredParams(['fullname', 'password', 'userName', 'workspaceId', 'isActive'], reqBody);
 
             const isUserExists = await usersService.findOne({ userName: reqBody.userName });
             if (isUserExists) {
@@ -18,9 +18,9 @@ module.exports = {
             }
 
             const newUser = await authService.createUser(reqBody);
-            const userWorkspace = await workspaceService.create({ firmName: reqBody.firmName, userId: newUser._id });
-            newUser.workspaceId = userWorkspace._id;
-            await newUser.save();
+            if (!newUser) {
+                throw global.config.message.CREATE_FAILED;
+            }
 
             return res.created(null, global.config.message.USER_REGISTERED);
         } catch (error) {
@@ -42,12 +42,22 @@ module.exports = {
             const searchQuery = {};
             const search = body.search || {};
             if (Object.keys(search).length > 0) {
-                searchQuery.$and = [];
+                searchQuery.$or = [];
 
                 for (const [field, value] of Object.entries(search)) {
-                    if (value && ['email', 'fullname', 'userName'].includes(field)) {
-                        searchQuery.$and.push({
+                    if (value && ['fullname', 'userName', 'email'].includes(field)) {
+                        searchQuery.$or.push({
                             [field]: { $regex: value, $options: 'i' }
+                        });
+                    }
+                }
+                if (/[0-9]+/g.test(search.uid)) {
+                    const workspaceData = await workspaceService.findOne({ uid: search.uid }, {
+                        projection: 'uid userId'
+                    });
+                    if (workspaceData) {
+                        searchQuery.$or.push({
+                            workspaceId: workspaceData._id
                         });
                     }
                 }
@@ -56,12 +66,23 @@ module.exports = {
             if (body?.workspaceId) {
                 searchQuery.workspaceId = { $in: body.workspaceId };
             }
-            console.log(searchQuery);
 
-            queryOption.populate = { path: 'workspaceId', select: 'firmName' };
-            const usersList = await usersService.getUserWithPagination(searchQuery, queryOption);
+            queryOption.populate = { path: 'workspaceId', select: 'firmName uid' };
+            const data = await usersService.getUserWithPagination(searchQuery, queryOption);
+            const workspaceIds = new Set(data.list.map((user) => user.workspaceId?._id?.toString()).filter(Boolean));
+            if (workspaceIds.size > 0) {
+                const workspaceList = await workspaceService.find({ _id: { $in: [...workspaceIds] } }, { projection: 'userId' });
+                const workspacesMap = Object.fromEntries(
+                    workspaceList.map(ws => [ws._id.toString(), ws])
+                );
 
-            return res.ok(usersList, global.config.message.OK);
+                data.list.forEach(user => {
+                    const ws = workspacesMap[user.workspaceId?._id?.toString()];
+                    user.isOwner = ws?.userId?.toString() === user._id?.toString();
+                });
+            }
+
+            return res.ok(data, global.config.message.OK);
         } catch (error) {
             log(error);
             return res.serverError(error);
@@ -125,7 +146,9 @@ module.exports = {
                 }
             }
 
-            const updatedUser = await usersService.findByIdAndUpdate(userId, body);
+            const updatedUser = await usersService.findByIdAndUpdate(userId, body, {
+                populate: { path: 'workspaceId', select: 'firmName uid' }
+            });
             if (!updatedUser) {
                 throw global.config.message.USER_NOT_FOUND;
             }
@@ -141,6 +164,18 @@ module.exports = {
         try {
             checkRequiredParams(['userId'], req.params);
             const userId = req.params.userId;
+
+            const userData = await usersService.findOneV2({ _id: userId });
+            if (!userData) {
+                throw global.config.message.USER_NOT_FOUND;
+            }
+            const owner = await workspaceService.findOne({
+                _id: userData.workspaceId,
+                userId: userId
+            });
+            if (owner) {
+                throw global.config.message.OPERATION_NOT_PERMITTED;
+            }
 
             const deletedUser = await usersService.findByIdAndDelete(userId);
             if (!deletedUser) {

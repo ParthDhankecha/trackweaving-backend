@@ -20,16 +20,16 @@ module.exports = {
                 throw global.config.message.IS_DUPLICATE;
             }
             const newUser = await authService.createUser(rest);
-            
+
             const workspaceObj = {
                 firmName: workspaceName,
                 userId: newUser._id
             };
-            
-            if(reqBody?.dayShift){
+
+            if (reqBody?.dayShift) {
                 workspaceObj.dayShift = reqBody.dayShift;
             }
-            if(reqBody?.nightShift){
+            if (reqBody?.nightShift) {
                 workspaceObj.nightShift = reqBody.nightShift;
             }
 
@@ -46,16 +46,19 @@ module.exports = {
             return res.created(null, global.config.message.CREATED);
         } catch (error) {
             log(error)
-            return res.serverError(error)
+            return res.serverError(error);
         }
     },
 
     getList: async (req, res, next) => {
         try {
             const queryObj = {};
-            const body = req.body || {};
-            if(body.hasOwnProperty('isActive') && (body.isActive === true || body.isActive === false)){
+            const body = req.body;
+            if (body.hasOwnProperty('isActive') && typeof body.isActive === 'boolean') {
                 queryObj.isActive = body.isActive;
+            }
+            if (body.firmName) {
+                queryObj.firmName = { $regex: body.firmName, $options: "i" };
             }
 
             const pageObj = {
@@ -76,28 +79,28 @@ module.exports = {
             return res.ok(response, global.config.message.OK);
         } catch (error) {
             log(error)
-            return res.serverError(error)
+            return res.serverError(error);
         }
     },
 
     getAllList: async (req, res, next) => {
         try {
             const projection = { firmName: 1 };
-            const result = await workspaceService.find({}, { projection});
+            const result = await workspaceService.find({}, { projection });
 
             return res.ok(result, global.config.message.OK);
         } catch (error) {
             log(error)
-            return res.serverError(error)      
+            return res.serverError(error);
         }
     },
 
     getById: async (req, res, next) => {
         try {
             checkRequiredParams(['id'], req.params);
-            
+
             let populate = { path: 'userId', select: 'fullname userName' };
-            const workspace = await workspaceService.findOne({ _id: req.params.id }, {populate});
+            const workspace = await workspaceService.findOne({ _id: req.params.id }, { populate });
             if (!workspace) {
                 throw global.config.message.RECORD_NOT_FOUND;
             }
@@ -105,7 +108,7 @@ module.exports = {
             return res.ok(workspace, global.config.message.OK);
         } catch (error) {
             log(error)
-            return res.serverError(error)
+            return res.serverError(error);
         }
     },
 
@@ -114,7 +117,7 @@ module.exports = {
             checkRequiredParams(['id'], req.params);
             const body = req.body;
 
-            if(Object.keys(body).length === 0){
+            if (Object.keys(body).length === 0) {
                 throw global.config.message.BAD_REQUEST;
             }
             const workspace = await workspaceService.findOne({ _id: req.params.id });
@@ -123,28 +126,28 @@ module.exports = {
             }
 
             const updateObj = {};
-            if(body?.workspaceName){
+            if (body?.workspaceName) {
                 updateObj.firmName = body.workspaceName;
             }
-            if(body?.GSTNo || body?.GSTNo === ''){
+            if (body?.GSTNo || body?.GSTNo === '') {
                 updateObj.GSTNo = body.GSTNo;
             }
-            if(body.hasOwnProperty('isActive') && (body.isActive === true || body.isActive === false)){
+            if (body.hasOwnProperty('isActive') && typeof body.isActive === 'boolean') {
                 updateObj.isActive = body.isActive;
             }
-            
-            if(body?.dayShift){
+
+            if (body?.dayShift) {
                 updateObj.dayShift = body.dayShift;
             }
-            if(body?.nightShift){
+            if (body?.nightShift) {
                 updateObj.nightShift = body.nightShift;
             }
 
-            if(Object.keys(updateObj).length === 0){
+            if (Object.keys(updateObj).length === 0) {
                 throw global.config.message.BAD_REQUEST;
             }
-            
-            const updatedWorkspace = await workspaceService.findByIdAndUpdate(workspace._id, updateObj, {populate: { path: 'userId', select: 'fullname userName' }});
+
+            const updatedWorkspace = await workspaceService.findByIdAndUpdate(workspace._id, updateObj, { populate: { path: 'userId', select: 'fullname userName' } });
 
             return res.ok(updatedWorkspace, global.config.message.OK);
         } catch (error) {

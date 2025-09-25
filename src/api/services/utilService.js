@@ -1,3 +1,4 @@
+const { hash } = require('bcrypt');
 const moment = require('moment');
 
 const { serverResponseRecordLimit } = require('../../config/env-vars');
@@ -86,6 +87,24 @@ module.exports = {
         }
 
         return filter;
+    },
+
+    /**
+     * Generates a hash value for the given input data.
+     * @param {string|Buffer} data - The data to hash
+     * @param {string|number} saltOrRounds - Salt string or number of rounds
+     * @returns {Promise<string>}
+     */
+    async generateHashValue(data, saltOrRounds = 10) {
+        if (!(typeof data === 'string' || Buffer.isBuffer(data))) {
+            throw new TypeError('Data must be a string or Buffer');
+        }
+        if (typeof data === 'string') {
+            data = data.trim();
+            if (data === '') throw new Error('Data cannot be empty string');
+        }
+
+        return await hash(data, saltOrRounds);
     },
 
     getCurrentTime() {

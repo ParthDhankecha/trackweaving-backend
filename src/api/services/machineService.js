@@ -1,12 +1,12 @@
 
 
 module.exports = {
-    create: async(body) =>{
+    create: async (body) => {
         const machine = new machineModel(body);
         return await machine.save();
     },
 
-    async find(options = {}, queryOptions = {}){
+    async find(options = {}, queryOptions = {}) {
         queryOptions = {
             sort: undefined,
             skip: undefined,
@@ -46,8 +46,20 @@ module.exports = {
         return await query;
     },
 
-    async findByIdAndUpdate(_id, data) {
-        return await machineModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
+    async findOneAndUpdate(queryFilter, updateData, queryOptions = {}) {
+        queryOptions = {
+            projection: undefined,
+            populate: undefined,
+            useLean: false,
+            ...queryOptions
+        };
+
+        const query = machineModel.findOneAndUpdate({ ...queryFilter, isDeleted: false }, updateData, { new: true });
+        if (queryOptions.projection) query.select(queryOptions.projection);
+        if (queryOptions.populate) query.populate(queryOptions.populate);
+        if (queryOptions.useLean) query.lean();
+
+        return await query;
     },
 
     async findByIdAndDelete(_id) {

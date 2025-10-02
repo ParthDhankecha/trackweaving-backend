@@ -9,7 +9,6 @@
 /coverage
 
 # production
-/client
 src/public/upload/*
 
 # misc

@@ -33,6 +33,7 @@ module.exports = {
 
             const queryOption = utilService.getFilter(pageObj);
             queryOption.populate = { path: 'workspaceId', select: 'firmName' };
+            queryOption.projection = 'machineCode machineName ip workspaceId';
 
             const searchQuery = {};
             if (body?.workspaceId) {
@@ -43,7 +44,7 @@ module.exports = {
             const totalCount = await machineService.countDocuments(searchQuery);
 
             const result = {
-                machines,
+                list: machines,
                 totalCount
             };
 
@@ -77,20 +78,30 @@ module.exports = {
             }
 
             if (updateData.machineCode || updateData.ip) {
-                const existObj = { $or: [] };
-                if (updateData.machineCode) {
-                    existObj.$or.push({ machineCode: updateData.machineCode });
+                if (!updateData?.workspaceId) {
+                    const machineData = await machineService.findOne({ _id: req.params.id }, { projection: 'workspaceId' });
+                    if (!machineData) {
+                        throw global.config.message.RECORD_NOT_FOUND;
+                    }
+                    updateData.workspaceId = machineData.workspaceId;
                 }
-                if (updateData.ip) {
-                    existObj.$or.push({ ip: updateData.ip });
+                const existObj = { _id: { $ne: req.params.id }, workspaceId: updateData.workspaceId, $or: [] };
+                if (updateData?.machineCode) {
+                    existObj.$or.push({ machineCode: updateData.machineCode.trim() });
                 }
-                const isMachineExist = await machineService.findOne({ ...existObj, _id: { $ne: req.params.id } });
+                if (updateData?.ip) {
+                    existObj.$or.push({ ip: updateData.ip.trim() });
+                }
+
+                const isMachineExist = await machineService.findOne({ ...existObj });
                 if (isMachineExist) {
                     throw global.config.message.IS_DUPLICATE;
                 }
             }
 
-            const result = await machineService.findByIdAndUpdate(req.params.id, updateData);
+            const populate = { path: 'workspaceId', select: 'firmName' };
+            const projection = 'machineCode machineName ip workspaceId';
+            const result = await machineService.findOneAndUpdate({ _id: req.params.id }, updateData, { populate, projection });
             if (!result) {
                 throw global.config.message.RECORD_NOT_FOUND;
             }

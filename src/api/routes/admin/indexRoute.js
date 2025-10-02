@@ -11,5 +11,6 @@ router.use('/workspace', require('./workspace'));
 
 router.use('/machine', require('./machine'));
 
+router.use('/app-version', require('./appVersion'));
 
 module.exports = router;

@@ -17,6 +17,11 @@ const adminUserSchema = new Schema({
     password: {
         type: String,
         required: true
+    },
+    userType: {
+        type: Number,
+        enum: [USERS.TYPE.SUPER_ADMIN],
+        default: USERS.TYPE.SUPER_ADMIN
     }
 },{
     versionKey: false,

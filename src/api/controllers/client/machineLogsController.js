@@ -96,6 +96,52 @@ module.exports = {
         }
     },
 
+    createLog: async (req, res, next) => {
+        try {
+            checkRequiredParams(['apiKey', 'workspaceId', 'logs'], req.body);
+            if (req.body.apiKey !== global.config.API_KEY) {
+                throw global.config.message.UNAUTHORIZED;
+            }
+            let logs = req.body.logs;
+            for(let machineId in logs) {
+                let body = machineLogsService.parseBlock(logs[machineId].rawData);
+                let record = {
+                    ...body,
+                    stopsData: logs[machineId].stopsData,
+                    stopsCount: logs[machineId].stopsCount,
+                    machineId,
+                    workspaceId: req.body.workspaceId,
+                    rawData: logs[machineId].rawData
+                };
+                if(logs[machineId].lastStartTime){
+                    record.lastStartTime = logs[machineId].lastStartTime;
+                }
+                if(logs[machineId].lastStopTime){
+                    record.lastStopTime = logs[machineId].lastStopTime;
+                }
+                if(logs[machineId].prevData){
+                    let prevData = machineLogsService.parseBlock(logs[machineId].prevData);
+                    prevData = {
+                        ...prevData,
+                        machineId,
+                        stopsData: prevData.stopsData,
+                        stopsCount: prevData.stopsCount,
+                        workspaceId: req.body.workspaceId,
+                        rawData: logs[machineId].prevData
+                    }
+                    record.prevData = prevData;
+                }
+                await machineLogsService.create(record);
+            }
+
+            return res.ok(null);
+        } catch (error) {
+            log(error);
+
+            return res.serverError(error)
+        }
+    },
+
     getList: async (req, res, next) => {
         try {
             checkRequiredParams(['workspaceId'], req.body);
@@ -131,15 +177,7 @@ module.exports = {
             }
 
             let response = {
-                aggregateReport: {
-                    efficiency: efficiency / machineLogsData?.data?.length,
-                    pick: pick,
-                    avgSpeed: speed / machineLogsData?.data?.length,
-                    avgPicks: picks / machineLogsData?.data?.length,
-                    running: machineLogsData?.counts?.running || 0,
-                    stopped: machineLogsData?.counts?.stopped || 0,
-                    all: (machineLogsData?.counts?.running || 0) + (machineLogsData?.counts?.stopped || 0)
-                },
+                aggregateReport: machineLogsData.aggregateReport,
                 machineLogs: machineData,
                 totalCount: machineLogsData.totalMachines
             };

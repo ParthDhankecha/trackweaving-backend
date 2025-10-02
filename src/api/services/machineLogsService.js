@@ -2,9 +2,22 @@ const toUint32 = (hi, lo) => (((hi << 16) >>> 0) + (lo >>> 0)) >>> 0;
 
 module.exports = {
     async create(body){
-        await machineLatestLogsModel.findOneAndUpdate({machineId: body.machineId}, body, { upsert: true, new: true });
-        const machineLogs = new machineLogsModel(body);
-        return await machineLogs.save();
+        let machineLog = await machineLatestLogsModel.findOneAndUpdate({machineId: body.machineId}, body, { upsert: true, returnDocument: 'before' });
+        if(machineLog) {
+            if(machineLog.shift != body.shift) {
+                if(body.prevData){
+                    await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createAt: -1 } });
+                } else {
+                    let log = new machineLogsModel(body);
+                    await log.save();
+                }
+            } else {
+                await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createAt: -1 } });
+            }
+        } else {
+            let log = new machineLogsModel(body);
+            await log.save();
+        }
     },
 
     async find(condition, queryOptions = {}) {
@@ -63,8 +76,7 @@ module.exports = {
     },
 
     parseBlock(body) {
-        const buf = body.rawData.words;
-        const at = (lw) => buf[lw - body.rawData.start];
+        const at = (lw) => body[lw - 4999];
 
         const speedRpm   = at(5010);
         const stopCode   = at(5027);
@@ -84,7 +96,6 @@ module.exports = {
         const alarms = [at(5029), at(5030), at(5031), at(5032)];
 
         return {
-            ...body,
             speedRpm: speedRpm,
             efficiencyPercent: efficiency,
             stop: stopCode,
@@ -95,7 +106,8 @@ module.exports = {
             beamLeft: beam1Remain,
             setPicks: currentDensity,
             alarmsActive: alarms,
-            runTime: `${buf[56].toString().padStart(2, '0')}:${buf[57].toString().padStart(2, '0')}`
+            shift: at(5012),
+            runTime: `${body[56].toString().padStart(2, '0')}:${body[57].toString().padStart(2, '0')}`
         };
     },
 
@@ -121,6 +133,7 @@ module.exports = {
                 stopped++;
             }
         }
+        let totalMachines = data.length;
         if(status === 'running') {
             data = data.filter(d => d.stop === 0);
         } else if(status === 'stopped') {
@@ -130,16 +143,23 @@ module.exports = {
         let machineIds = machineLogs.map(log => log.machineId);
         let machines = await machineModel.find({ _id: { $in: machineIds } }).lean();
         for(let log of machineLogs) {
-            log.machineId = machines.find(m => m._id.toString() === log.machineId.toString());
+            let machine = machines.find(m => m._id.toString() === log.machineId.toString());
+            log.machineId = {
+                ...machine,
+                stopsCount: log.stopsCount,
+                lastStartTime: log.lastStartTime,
+                lastStopTime: log.lastStopTime,
+                stopsData: log.stopsData
+            }
         }
         let aggregateReport = {
-            efficiency: data.length ? Math.round(efficiency / data.length) : 0,
+            efficiency: totalMachines ? Math.round(efficiency / totalMachines) : 0,
             pick: pick,
-            avgSpeed: data.length ? Math.round(speed / data.length) : 0,
-            avgPicks: data.length ? Math.round(pick / data.length) : 0,
+            avgSpeed: totalMachines ? Math.round(speed / totalMachines) : 0,
+            avgPicks: totalMachines ? Math.round(pick / totalMachines) : 0,
             running: running,
             stopped: stopped,
-            all: data.length
+            all: running + stopped
         };
 
         return { data: machineLogs, aggregateReport };

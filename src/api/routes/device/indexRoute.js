@@ -17,4 +17,6 @@ router.use('/alerts', require('./alert'));
 
 router.use('/shift-wise-comments', require('./shiftWiseComment'));
 
+router.use('/reports', require('./report'));
+
 module.exports = router;

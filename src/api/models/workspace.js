@@ -60,7 +60,7 @@ const WorkspaceSchema = new Schema({
 WorkspaceSchema.pre('save', async function (next) {
     if (this.isNew) {
         const lastDoc = await workspaceModel.findOne().sort({ _id: -1 });
-        this.uId = lastDoc ? lastDoc.uid + 1 : 1;
+        this.uid = lastDoc ? lastDoc.uid + 1 : 1;
         let categories = global.config.MAINTENANCE_CATEGORIES || [];
         for(let category of categories) {
             category.workspaceId = this._id;

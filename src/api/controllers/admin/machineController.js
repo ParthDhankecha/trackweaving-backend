@@ -43,7 +43,7 @@ module.exports = {
             const totalCount = await machineService.countDocuments(searchQuery);
 
             const result = {
-                machines,
+                list: machines,
                 totalCount
             };
 

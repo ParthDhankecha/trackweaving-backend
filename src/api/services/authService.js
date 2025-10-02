@@ -137,7 +137,7 @@ module.exports = {
             invalidCredentials: false
         };
 
-        const user = await userModel.findOne({ 'userName': { $regex: `^${userName}$`, $options: 'i' }, isDeleted: false }, '+password').lean();
+        const user = await userModel.findOne({ 'userName': { $regex: `^${userName}$`, $options: 'i' }, isDeleted: false }, '+password +userType').lean();
         if (!user) {
             errorObj.notFound = true;
             if (throwError) throw global.config.message.MOBILE_NOT_FOUND;

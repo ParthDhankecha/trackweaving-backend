@@ -2,7 +2,7 @@ const { compare } = require('bcrypt');
 
 module.exports = {
     login: async (email, password) => {
-        const query = await adminUserModel.findOne({ email: email });
+        const query = await adminUserModel.findOne({ email: email }, '+password +userType').lean();
         if (!query) {
             return null;
         }

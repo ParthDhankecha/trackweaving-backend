@@ -1,9 +1,8 @@
 module.exports = {
     USERS: {
         TYPE: {
-            ADMIN: 1,
-            CUSTOMER: 2,
-            SUB_CUSTOMER: 3
+            SUPER_ADMIN: 0,
+            ADMIN: 1
         }
     }
 };

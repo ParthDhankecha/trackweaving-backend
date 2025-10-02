@@ -17,7 +17,7 @@ module.exports = {
         const payload = {
             user: {
                 id: user._id,
-                type: user?.userType || 0,
+                type: user?.userType,
                 workspaceId: user?.workspaceId || null
             }
         };

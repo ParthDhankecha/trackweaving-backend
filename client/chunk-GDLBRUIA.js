@@ -1,1 +1,0 @@
-import{Ra as r,Va as t,Ya as o,s as e}from"./chunk-F77CFND7.js";var h=(u,a)=>{let i=e(r);if(!e(o).utils.isAuthenticated){let n=a.url.startsWith(`/${t.ADMIN.BASE}`);return i.navigateByUrl(n?t.ADMIN.getFullRoute(t.ADMIN.LOGIN):t.AUTH.BASE),!1}return!0};export{h as a};

@@ -6,7 +6,7 @@ module.exports = {
     getMachineList: async (req, res, next) => {
         try {
             const workspaceId = req.user.workspaceId;
-            const machines = await machineService.find({ workspaceId, isDeleted: false }, { populate: 'machineGroupId', projection: 'machineCode machineName ip machineGroupId isAlertActive' });
+            const machines = await machineService.find({ workspaceId, isDeleted: false }, { populate: 'machineGroupId', projection: 'serialNumber machineCode machineName ip machineGroupId isAlertActive' });
 
             return res.ok(machines, global.config.message.OK);
         } catch (error) {

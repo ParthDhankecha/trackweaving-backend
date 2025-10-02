@@ -7,10 +7,10 @@ const { log, checkRequiredParams } = require("../../services/utilService")
 module.exports = {
     create: async (req, res, next) => {
         try {
-            checkRequiredParams(['serialNumber', 'machineCode', 'machineName', 'workspaceId', 'ip'], req.body);
+            checkRequiredParams(['machineCode', 'machineName', 'workspaceId', 'ip'], req.body);
             const reqBody = req.body;
 
-            const isMachineExist = await machineService.findOne({ $or: [{ serialNumber: reqBody.serialNumber }, { machineCode: reqBody.machineCode }, { ip: reqBody.ip }], workspaceId: reqBody.workspaceId });
+            const isMachineExist = await machineService.findOne({ $or: [{ machineCode: reqBody.machineCode }, { ip: reqBody.ip }], workspaceId: reqBody.workspaceId });
             if (isMachineExist) {
                 throw global.config.message.IS_DUPLICATE;
             }
@@ -76,11 +76,8 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            if (updateData.serialNumber || updateData.machineCode || updateData.ip) {
+            if (updateData.machineCode || updateData.ip) {
                 const existObj = { $or: [] };
-                if (updateData.serialNumber) {
-                    existObj.$or.push({ serialNumber: updateData.serialNumber });
-                }
                 if (updateData.machineCode) {
                     existObj.$or.push({ machineCode: updateData.machineCode });
                 }

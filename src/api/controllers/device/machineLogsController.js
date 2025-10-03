@@ -23,6 +23,7 @@ module.exports = {
                 data.beamLeft = logData.beamLeft;
                 data.setPicks = logData.setPicks;
                 data.stopsData = {};
+                data.logTime = logData.updatedAt;
                 data.totalDuration = logData.stop === 0 ? (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStartTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00') : (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStopTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00');
                 let totalStopDuration = 0;
                 let totalStops = 0;

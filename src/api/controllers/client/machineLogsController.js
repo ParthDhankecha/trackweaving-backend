@@ -120,7 +120,7 @@ module.exports = {
                     record.lastStopTime = logs[machineId].lastStopTime;
                 }
                 if(logs[machineId].prevData){
-                    let prevData = machineLogsService.parseBlock(logs[machineId].prevData);
+                    let prevData = machineLogsService.parseBlock(logs[machineId].prevData.rawData);
                     prevData = {
                         ...prevData,
                         machineId,

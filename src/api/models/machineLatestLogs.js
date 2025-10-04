@@ -16,6 +16,9 @@ const machineStopsDataSubSchema = getSubSchema({
         trim: true,
         default: ''
     },
+    statusCode: {
+        type: Number
+    },
     duration: {
         type: Number,
         default: 0

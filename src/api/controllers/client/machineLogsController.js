@@ -142,6 +142,44 @@ module.exports = {
         }
     },
 
+    getMachineList: async (req, res, next) => {
+        checkRequiredParams(['apiKey', 'workspaceId'], req.body);
+        if (req.body.apiKey !== global.config.API_KEY) {
+            throw global.config.message.UNAUTHORIZED;
+        }
+        let machines = await machineService.find({ workspaceId: req.body.workspaceId, isDeleted: false }, { projection: { machineCode: 1, ip: 1, deviceType: 1 }, sort: { _id: 1 }, useLean: true });
+        let machineIds = [];
+        machines = machines.map(m => { 
+            machineIds.push(m._id);
+            m.id = m._id.toString();
+            delete m._id;
+
+            return m; 
+        });
+        let machineLogs = await machineLogsService.findLatestLogs({ machineId: { $in: machineIds }, updatedAt: { $gte: moment()} }, { projection: { stopsData: 1, lastStopTime: 1, lastStartTime: 1, stop: 1, shift: 1, rawData: 1 }, useLean: true });
+        let machineData = {};
+        for(let machine of machines) {
+            let log = machineLogs.find(l => l.machineId.toString() === machine._id.toString());
+            machineData[machine._id] = {
+                stopCount: 0,
+                stopsData: log?.stopsData || {
+                    warp: [],
+                    weft: [],
+                    feeder: [],
+                    manual: [],
+                    other: []
+                },
+                lastStopTime: log?.lastStopTime || null,
+                lastStartTime: log?.lastStartTime || null,
+                stop: log?.stop || 0,
+                shift: log?.shift || 1,
+                rawData: log?.rawData || [],
+            };
+        }
+
+        return res.ok({ machines, machineData });
+    },
+
     getList: async (req, res, next) => {
         try {
             checkRequiredParams(['workspaceId'], req.body);

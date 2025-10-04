@@ -7,10 +7,9 @@ module.exports = {
             if(machineLog.shift != body.shift) {
                 if(body.prevData){
                     await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createAt: -1 } });
-                } else {
-                    let log = new machineLogsModel(body);
-                    await log.save();
                 }
+                let log = new machineLogsModel(body);
+                await log.save();
             } else {
                 await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createAt: -1 } });
             }
@@ -32,6 +31,29 @@ module.exports = {
         };
 
         const query = machineLogsModel.find({ ...condition, isDeleted: false });
+
+        if (queryOptions.sort) query.sort(queryOptions.sort);
+        if (queryOptions.limit) query.limit(queryOptions.limit);
+        if (queryOptions.skip) query.skip(queryOptions.skip);
+        if (queryOptions.projection) query.select(queryOptions.projection);
+        if (queryOptions.populate) query.populate(queryOptions.populate);
+        if (queryOptions.useLean) query.lean();
+
+        return await query;
+    },
+
+    async findLatestLogs(condition, queryOptions = {}) {
+        queryOptions = {
+            sort: undefined,
+            limit: undefined,
+            skip: undefined,
+            projection: undefined,
+            populate: undefined,
+            useLean: false,
+            ...queryOptions
+        };
+
+        const query = machineLatestLogsModel.find({ ...condition, isDeleted: false });
 
         if (queryOptions.sort) query.sort(queryOptions.sort);
         if (queryOptions.limit) query.limit(queryOptions.limit);

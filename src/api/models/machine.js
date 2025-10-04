@@ -113,6 +113,11 @@ const machineSchema = new Schema({
         }),
         default: {}
     },
+    deviceType: {
+        type: String,
+        default: 'lan',
+        enum: ['lan', 'rs485']
+    },
     isDeleted: {
         type: Boolean,
         default: false

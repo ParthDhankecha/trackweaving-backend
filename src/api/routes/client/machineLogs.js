@@ -5,5 +5,6 @@ const machineLogsController = require("../../controllers/client/machineLogsContr
 
 router.post('/', machineLogsController.createLog);
 
+router.post('/machine-list', machineLogsController.getMachineList);
 
 module.exports = router;

@@ -112,7 +112,11 @@ module.exports = {
                         avgPicks: Math.round((totalNumbers.avgPicks / totalNumbers.avgCount) || 0)
                     })
                     break;
-            
+
+                case 'stopageFilter':
+                    let stopageFields = ['']
+                    break;
+
                 default:
                     break;
             }

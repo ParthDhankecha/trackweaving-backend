@@ -8,6 +8,13 @@ module.exports = {
                 if(body.prevData){
                     await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createAt: -1 } });
                 }
+                body.stopsData = {
+                    warp: [],
+                    weft: [],
+                    feeder: [],
+                    manual: [],
+                    other: []
+                };
                 let log = new machineLogsModel(body);
                 await log.save();
             } else {

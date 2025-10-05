@@ -6,7 +6,7 @@ module.exports = {
         if(machineLog) {
             if(machineLog.shift != body.shift) {
                 if(body.prevData){
-                    await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createAt: -1 } });
+                    await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createdAt: -1 } });
                 }
                 body.stopsData = {
                     warp: [],
@@ -18,18 +18,7 @@ module.exports = {
                 let log = new machineLogsModel(body);
                 await log.save();
             } else {
-                delete body.prevData;
-                delete body.machineId;
-                delete body.workspaceId;
-                delete body.createdAt;
-                delete body.updatedAt;
-                await machineLogsModel.aggregate([
-                    { $match: { machineId: machineLog.machineId, workspaceId: machineLog.workspaceId } },
-                    { $sort: { createdAt: -1 } },
-                    { $limit: 1 },
-                    { $set: body}
-                ])
-                // await machineLogsModel.collection.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, { $set: body }, { sort: { createAt: -1 } });
+                await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body, { sort: { createdAt: -1 } });
             }
         } else {
             let log = new machineLogsModel(body);

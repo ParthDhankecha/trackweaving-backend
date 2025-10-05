@@ -160,7 +160,7 @@ module.exports = {
         let machineData = {};
         for(let machine of machines) {
             let log = machineLogs.find(l => l.machineId.toString() === machine._id.toString());
-            machineData[machine._id] = {
+            machineData[machine.id] = {
                 stopCount: 0,
                 stopsData: log?.stopsData || {
                     warp: [],

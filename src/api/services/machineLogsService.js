@@ -18,7 +18,7 @@ module.exports = {
                 let log = new machineLogsModel(body);
                 await log.save();
             } else {
-                await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createAt: -1 } });
+                await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body, { sort: { createAt: -1 } });
             }
         } else {
             let log = new machineLogsModel(body);

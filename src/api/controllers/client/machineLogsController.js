@@ -156,7 +156,7 @@ module.exports = {
 
             return m; 
         });
-        let machineLogs = await machineLogsService.findLatestLogs({ machineId: { $in: machineIds }, updatedAt: { $gte: moment()} }, { projection: { stopsData: 1, lastStopTime: 1, lastStartTime: 1, stop: 1, shift: 1, rawData: 1 }, useLean: true });
+        let machineLogs = await machineLogsService.findLatestLogs({ machineId: { $in: machineIds } }, { projection: { stopsData: 1, lastStopTime: 1, lastStartTime: 1, stop: 1, shift: 1, rawData: 1 }, useLean: true });
         let machineData = {};
         for(let machine of machines) {
             let log = machineLogs.find(l => l.machineId.toString() === machine._id.toString());

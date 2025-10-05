@@ -27,7 +27,7 @@ module.exports = {
                         condition.shift = { $in: req.body.shift };
                     }
                     let machines = await machineService.find({ _id: { $in: req.body.machineIds }, workspaceId: req.user.workspaceId }, { projection: { machineCode: 1 }, useLean: true });
-                    let reportData = await machineLogsService.find(condition, { projection: { rawData: false, workspaceId: false, lastStopTime: false, lastStartTime: false, picksTotal: false, setPicks: false, stop: false, alarmsActive: false, loomStateCode: false, isDeleted: false }, sort: { createdAt: -1, machineId: 1 }, useLean: true });
+                    let reportData = await machineLogsService.find(condition, { projection: { rawData: false, workspaceId: false, lastStopTime: false, lastStartTime: false, picksTotal: false, setPicks: false, stop: false, alarmsActive: false, loomStateCode: false, isDeleted: false }, sort: { machineId: 1 }, useLean: true });
                     let finalData = [];
                     let totalNumbers = {
                         totalPicks: 0,

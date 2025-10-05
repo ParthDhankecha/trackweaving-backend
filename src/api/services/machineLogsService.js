@@ -23,7 +23,13 @@ module.exports = {
                 delete body.workspaceId;
                 delete body.createdAt;
                 delete body.updatedAt;
-                await machineLogsModel.collection.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, { $set: body }, { sort: { createAt: -1 } });
+                await machineLogsModel.aggregate([
+                    { $match: { machineId: machineLog.machineId, workspaceId: machineLog.workspaceId } },
+                    { $sort: { createdAt: -1 } },
+                    { $limit: 1 },
+                    { $set: body}
+                ])
+                // await machineLogsModel.collection.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, { $set: body }, { sort: { createAt: -1 } });
             }
         } else {
             let log = new machineLogsModel(body);

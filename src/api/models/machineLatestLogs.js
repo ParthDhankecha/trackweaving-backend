@@ -95,6 +95,10 @@ const machineLatestLogsSchema = new Schema({
     lastStartTime: {
         type: Date
     },
+    stopCount: {
+        type: Number,
+        default: 0
+    },
     stopsData: {
         type: getSubSchema({
             warp: {

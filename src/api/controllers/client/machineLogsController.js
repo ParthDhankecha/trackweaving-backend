@@ -108,7 +108,7 @@ module.exports = {
                 let record = {
                     ...body,
                     stopsData: logs[machineId].stopsData,
-                    stopsCount: logs[machineId].stopsCount,
+                    stopCount: logs[machineId].stopCount,
                     machineId,
                     workspaceId: req.body.workspaceId,
                     rawData: logs[machineId].rawData
@@ -125,7 +125,7 @@ module.exports = {
                         ...prevData,
                         machineId,
                         stopsData: prevData.stopsData,
-                        stopsCount: prevData.stopsCount,
+                        stopCount: prevData.stopCount,
                         workspaceId: req.body.workspaceId,
                         rawData: logs[machineId].prevData.rawData
                     }

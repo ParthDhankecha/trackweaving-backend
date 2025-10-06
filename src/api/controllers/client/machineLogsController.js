@@ -127,7 +127,7 @@ module.exports = {
                         stopsData: prevData.stopsData,
                         stopsCount: prevData.stopsCount,
                         workspaceId: req.body.workspaceId,
-                        rawData: logs[machineId].prevData
+                        rawData: logs[machineId].prevData.rawData
                     }
                     record.prevData = prevData;
                 }
@@ -172,7 +172,6 @@ module.exports = {
                 lastStopTime: log?.lastStopTime || null,
                 lastStartTime: log?.lastStartTime || null,
                 stop: log?.stop || 0,
-                shift: log?.shift || 1,
                 rawData: log?.rawData || [],
             };
         }

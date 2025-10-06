@@ -19,4 +19,6 @@ router.use('/shift-wise-comments', require('./shiftWiseComment'));
 
 router.use('/reports', require('./report'));
 
+router.use('/part-change-logs', require('./partChangeLog'));
+
 module.exports = router;

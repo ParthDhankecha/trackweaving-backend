@@ -21,4 +21,6 @@ router.use('/reports', require('./report'));
 
 router.use('/part-change-logs', require('./partChangeLog'));
 
+router.use('/notifications', require('./notification'));
+
 module.exports = router;

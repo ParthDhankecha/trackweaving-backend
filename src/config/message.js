@@ -213,6 +213,11 @@ module.exports = {
             message: "already exists.",
             status: 422
         },
+        USER_EXISTS: {
+            code: "E_DUPLICATE",
+            message: "User with this username already exists.",
+            status: 409
+        },
         REQUIRED_FIELD_MISSING: {
             code: "UNPROCESSABLE_ENTITY",
             message: "Required field missing.",
@@ -300,6 +305,11 @@ module.exports = {
             code: "E_BAD_REQUEST",
             message: "Shift value is invalid, it should be either 'day' or 'night'.",
             status: 400
+        },
+        USER_LIMIT_EXCEEDED: {
+            code: "UNPROCESSABLE_ENTITY",
+            message: "You already reached maximum user add limit.",
+            status: 422
         }
     }
 };

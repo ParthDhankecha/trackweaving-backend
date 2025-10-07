@@ -44,7 +44,7 @@ const UserSchema = new Schema({
     },
     userType: {
         type: Number,
-        enum: [USERS.TYPE.ADMIN],
+        enum: [USERS.TYPE.ADMIN, USERS.TYPE.SUB_USER],
         default: USERS.TYPE.ADMIN,
         select: false
     },
@@ -59,12 +59,17 @@ const UserSchema = new Schema({
         },
         subUserLimit: {
             type: Number,
-            default: 0
+            default: 4
         }
     }),
     isActive: {
         type: Boolean,
         default: true
+    },
+    fcmToken: {
+        type: String,
+        default: '',
+        trim: true
     },
     isDeleted: {
         type: Boolean,

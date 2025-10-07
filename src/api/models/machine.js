@@ -118,6 +118,9 @@ const machineSchema = new Schema({
         default: 'lan',
         enum: ['lan', 'rs485']
     },
+    maxSpeedLimit: {
+        type: Number,
+    },
     isDeleted: {
         type: Boolean,
         default: false

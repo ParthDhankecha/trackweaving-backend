@@ -1,4 +1,5 @@
 const projectSetupConfigService = require("./config/projectSetupConfigService");
+const machineService = require("./machineService");
 const { infoLog, errLog } = require("./utilService");
 
 module.exports = {
@@ -10,6 +11,17 @@ module.exports = {
         infoLog('buildSetupConfig');
         const SetupConfig = await projectSetupConfigService.buildSetupConfig();
         if (SetupConfig) errLog(SetupConfig);
+
+        infoLog('buildMachineAlertConfig');
+        let machines = await machineService.find({ isDeleted: false }, { useLean: true, projection: { _id: 1, maxSpeedLimit: 1 } });
+        global.config.MACHINE_ALERT_CONFIG = {};
+        for (let machine of machines) {
+            if(machine.maxSpeedLimit) {
+                global.config.MACHINE_ALERT_CONFIG[machine._id] = {
+                    speedLimit: machine.maxSpeedLimit,
+                };
+            }
+        }
 
         infoLog('Initialize App Done!');
     }

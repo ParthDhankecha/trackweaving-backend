@@ -152,5 +152,22 @@ module.exports = {
         };
 
         return result;
+    },
+
+    async updateOne(queryFilter, updateData) {
+        return await userModel.updateOne({ ...queryFilter, isDeleted: false }, updateData);
+    },
+
+    async create(data) {
+        if (data.password) {
+            data.password = await utilService.generateHashValue(data.password);
+        }
+
+        const user = new userModel(data);
+        return await user.save();
+    },
+
+    async count(filter = {}) {
+        return await userModel.countDocuments({ ...filter, isDeleted: false });
     }
 }

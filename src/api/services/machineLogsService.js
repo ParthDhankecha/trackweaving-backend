@@ -1,3 +1,7 @@
+const machineService = require("./machineService");
+const notificationService = require("./notificationService");
+const { capitalize } = require("lodash");
+
 const toUint32 = (hi, lo) => (((hi << 16) >>> 0) + (lo >>> 0)) >>> 0;
 
 module.exports = {
@@ -20,9 +24,58 @@ module.exports = {
             } else {
                 await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body, { sort: { createdAt: -1 } });
             }
+            this.checkAlertNotification(machineLog, body);
         } else {
             let log = new machineLogsModel(body);
             await log.save();
+        }
+    },
+
+    async checkAlertNotification(machineLog, body) {
+        let isPickChanged = false;
+        let isSpeedAlert = false;
+
+        if(machineLog.setPicks !== body.setPicks) {
+            isPickChanged = true;
+        }
+        if(global.config.MACHINE_ALERT_CONFIG && global.config.MACHINE_ALERT_CONFIG[body.machineId]) {
+            if(body.speedRpm > global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit && moment().diff(global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime, 'minutes') > 10) {
+                isSpeedAlert = true;
+            }
+        }
+        
+        if(isPickChanged || isSpeedAlert) {
+            let machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { machineName: 1, machineCode: 1 } });
+            let users = await userModel.find({ workspaceId: body.workspaceId, isActive: true, isDeleted: false }, { _id: 1, fcmToken: 1 }).lean() || [];
+            if(users.length) {
+                let tokens = [];
+                let userIds = [];
+                for(let user of users) {
+                    if(user.fcmToken) {
+                        tokens.push(user.fcmToken);
+                    }
+                    userIds.push(user._id);
+                }
+                if(isPickChanged) {
+                    let pickNotification = {
+                        machineId: body.machineId,
+                        workspaceId: body.workspaceId,
+                        title: `Picks changed on ${capitalize(machine.machineName)} (${machine.machineCode})`,
+                        description: `Picks changed from ${machineLog.setPicks} to ${body.setPicks}`
+                    };
+                    notificationService.createNotification(pickNotification, userIds, tokens);
+                }
+                if(isSpeedAlert) {
+                    let speedNotification = {
+                        machineId: body.machineId,
+                        workspaceId: body.workspaceId,
+                        title: `Speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
+                        description: `Machine speed ${body.speedRpm} RPM exceeded the limit of ${global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit} RPM`
+                    };
+                    notificationService.createNotification(speedNotification, userIds, tokens);
+                    global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
+                }
+            }
         }
     },
 

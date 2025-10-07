@@ -18,7 +18,8 @@ module.exports = {
             user: {
                 id: user._id,
                 type: user?.userType,
-                workspaceId: user?.workspaceId || null
+                workspaceId: user?.workspaceId || null,
+                subUserLimit: user?.plan?.subUserLimit || 4
             }
         };
 

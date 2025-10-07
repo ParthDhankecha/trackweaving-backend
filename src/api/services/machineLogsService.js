@@ -1,6 +1,7 @@
 const machineService = require("./machineService");
 const notificationService = require("./notificationService");
 const { capitalize } = require("lodash");
+const moment = require('moment');
 
 const toUint32 = (hi, lo) => (((hi << 16) >>> 0) + (lo >>> 0)) >>> 0;
 

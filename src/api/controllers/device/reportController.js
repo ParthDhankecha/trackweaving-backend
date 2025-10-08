@@ -82,6 +82,7 @@ module.exports = {
                             count: totalStopCount,
                             duration: `${Math.floor(totalStopDuration / 3600).toString().padStart(2, '0')}:${Math.floor((totalStopDuration % 3600) / 60).toString().padStart(2, '0')}`
                         }
+                        delete data.stopsCount;
                         let runTime = data.runTime.split(':');
                         if(runTime.length > 1) {
                             let runHours = parseInt(runTime[0]);

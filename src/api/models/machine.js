@@ -121,6 +121,10 @@ const machineSchema = new Schema({
     maxSpeedLimit: {
         type: Number,
     },
+    displayType: {
+        type: String,
+        default: 'nazon'
+    },
     isDeleted: {
         type: Boolean,
         default: false

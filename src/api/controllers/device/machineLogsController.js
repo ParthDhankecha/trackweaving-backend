@@ -17,7 +17,7 @@ module.exports = {
                 data.picks = logData.picksCurrentShift;
                 data.speed = logData.speedRpm;
                 data.currentStop = logData.stop;
-                data.stopReason = machineLogsService.getStopReason(logData.stop);
+                data.stopReason = machineLogsService.getStopReason(logData.stop, logData.displayType);
                 data.pieceLengthM = logData.pieceLengthM;
                 data.stops = logData?.machine?.stopsCount || 0;
                 data.beamLeft = logData.beamLeft;
@@ -26,14 +26,13 @@ module.exports = {
                 data.totalDuration = logData.stop === 0 ? (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStartTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00') : (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStopTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00');
                 let totalStopDuration = 0;
                 let totalStops = 0;
-                for(let key in logData?.machineId?.stopsData){
-                    let duration = logData?.machineId?.stopsData[key]?.reduce((acc, curr) => acc + (curr.duration || 0), 0) || 0;
+                for(let key in logData?.machineId?.stopsCount){
                     data.stopsData[key] = {
-                        count: logData?.machineId?.stopsData[key]?.length || 0,
-                        duration: moment.utc(duration * 1000).format('HH:mm'),
+                        count: logData?.machineId?.stopsCount[key].count || 0,
+                        duration: moment.utc(logData?.machineId?.stopsCount[key].duration * 1000).format('HH:mm'),
                     }
-                    totalStops += logData?.machineId?.stopsData[key]?.length || 0;
-                    totalStopDuration += duration;
+                    totalStops += logData?.machineId?.stopsCount[key].count || 0;
+                    totalStopDuration += logData?.machineId?.stopsCount[key].duration || 0;
                 }
                 data.stopsData.total = {
                     duration: moment.utc(totalStopDuration * 1000).format('HH:mm'),

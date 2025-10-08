@@ -160,25 +160,73 @@ module.exports = {
         return await machineLogsModel.countDocuments({ ...filter, isDeleted: false });
     },
 
-    parseBlock(body) {
+    parseBlock(body, displayType = 'nazon') {
         const at = (lw) => body[lw - 4999];
 
-        const speedRpm   = at(5010);
-        const stopCode   = at(5027);
-        const stateCode  = at(5028);
-        const efficiency = at(5017);
+        const speedRpm   = displayType == "nazon" ? at(5010) : at(5003);
+        const stopCode   = displayType == "nazon" ? at(5027) : at(5023);
+        const stateCode  = displayType == "nazon" ? at(5028) : at(5013);
+        const efficiency = displayType == "nazon" ? at(5017) : at(5044);
 
-        const pieceLenCm     = at(5013);
+        const pieceLenCm     = displayType == "nazon" ? at(5013) : at(5006);
         const pieceLenMeters = pieceLenCm / 100;
 
-        const shiftWeftCount = toUint32(at(5016), at(5015));
-        const totalWeftHundreds = toUint32(at(5020), at(5019));
+        const shiftWeftCount = displayType == "nazon" ? toUint32(at(5016), at(5015)) : toUint32(at(5046), at(5045));
+        const totalWeftHundreds = displayType == "nazon" ? toUint32(at(5020), at(5019)) : 0;
         const totalWeftCount = totalWeftHundreds * 100;
-        const currentDensity = at(5035);
+        const currentDensity = displayType == "nazon" ? at(5035) : at(5002);
 
-        const beam1Remain = at(5023);
+        const beamLeft = displayType == "nazon" ? at(5023) : at(5022);
 
-        const alarms = [at(5029), at(5030), at(5031), at(5032)];
+        const alarms = displayType == "nazon" ? [at(5029), at(5030), at(5031), at(5032)] : [];
+        let stopsCount = {};
+        if(displayType == "nazon"){
+            stopsCount = {
+                warp: {
+                    count: at(5061),
+                    stopTime: at(5057) || 0
+                },
+                weft: {
+                    count: at(5062),
+                    stopTime: at(5058) || 0
+                },
+                feeder: {
+                    count: at(5063),
+                    stopTime: at(5059) || 0
+                },
+                manual: {
+                    count: 0,
+                    stopTime: 0
+                },
+                other: {
+                    count: at(5064),
+                    stopTime: at(5060) || 0
+                }
+            }
+        } else if(displayType == "chitic") {
+            stopsCount = {
+                warp: {
+                    count: at(5036),
+                    stopTime: (at(5040) || 0) * 60 
+                },
+                weft: {
+                    count: at(5037),
+                    stopTime: (at(5058) || 0) * 60
+                },
+                manual: {
+                    count: at(5038),
+                    stopTime: (at(5059) || 0) * 60
+                },
+                feeder: {
+                    count: 0,
+                    stopTime: 0
+                },
+                other: {
+                    count: at(5039),
+                    stopTime: (at(5060) || 0) * 60
+                }
+            }
+        }
 
         return {
             speedRpm: speedRpm,
@@ -188,11 +236,12 @@ module.exports = {
             picksCurrentShift: shiftWeftCount,
             picksTotal: totalWeftCount,
             pieceLengthM: pieceLenMeters,
-            beamLeft: beam1Remain,
+            beamLeft: beamLeft,
             setPicks: currentDensity,
             alarmsActive: alarms,
             shift: at(5012),
-            runTime: `${body[56].toString().padStart(2, '0')}:${body[57].toString().padStart(2, '0')}`
+            stopsCount: stopsCount,
+            runTime: (displayType == "nazon" ? `${at(5055).toString().padStart(2, '0')}:${at(5056).toString().padStart(2, '0')}` : `${at(5034).toString().padStart(2, '0')}:${at(5035).toString().padStart(2, '0')}`)
         };
     },
 
@@ -328,16 +377,26 @@ module.exports = {
          return data[0];*/
     },
 
-    getStopReason(stopCode){
-        const STOP_REASON = {
-            0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Hand stop", 5: "Full piece",
-            6: "Emergency stop", 7: "Lack weft stop", 8: "Loom error", 9: "Power off (running)",
-            10: "ELOETU error stop", 11: "Weft present on empty cycle", 12: "Weft present on double cycle",
-            13: "Jacquard fix length stop", 14: "Safety barrier stop", 15: "Weft stop area 1",
-            16: "Weft stop area 2", 17: "Weft stop area 3", 18: "Weft stop area 4",
-            19: "Warp stop area 1", 20: "Warp stop area 2"
-        };
-
+    getStopReason(stopCode, displayType = 'nazon'){
+        let STOP_REASON = {};
+        if(displayType == 'nazon') {
+            STOP_REASON = {
+                0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Hand stop", 5: "Full piece",
+                6: "Emergency stop", 7: "Lack weft stop", 8: "Loom error", 9: "Power off (running)",
+                10: "ELOETU error stop", 11: "Weft present on empty cycle", 12: "Weft present on double cycle",
+                13: "Jacquard fix length stop", 14: "Safety barrier stop", 15: "Weft stop area 1",
+                16: "Weft stop area 2", 17: "Weft stop area 3", 18: "Weft stop area 4",
+                19: "Warp stop area 1", 20: "Warp stop area 2"
+            };
+        } else if(displayType == "chitic") {
+            STOP_REASON = {
+                0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Hand stop", 5: "Full piece",
+                6: "Emergency stop", 7: "Lack weft stop", 8: "Loom error", 9: "Power off (running)",
+                10: "ELOETU error stop", 11: "Weft present on empty cycle", 12: "Weft present on double cycle",
+                13: "SRDB Fault", 14: "MCB Instruction Err", 15: "Safety barrier stop",
+                16: "Jacquard fix length stop"
+            };
+        }
         return STOP_REASON[stopCode] || "Unknown stop reason";
     }
 }

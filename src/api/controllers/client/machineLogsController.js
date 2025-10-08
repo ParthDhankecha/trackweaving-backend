@@ -104,7 +104,7 @@ module.exports = {
             }
             let logs = req.body.logs;
             for(let machineId in logs) {
-                let body = machineLogsService.parseBlock(logs[machineId].rawData);
+                let body = machineLogsService.parseBlock(logs[machineId].rawData, logs[machineId].displayType);
                 let record = {
                     ...body,
                     stopsData: logs[machineId].stopsData,
@@ -120,7 +120,7 @@ module.exports = {
                     record.lastStopTime = logs[machineId].lastStopTime;
                 }
                 if(logs[machineId].prevData){
-                    let prevData = machineLogsService.parseBlock(logs[machineId].prevData.rawData);
+                    let prevData = machineLogsService.parseBlock(logs[machineId].prevData.rawData, logs[machineId].prevData.displayType);
                     prevData = {
                         ...prevData,
                         machineId,
@@ -147,7 +147,7 @@ module.exports = {
         if (req.body.apiKey !== global.config.API_KEY) {
             throw global.config.message.UNAUTHORIZED;
         }
-        let machines = await machineService.find({ workspaceId: req.body.workspaceId, isDeleted: false }, { projection: { machineCode: 1, ip: 1, deviceType: 1 }, sort: { _id: 1 }, useLean: true });
+        let machines = await machineService.find({ workspaceId: req.body.workspaceId, isDeleted: false }, { projection: { machineCode: 1, ip: 1, deviceType: 1, displayType: 1 }, sort: { _id: 1 }, useLean: true });
         let machineIds = [];
         machines = machines.map(m => { 
             machineIds.push(m._id);
@@ -161,6 +161,7 @@ module.exports = {
         for(let machine of machines) {
             let log = machineLogs.find(l => l.machineId.toString() == machine.id.toString());
             machineData[machine.id] = {
+                displayType: machine.displayType || 'nazon',
                 stopCount: 0,
                 stopsData: log?.stopsData || {
                     warp: [],

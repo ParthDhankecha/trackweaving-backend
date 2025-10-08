@@ -25,6 +25,17 @@ const machineStopsDataSubSchema = getSubSchema({
     }
 });
 
+const machineStopsCountSubSchema = getSubSchema({
+    count: {
+        type: Number,
+        default: 0
+    },
+    duration: {
+        type: Number,
+        default: 0
+    }
+});
+
 const machineLatestLogsSchema = new Schema({
     machineId: {
         type: Schema.Types.ObjectId,
@@ -98,6 +109,31 @@ const machineLatestLogsSchema = new Schema({
     stopCount: {
         type: Number,
         default: 0
+    },
+    stopsCount: {
+        type: getSubSchema({
+            warp: {
+                type: machineStopsCountSubSchema,
+                default: { count: 0, duration: 0 }
+            },
+            weft: {
+                type: machineStopsCountSubSchema,
+                default: { count: 0, duration: 0 }
+            },
+            feeder: {
+                type: machineStopsCountSubSchema,
+                default: { count: 0, duration: 0 }
+            },
+            manual: {
+                type: machineStopsCountSubSchema,
+                default: { count: 0, duration: 0 }
+            },
+            other: {
+                type: machineStopsCountSubSchema,
+                default: { count: 0, duration: 0 }
+            }
+        }),
+        default: {}
     },
     stopsData: {
         type: getSubSchema({

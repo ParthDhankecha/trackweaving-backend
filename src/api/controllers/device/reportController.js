@@ -63,10 +63,11 @@ module.exports = {
                         
                         let shift = data.shift == global.config.SHIFT_TYPE.DAY ? "dayShift" : "nightShift";
                         data.machineCode = machines.find(m => m._id.toString() === data.machineId.toString())?.machineCode || '';
-                        for(let key in data.stopsData) {
+                        data.stopsData = {};
+                        for(let key in data.stopsCount) {
                             data.stopsData[key] = {
-                                count: data.stopsData[key].length,
-                                totalDuration: data.stopsData[key].reduce((a, b) => a + (b.duration || 0), 0)
+                                count: data.stopsCount[key].count || 0,
+                                totalDuration: data.stopsCount[key].duration || 0
                             };
                             const totalSeconds = data.stopsData[key].totalDuration;
                             const hours = Math.floor(totalSeconds / 3600);

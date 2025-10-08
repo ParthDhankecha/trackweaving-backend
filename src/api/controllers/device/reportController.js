@@ -64,15 +64,33 @@ module.exports = {
                         let shift = data.shift == global.config.SHIFT_TYPE.DAY ? "dayShift" : "nightShift";
                         data.machineCode = machines.find(m => m._id.toString() === data.machineId.toString())?.machineCode || '';
                         data.stopsData = {};
+                        let totalStopCount = 0;
+                        let totalStopDuration = 0;
                         for(let key in data.stopsCount) {
                             data.stopsData[key] = {
                                 count: data.stopsCount[key].count || 0,
                                 totalDuration: data.stopsCount[key].duration || 0
                             };
+                            totalStopCount += data.stopsData[key].count || 0;
+                            totalStopDuration += data.stopsData[key].totalDuration || 0;
                             const totalSeconds = data.stopsData[key].totalDuration;
                             const hours = Math.floor(totalSeconds / 3600);
                             const minutes = Math.floor((totalSeconds % 3600) / 60);
                             data.stopsData[key].totalDuration = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                        }
+                        data.stopsData.total = {
+                            count: totalStopCount,
+                            duration: `${Math.floor(totalStopDuration / 3600).toString().padStart(2, '0')}:${Math.floor((totalStopDuration % 3600) / 60).toString().padStart(2, '0')}`
+                        }
+                        let runTime = data.runTime.split(':');
+                        if(runTime.length > 1) {
+                            let runHours = parseInt(runTime[0]);
+                            let runMins = parseInt(runTime[1]);
+                            if(runMins >= 60) {
+                                runHours += Math.floor(runMins / 60) - Math.floor(totalStopDuration / 3600);
+                                runMins = (runMins % 60) - Math.floor((totalStopDuration % 3600) / 60);
+                            }
+                            data.runTime = `${runHours.toString().padStart(2, '0')}:${runMins.toString().padStart(2, '0')}`;
                         }
                         finalData[reportDate][shift].list.push(data);
                         finalData[reportDate][shift].totalPicks += data.picksCurrentShift || 0;

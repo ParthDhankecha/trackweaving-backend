@@ -1,0 +1,1 @@
+import{F as n,Y as t,Z as a,oa as i}from"./chunk-J3H7TIOX.js";var p=class o{ngOnInit(){console.log("PageNotFound component initialized")}static \u0275fac=function(e){return new(e||o)};static \u0275cmp=n({type:o,selectors:[["app-page-not-found"]],decls:2,vars:0,template:function(e,d){e&1&&(t(0,"p"),i(1,"page-not-found works!"),a())},encapsulation:2})};export{p as a};

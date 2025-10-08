@@ -69,14 +69,14 @@ module.exports = {
                         for(let key in data.stopsCount) {
                             data.stopsData[key] = {
                                 count: data.stopsCount[key].count || 0,
-                                totalDuration: data.stopsCount[key].duration || 0
+                                duration: data.stopsCount[key].duration || 0
                             };
                             totalStopCount += data.stopsData[key].count || 0;
-                            totalStopDuration += data.stopsData[key].totalDuration || 0;
-                            const totalSeconds = data.stopsData[key].totalDuration;
+                            totalStopDuration += data.stopsData[key].duration || 0;
+                            const totalSeconds = data.stopsData[key].duration;
                             const hours = Math.floor(totalSeconds / 3600);
                             const minutes = Math.floor((totalSeconds % 3600) / 60);
-                            data.stopsData[key].totalDuration = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                            data.stopsData[key].duration = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
                         }
                         data.stopsData.total = {
                             count: totalStopCount,

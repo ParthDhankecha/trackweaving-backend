@@ -86,10 +86,8 @@ module.exports = {
                         if(runTime.length > 1) {
                             let runHours = parseInt(runTime[0]);
                             let runMins = parseInt(runTime[1]);
-                            if(runMins >= 60) {
-                                runHours += Math.floor(runMins / 60) - Math.floor(totalStopDuration / 3600);
-                                runMins = (runMins % 60) - Math.floor((totalStopDuration % 3600) / 60);
-                            }
+                            runHours -= Math.floor(totalStopDuration / 3600);
+                            runMins -= Math.floor((totalStopDuration % 3600) / 60);
                             data.runTime = `${runHours.toString().padStart(2, '0')}:${runMins.toString().padStart(2, '0')}`;
                         }
                         finalData[reportDate][shift].list.push(data);

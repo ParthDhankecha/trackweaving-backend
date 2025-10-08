@@ -184,46 +184,46 @@ module.exports = {
             stopsCount = {
                 warp: {
                     count: at(5061),
-                    stopTime: at(5057) || 0
+                    duration: at(5057) || 0
                 },
                 weft: {
                     count: at(5062),
-                    stopTime: at(5058) || 0
+                    duration: at(5058) || 0
                 },
                 feeder: {
                     count: at(5063),
-                    stopTime: at(5059) || 0
+                    duration: at(5059) || 0
                 },
                 manual: {
                     count: 0,
-                    stopTime: 0
+                    duration: 0
                 },
                 other: {
                     count: at(5064),
-                    stopTime: at(5060) || 0
+                    duration: at(5060) || 0
                 }
             }
         } else if(displayType == "chitic") {
             stopsCount = {
                 warp: {
                     count: at(5036),
-                    stopTime: (at(5040) || 0) * 60 
+                    duration: (at(5040) || 0) * 60 
                 },
                 weft: {
                     count: at(5037),
-                    stopTime: (at(5058) || 0) * 60
+                    duration: (at(5058) || 0) * 60
                 },
                 manual: {
                     count: at(5038),
-                    stopTime: (at(5059) || 0) * 60
+                    duration: (at(5059) || 0) * 60
                 },
                 feeder: {
                     count: 0,
-                    stopTime: 0
+                    duration: 0
                 },
                 other: {
                     count: at(5039),
-                    stopTime: (at(5060) || 0) * 60
+                    duration: (at(5060) || 0) * 60
                 }
             }
         }

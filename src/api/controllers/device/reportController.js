@@ -86,9 +86,9 @@ module.exports = {
                         if(runTime.length > 1) {
                             let runHours = parseInt(runTime[0]);
                             let runMins = parseInt(runTime[1]);
-                            runHours -= Math.floor(totalStopDuration / 3600);
-                            runMins -= Math.floor((totalStopDuration % 3600) / 60);
-                            data.runTime = `${runHours.toString().padStart(2, '0')}:${runMins.toString().padStart(2, '0')}`;
+                            runMins += runHours * 60;
+                            runMins -= Math.floor(totalStopDuration / 60);
+                            data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
                         }
                         finalData[reportDate][shift].list.push(data);
                         finalData[reportDate][shift].totalPicks += data.picksCurrentShift || 0;

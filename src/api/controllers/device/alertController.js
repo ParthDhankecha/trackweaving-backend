@@ -9,7 +9,7 @@ module.exports = {
         try {
             let machines = await machineService.find({ workspaceId: req.user.workspaceId, isAlertActive: true }, { projection: "machineCode machineName" });
             let machineIds = machines.map(machine => machine._id);
-            let maintenanceCategories = await maintenanceCategoryService.find({ workspaceId: req.user.workspaceId, isActive: true }, { projection: "name alertDays" });
+            let maintenanceCategories = await maintenanceCategoryService.find({ workspaceId: req.user.workspaceId, isActive: true }, { projection: "name alertDays scheduleDays" });
             let categoriesMap = {};
             let maintenanceCategoryIds = maintenanceCategories.map(category => {
                 categoriesMap[category._id] = category;

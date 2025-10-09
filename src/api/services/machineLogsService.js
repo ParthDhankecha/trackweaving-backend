@@ -42,7 +42,9 @@ module.exports = {
         if(global.config.MACHINE_ALERT_CONFIG && global.config.MACHINE_ALERT_CONFIG[body.machineId]) {
             if(body.speedRpm > global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit) {
                 if(!global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime || moment().diff(global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime, 'minutes') > 10) {
-                    isSpeedAlert = true;
+                    if(global.config.MACHINE_ALERT_CONFIG[body.machineId].sendAlert) {
+                        isSpeedAlert = true;
+                    }
                 }
             }
         }

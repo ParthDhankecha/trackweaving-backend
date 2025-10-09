@@ -41,6 +41,25 @@ module.exports = {
             delete updateData.lastStartTime; // Prevent updating the lastStartTime field
             delete updateData.stopsCount; // Prevent updating the stopsCount field
             delete updateData.stopsData; // Prevent updating the stopsData field
+            if(updateData.maxSpeedLimit <= 0) {
+                updateData.maxSpeedLimit = null;
+            }
+            if(updateData.maxSpeedLimit && machine.maxSpeedLimit !== updateData.maxSpeedLimit) {
+                if(!global.config.MACHINE_ALERT_CONFIG[machineId]) {
+                    global.config.MACHINE_ALERT_CONFIG[machineId] = {
+                        sendAlert: machine.isAlertActive || false
+                    };
+                }
+                global.config.MACHINE_ALERT_CONFIG[machineId].speedLimit = updateData.maxSpeedLimit;
+                delete global.config.MACHINE_ALERT_CONFIG[machineId].lastSpeedAlertTime;
+            } else if(updateData.maxSpeedLimit === null) {
+                if(global.config.MACHINE_ALERT_CONFIG[machineId]) {
+                    delete global.config.MACHINE_ALERT_CONFIG[machineId];
+                }
+            }
+            if(typeof updateData.isAlertActive == 'boolean' && global.config.MACHINE_ALERT_CONFIG[machineId]) {
+                global.config.MACHINE_ALERT_CONFIG[machineId].sendAlert = updateData.isAlertActive;
+            }
 
             const updatedMachine = await machineService.findByIdAndUpdate(machineId, updateData);
 

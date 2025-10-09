@@ -19,6 +19,7 @@ module.exports = {
             if(machine.maxSpeedLimit) {
                 global.config.MACHINE_ALERT_CONFIG[machine._id] = {
                     speedLimit: machine.maxSpeedLimit,
+                    sendAlert: machine.isAlertActive || false,
                 };
             }
         }

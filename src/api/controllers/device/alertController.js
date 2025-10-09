@@ -29,7 +29,7 @@ module.exports = {
                     };
                 }
                 let isDue = moment().isSameOrAfter(moment(moment(new Date(data.nextMaintenanceDate).toISOString()).startOf('day').subtract(categoriesMap[data.maintenanceCategoryId]?.alertDays || 0, 'days')));
-                alerts[machineId].alerts.push({ ...data, isDue, categoryName: categoriesMap[data.maintenanceCategoryId]?.name || '' });
+                alerts[machineId].alerts.push({ ...data, isDue, scheduleDays: categoriesMap[data.maintenanceCategoryId]?.scheduleDays || 0, categoryName: categoriesMap[data.maintenanceCategoryId]?.name || '' });
             }
 
             return res.ok(Object.values(alerts), global.config.message.OK);

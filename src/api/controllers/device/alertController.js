@@ -42,7 +42,7 @@ module.exports = {
 
     updateAlert: async (req, res, next) => {
         try {
-            await checkRequiredParams(['completedBy', 'nextMaintenanceDate', 'lastMaintenanceDate','remarks'], req.body);
+            await checkRequiredParams(['completedBy', 'nextMaintenanceDate', 'lastMaintenanceDate'], req.body);
             let maintenanceData = await maintenanceDataService.findOne({ _id: req.params.id, isDeleted: false });
             if (!maintenanceData) {
                 return res.badRequest({}, "No maintenance data found for this machine and category.");
@@ -50,7 +50,7 @@ module.exports = {
             let historyEntry = {
                 lastMaintenanceDate: maintenanceData.lastMaintenanceDate,
                 nextMaintenanceDate: maintenanceData.nextMaintenanceDate,
-                remarks: maintenanceData.remarks,
+                remarks: maintenanceData.remarks || '',
                 updatedAt: maintenanceData.updatedAt,
                 completedBy: maintenanceData.completedBy,
                 completedByMobile: maintenanceData.completedByMobile

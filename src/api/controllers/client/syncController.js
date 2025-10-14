@@ -14,7 +14,10 @@ module.exports = {
                 roles: {
                     SUPER_ADMIN: global.config.USERS.TYPE.SUPER_ADMIN,
                     ADMIN: global.config.USERS.TYPE.ADMIN
-                }
+                },
+                refreshInterval: global.config.REFRESH_INTERVAL,
+                efficiencyAveragePer: global.config.EFFICIENCY_AVERAGE_PER,
+                efficiencyGoodPer: global.config.EFFICIENCY_GOOD_PER,
             };
 
             if (body.data && body.date) {

@@ -170,10 +170,10 @@ module.exports = {
         const stateCode  = displayType == "nazon" ? at(5028) : at(5013);
         const efficiency = displayType == "nazon" ? at(5017) : at(5044);
 
-        const pieceLenCm     = displayType == "nazon" ? at(5013) : at(5006);
-        const pieceLenMeters = pieceLenCm / 100;
+        const pieceLenCm     = displayType == "nazon" ? at(5013) : at(5045)/10;
+        const pieceLenMeters = parseFloat((pieceLenCm / 100).toFixed(2));
 
-        const shiftWeftCount = displayType == "nazon" ? toUint32(at(5016), at(5015)) : toUint32(at(5046), at(5045));
+        const shiftWeftCount = displayType == "nazon" ? toUint32(at(5016), at(5015)) : toUint32(at(5048), at(5047));
         const totalWeftHundreds = displayType == "nazon" ? toUint32(at(5020), at(5019)) : 0;
         const totalWeftCount = totalWeftHundreds * 100;
         const currentDensity = displayType == "nazon" ? at(5035) : at(5002);
@@ -209,23 +209,23 @@ module.exports = {
             stopsCount = {
                 warp: {
                     count: at(5036),
-                    duration: (at(5040) || 0) * 60 
+                    duration: (at(5040) || 0) * 60
                 },
                 weft: {
                     count: at(5037),
-                    duration: (at(5058) || 0) * 60
+                    duration: (at(5041) || 0) * 60
                 },
                 manual: {
                     count: at(5038),
-                    duration: (at(5059) || 0) * 60
+                    duration: (at(5042) || 0) * 60
                 },
                 feeder: {
-                    count: 0,
-                    duration: 0
+                    count: at(5049),
+                    duration: (at(5050) || 0) * 60
                 },
                 other: {
                     count: at(5039),
-                    duration: (at(5060) || 0) * 60
+                    duration: (at(5043) || 0) * 60
                 }
             }
         }

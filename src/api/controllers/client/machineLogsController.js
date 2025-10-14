@@ -103,7 +103,7 @@ module.exports = {
                 throw global.config.message.UNAUTHORIZED;
             }
             let logs = req.body.logs;
-            for(let machineId in logs) {
+            for (let machineId in logs) {
                 let body = machineLogsService.parseBlock(logs[machineId].rawData, logs[machineId].displayType);
                 let record = {
                     ...body,
@@ -113,13 +113,13 @@ module.exports = {
                     workspaceId: req.body.workspaceId,
                     rawData: logs[machineId].rawData
                 };
-                if(logs[machineId].lastStartTime){
+                if (logs[machineId].lastStartTime) {
                     record.lastStartTime = logs[machineId].lastStartTime;
                 }
-                if(logs[machineId].lastStopTime){
+                if (logs[machineId].lastStopTime) {
                     record.lastStopTime = logs[machineId].lastStopTime;
                 }
-                if(logs[machineId].prevData){
+                if (logs[machineId].prevData) {
                     let prevData = machineLogsService.parseBlock(logs[machineId].prevData.rawData, logs[machineId].prevData.displayType);
                     prevData = {
                         ...prevData,
@@ -143,41 +143,58 @@ module.exports = {
     },
 
     getMachineList: async (req, res, next) => {
-        checkRequiredParams(['apiKey', 'workspaceId'], req.body);
-        if (req.body.apiKey !== global.config.API_KEY) {
-            throw global.config.message.UNAUTHORIZED;
-        }
-        let machines = await machineService.find({ workspaceId: req.body.workspaceId, isDeleted: false }, { projection: { machineCode: 1, ip: 1, deviceType: 1, displayType: 1 }, sort: { _id: 1 }, useLean: true });
-        let machineIds = [];
-        machines = machines.map(m => { 
-            machineIds.push(m._id);
-            m.id = m._id.toString();
-            delete m._id;
+        try {
+            const body = req.body || {};
+            body.workspaceId = req.user.workspaceId;
+            const machineLogsData = await machineLogsService.getMachineLogsWithPagination(body);
 
-            return m; 
-        });
-        let machineLogs = await machineLogsService.findLatestLogs({ machineId: { $in: machineIds } }, { projection: { stopsData: 1, machineId: 1, lastStopTime: 1, lastStartTime: 1, stop: 1, shift: 1, rawData: 1 }, useLean: true });
-        let machineData = {};
-        for(let machine of machines) {
-            let log = machineLogs.find(l => l.machineId.toString() == machine.id.toString());
-            machineData[machine.id] = {
-                displayType: machine.displayType || 'nazon',
-                stopCount: 0,
-                stopsData: log?.stopsData || {
-                    warp: [],
-                    weft: [],
-                    feeder: [],
-                    manual: [],
-                    other: []
-                },
-                lastStopTime: log?.lastStopTime || null,
-                lastStartTime: log?.lastStartTime || null,
-                stop: log?.stop || 0,
-                rawData: log?.rawData || [],
+            const machineData = [];
+            for (let logData of machineLogsData.data) {
+                let data = {};
+                data.machineCode = logData.machineId.machineCode;
+                data.machineName = logData.machineId.machineName;
+                data.efficiency = logData.efficiencyPercent;
+                data.picks = logData.picksCurrentShift;
+                data.speed = logData.speedRpm;
+                data.currentStop = logData.stop;
+                data.stopReason = machineLogsService.getStopReason(logData.stop, logData.displayType);
+                data.pieceLengthM = logData.pieceLengthM;
+                data.stops = logData?.stopCount || 0;
+                data.beamLeft = logData.beamLeft;
+                data.setPicks = logData.setPicks;
+                data.stopsData = {};
+                data.totalDuration = logData.stop === 0 ? (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStartTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00') : (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStopTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00');
+
+                let totalStopDuration = 0;
+                let totalStops = 0;
+                for (let key in logData?.machineId?.stopsCount) {
+                    data.stopsData[key] = {
+                        count: logData?.machineId?.stopsCount[key].count || 0,
+                        duration: moment.utc(logData?.machineId?.stopsCount[key].duration * 1000).format('HH:mm'),
+                    }
+                    totalStops += logData?.machineId?.stopsCount[key].count || 0;
+                    totalStopDuration += logData?.machineId?.stopsCount[key].duration || 0;
+                }
+                data.stopsData.total = {
+                    duration: moment.utc(totalStopDuration * 1000).format('HH:mm'),
+                    count: totalStops
+                };
+
+                machineData.push(data);
+            }
+
+            const response = {
+                aggregateReport: machineLogsData.aggregateReport,
+                machineLogs: machineData,
+                totalCount: machineLogsData.aggregateReport.all
             };
-        }
 
-        return res.ok({ machines, machineData });
+            return res.ok(response, global.config.message.OK);
+
+        } catch (error) {
+            log(error)
+            return res.serverError(error)
+        }
     },
 
     getList: async (req, res, next) => {
@@ -193,14 +210,14 @@ module.exports = {
             let efficiency = 0;
             let pick = 0;
             let speed = 0;
-            for(let data of machineLogsData.data) {
+            for (let data of machineLogsData.data) {
                 efficiency += data.efficiencyPercent;
                 pick += data.picksTotal;
                 speed += data.speedRpm;
             }
 
             let machineData = [];
-            for(let logData of machineLogsData.data) {
+            for (let logData of machineLogsData.data) {
                 let data = {};
                 data.efficiency = logData.efficiencyPercent;
                 data.picks = logData.picksTotal;
@@ -210,7 +227,7 @@ module.exports = {
                 data.beamLeft = logData.beamLeft;
                 data.setPicks = logData.setPicks;
                 data.stopsData = logData?.machine?.stopsData || {};
-                
+
                 machineData.push(data);
             }
 

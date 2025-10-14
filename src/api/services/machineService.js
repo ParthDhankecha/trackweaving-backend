@@ -1,4 +1,4 @@
-
+const { Types } = require('mongoose');
 
 module.exports = {
     create: async (body) => {
@@ -70,7 +70,40 @@ module.exports = {
         return await machineModel.countDocuments({ ...filter, isDeleted: false });
     },
 
-    async findByIdAndUpdate(_id, data) {
-        return await machineModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
+    async findByIdAndUpdate(_id, data, queryOptions = {}) {
+        queryOptions = {
+            projection: undefined,
+            populate: undefined,
+            ...queryOptions
+        };
+
+        const query = machineModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
+
+        if (queryOptions.projection) query.select(queryOptions.projection);
+        if (queryOptions.populate) query.populate(queryOptions.populate);
+
+        return await query;
     },
+
+    async getNextMachineCode(workspaceId) {
+        const result = await machineModel.aggregate([
+            { $match: { workspaceId: Types.ObjectId(workspaceId) } },
+            {
+                $addFields: {
+                    numericCode: {
+                        $toInt: { $substr: ["$machineCode", 1, -1] } // remove "M"
+                    }
+                }
+            },
+            { $sort: { numericCode: -1 } },
+            { $limit: 1 }
+        ]);
+
+        let nextNumber = 1; // default if none exists
+        if (result.length) {
+            nextNumber = result[0].numericCode + 1;
+        }
+
+        return `M${nextNumber}`;
+    }
 }

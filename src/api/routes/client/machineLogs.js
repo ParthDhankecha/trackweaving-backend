@@ -1,10 +1,12 @@
 const router = require("express").Router();
 
 const machineLogsController = require("../../controllers/client/machineLogsController");
+const isAuth = require("../../middleware/auth");
 
 
 router.post('/', machineLogsController.createLog);
 
-router.post('/machine-list', machineLogsController.getMachineList);
+router.post('/list', isAuth, machineLogsController.getMachineList);
+
 
 module.exports = router;

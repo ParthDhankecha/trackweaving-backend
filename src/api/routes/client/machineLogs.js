@@ -6,7 +6,8 @@ const isAuth = require("../../middleware/auth");
 
 router.post('/', machineLogsController.createLog);
 
-router.post('/list', isAuth, machineLogsController.getMachineList);
+router.post('/list', isAuth, machineLogsController.getList);
 
+router.post('/machine-list', machineLogsController.getMachineList);
 
 module.exports = router;

@@ -143,6 +143,44 @@ module.exports = {
     },
 
     getMachineList: async (req, res, next) => {
+        checkRequiredParams(['apiKey', 'workspaceId'], req.body);
+        if (req.body.apiKey !== global.config.API_KEY) {
+            throw global.config.message.UNAUTHORIZED;
+        }
+        let machines = await machineService.find({ workspaceId: req.body.workspaceId, isDeleted: false }, { projection: { machineCode: 1, ip: 1, deviceType: 1, displayType: 1 }, sort: { _id: 1 }, useLean: true });
+        let machineIds = [];
+        machines = machines.map(m => { 
+            machineIds.push(m._id);
+            m.id = m._id.toString();
+            delete m._id;
+
+            return m; 
+        });
+        let machineLogs = await machineLogsService.findLatestLogs({ machineId: { $in: machineIds } }, { projection: { stopsData: 1, machineId: 1, lastStopTime: 1, lastStartTime: 1, stop: 1, shift: 1, rawData: 1 }, useLean: true });
+        let machineData = {};
+        for(let machine of machines) {
+            let log = machineLogs.find(l => l.machineId.toString() == machine.id.toString());
+            machineData[machine.id] = {
+                displayType: machine.displayType || 'nazon',
+                stopCount: 0,
+                stopsData: log?.stopsData || {
+                    warp: [],
+                    weft: [],
+                    feeder: [],
+                    manual: [],
+                    other: []
+                },
+                lastStopTime: log?.lastStopTime || null,
+                lastStartTime: log?.lastStartTime || null,
+                stop: log?.stop || 0,
+                rawData: log?.rawData || [],
+            };
+        }
+
+        return res.ok({ machines, machineData });
+    },
+
+    getList: async (req, res, next) => {
         try {
             const body = req.body || {};
             body.workspaceId = req.user.workspaceId;
@@ -187,54 +225,6 @@ module.exports = {
                 aggregateReport: machineLogsData.aggregateReport,
                 machineLogs: machineData,
                 totalCount: machineLogsData.aggregateReport.all
-            };
-
-            return res.ok(response, global.config.message.OK);
-
-        } catch (error) {
-            log(error)
-            return res.serverError(error)
-        }
-    },
-
-    getList: async (req, res, next) => {
-        try {
-            checkRequiredParams(['workspaceId'], req.body);
-            const body = req.body || {};
-            const pageObj = {
-                page: parseInt(body.page) || 1,
-                limit: parseInt(body.limit) || 10
-            };
-
-            const machineLogsData = await machineLogsService.getMachineLogsWithPagination(req.body);
-            let efficiency = 0;
-            let pick = 0;
-            let speed = 0;
-            for (let data of machineLogsData.data) {
-                efficiency += data.efficiencyPercent;
-                pick += data.picksTotal;
-                speed += data.speedRpm;
-            }
-
-            let machineData = [];
-            for (let logData of machineLogsData.data) {
-                let data = {};
-                data.efficiency = logData.efficiencyPercent;
-                data.picks = logData.picksTotal;
-                data.speed = logData.speedRpm;
-                data.pieceLengthM = logData.pieceLengthM;
-                data.stops = logData?.machine?.stopsCount || 0;
-                data.beamLeft = logData.beamLeft;
-                data.setPicks = logData.setPicks;
-                data.stopsData = logData?.machine?.stopsData || {};
-
-                machineData.push(data);
-            }
-
-            let response = {
-                aggregateReport: machineLogsData.aggregateReport,
-                machineLogs: machineData,
-                totalCount: machineLogsData.totalMachines
             };
 
             return res.ok(response, global.config.message.OK);

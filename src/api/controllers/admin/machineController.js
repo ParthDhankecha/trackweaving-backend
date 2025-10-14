@@ -5,18 +5,39 @@ const { log, checkRequiredParams } = require("../../services/utilService")
 
 
 module.exports = {
+    getMachineCode: async (req, res, next) => {
+        try {
+            checkRequiredParams(['workspaceId'], req.params);
+            const machineCode = await machineService.getNextMachineCode(req.params.workspaceId);
+            if (!machineCode) {
+                throw global.config.message.RECORD_NOT_FOUND;
+            }
+            return res.ok({ machineCode }, global.config.message.OK);
+        } catch (error) {
+            log(error)
+            return res.serverError(error)
+        }
+    },
+
     create: async (req, res, next) => {
         try {
             checkRequiredParams(['machineCode', 'machineName', 'workspaceId', 'ip'], req.body);
             const reqBody = req.body;
 
-            const isMachineExist = await machineService.findOne({ $or: [{ machineCode: reqBody.machineCode }, { ip: reqBody.ip }], workspaceId: reqBody.workspaceId });
+            const isMachineExist = await machineService.findOne({
+                workspaceId: reqBody.workspaceId,
+                $or: [
+                    { machineCode: { $regex: reqBody.machineCode, $options: 'i' } },
+                    { ip: { $regex: reqBody.ip, $options: 'i' } }
+                ]
+            });
             if (isMachineExist) {
                 throw global.config.message.IS_DUPLICATE;
             }
-            const machine = await machineService.create(reqBody);
 
-            return res.created(machine, global.config.message.CREATED);
+            await machineService.create(reqBody);
+
+            return res.created(null, global.config.message.CREATED);
         } catch (error) {
             log(error)
             return res.serverError(error)
@@ -25,7 +46,7 @@ module.exports = {
 
     getList: async (req, res, next) => {
         try {
-            const body = req.body || {};
+            const body = req.body;
             const pageObj = {
                 page: parseInt(body.page) || 1,
                 limit: parseInt(body.limit) || 10
@@ -33,11 +54,21 @@ module.exports = {
 
             const queryOption = utilService.getFilter(pageObj);
             queryOption.populate = { path: 'workspaceId', select: 'firmName' };
-            queryOption.projection = 'machineCode machineName ip workspaceId';
+            queryOption.projection = { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1 };
 
             const searchQuery = {};
             if (body?.workspaceId) {
                 searchQuery.workspaceId = { $in: body.workspaceId };
+            }
+
+            if (body?.machineName) {
+                searchQuery.machineName = { $regex: body.machineName, $options: 'i' };
+            }
+            for (const field of ['machineCode', 'ip']) {
+                if (body?.[field]?.trim?.()) {
+                    if (!searchQuery.$or) searchQuery['$or'] = [];
+                    searchQuery['$or'].push({ [field]: { $regex: body[field], $options: 'i' } });
+                }
             }
 
             const machines = await machineService.find(searchQuery, queryOption);
@@ -72,36 +103,34 @@ module.exports = {
     update: async (req, res, next) => {
         try {
             checkRequiredParams(['id'], req.params);
-            const updateData = req.body;
-            if (Object.keys(updateData).length === 0) {
+            const reqBody = req.body;
+            if (Object.keys(reqBody).length === 0) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            if (updateData.machineCode || updateData.ip) {
-                if (!updateData?.workspaceId) {
-                    const machineData = await machineService.findOne({ _id: req.params.id }, { projection: 'workspaceId' });
-                    if (!machineData) {
-                        throw global.config.message.RECORD_NOT_FOUND;
-                    }
-                    updateData.workspaceId = machineData.workspaceId;
+            const machineId = req.params.id;
+
+            if (reqBody.machineCode || reqBody.ip) {
+                checkRequiredParams(['workspaceId'], req.body);
+
+                const existObj = { workspaceId: reqBody.workspaceId, $or: [] };
+                if (reqBody.machineCode) {
+                    existObj.$or.push({ machineCode: { $regex: reqBody.machineCode, $options: 'i' } });
                 }
-                const existObj = { _id: { $ne: req.params.id }, workspaceId: updateData.workspaceId, $or: [] };
-                if (updateData?.machineCode) {
-                    existObj.$or.push({ machineCode: updateData.machineCode.trim() });
-                }
-                if (updateData?.ip) {
-                    existObj.$or.push({ ip: updateData.ip.trim() });
+                if (reqBody.ip) {
+                    existObj.$or.push({ ip: { $regex: reqBody.ip.replace(/\./g, '\\.'), $options: 'i' } });
                 }
 
-                const isMachineExist = await machineService.findOne({ ...existObj });
-                if (isMachineExist) {
+                const machineData = await machineService.findOne({ _id: { $ne: machineId }, ...existObj });
+                if (machineData) {
                     throw global.config.message.IS_DUPLICATE;
                 }
             }
 
-            const populate = { path: 'workspaceId', select: 'firmName' };
-            const projection = 'machineCode machineName ip workspaceId';
-            const result = await machineService.findOneAndUpdate({ _id: req.params.id }, updateData, { populate, projection });
+            const result = await machineService.findByIdAndUpdate(machineId, reqBody, {
+                projection: { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1 },
+                populate: { path: 'workspaceId', select: 'firmName' }
+            });
             if (!result) {
                 throw global.config.message.RECORD_NOT_FOUND;
             }

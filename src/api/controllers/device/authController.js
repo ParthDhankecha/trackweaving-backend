@@ -70,7 +70,7 @@ module.exports = {
 
             const userData = await authService.verifyingUser(reqBody.userName, reqBody.password);
 
-            const token = jwtService.createToken(userData);
+            const token = jwtService.createToken(userData, 0);
             const workspace = await workspaceService.findOne({ _id: userData.workspaceId });
             if (!workspace) {
                 throw global.config.message.BAD_REQUEST;

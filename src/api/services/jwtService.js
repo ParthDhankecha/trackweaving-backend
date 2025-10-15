@@ -23,9 +23,15 @@ module.exports = {
             }
         };
 
+        let options = {
+            algorithm: ALGORITHM
+        };
+        if(expiresIn) {
+            options.expiresIn = expiresIn;
+        }
+
         const accessToken = jwt.sign(payload, JWT_SECRET_KEY, {
-            algorithm: ALGORITHM,
-            expiresIn: expiresIn,
+            ...options
         });
 
         return { expiresIn, accessToken };

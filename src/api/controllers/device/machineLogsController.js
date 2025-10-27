@@ -1,5 +1,7 @@
 const moment = require("moment");
 const machineLogsService = require("../../services/machineLogsService");
+const utilService = require("../../services/utilService");
+
 
 module.exports = {
     getList: async (req, res, next) => {
@@ -47,14 +49,11 @@ module.exports = {
                 machineLogs: machineData,
                 totalCount: machineLogsData.aggregateReport.all
             };
-            // console.log(response);
-            
 
             return res.ok(response, global.config.message.OK);
-
         } catch (error) {
-            log(error)
-            return res.serverError(error)
+            utilService.log(error);
+            return res.serverError(error);
         }
     }
 }

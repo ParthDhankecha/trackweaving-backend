@@ -149,16 +149,16 @@ module.exports = {
         }
         let machines = await machineService.find({ workspaceId: req.body.workspaceId, isDeleted: false }, { projection: { machineCode: 1, ip: 1, deviceType: 1, displayType: 1 }, sort: { _id: 1 }, useLean: true });
         let machineIds = [];
-        machines = machines.map(m => { 
+        machines = machines.map(m => {
             machineIds.push(m._id);
             m.id = m._id.toString();
             delete m._id;
 
-            return m; 
+            return m;
         });
         let machineLogs = await machineLogsService.findLatestLogs({ machineId: { $in: machineIds }, updatedAt: { $gte: moment().startOf('day')} }, { projection: { stopsData: 1, machineId: 1, lastStopTime: 1, lastStartTime: 1, stop: 1, shift: 1, rawData: 1 }, useLean: true });
         let machineData = {};
-        for(let machine of machines) {
+        for (let machine of machines) {
             let log = machineLogs.find(l => l.machineId.toString() == machine.id.toString());
             machineData[machine.id] = {
                 displayType: machine.displayType || 'nazon',
@@ -228,10 +228,9 @@ module.exports = {
             };
 
             return res.ok(response, global.config.message.OK);
-
         } catch (error) {
-            log(error)
-            return res.serverError(error)
+            log(error);
+            return res.serverError(error);
         }
     }
 }

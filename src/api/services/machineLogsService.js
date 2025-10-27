@@ -8,11 +8,18 @@ const toUint32 = (hi, lo) => (((hi << 16) >>> 0) + (lo >>> 0)) >>> 0;
 module.exports = {
     async create(body){
         let machineLog = await machineLatestLogsModel.findOneAndUpdate({machineId: body.machineId}, body, { upsert: true, returnDocument: 'before' });
+        let shiftDate;
+        if(body.shift == 0) {
+            shiftDate = moment(body.updatedAt).startOf('day');
+        } else if(body.shift == 1) {
+            shiftDate = moment().hour() < 11 ? moment().subtract(1, 'day').startOf('day') : moment().startOf('day');
+        }
         if(machineLog) {
             if(machineLog.shift != body.shift) {
                 if(body.prevData){
                     await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createdAt: -1 } });
                 }
+                body.shiftDate = shiftDate;
                 body.stopsData = {
                     warp: [],
                     weft: [],
@@ -23,10 +30,18 @@ module.exports = {
                 let log = new machineLogsModel(body);
                 await log.save();
             } else {
-                await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body, { sort: { createdAt: -1 } });
+                await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
             }
             this.checkAlertNotification(machineLog, body);
         } else {
+            body.shiftDate = shiftDate;
+            body.stopsData = {
+                warp: [],
+                weft: [],
+                feeder: [],
+                manual: [],
+                other: []
+            };
             let log = new machineLogsModel(body);
             await log.save();
         }

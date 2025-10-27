@@ -56,6 +56,10 @@ const machineLogsSchema = new Schema({
         enum: [0, 1, 2],
         required: true
     },
+    shiftDate: {
+        type: Date,
+        default: null
+    },
     speedRpm: {
         type: Number,
         default: 0
@@ -187,7 +191,7 @@ const machineLogsSchema = new Schema({
     timestamps: true
 });
 
-machineLogsSchema.index({ machineId: 1, workspaceId: 1, createdAt: -1 });
+machineLogsSchema.index({ machineId: 1, workspaceId: 1, shift: 1,  shiftDate: -1 });
 
 const machineLogs = mongoose.model('machineLogs', machineLogsSchema, 'machineLogs');
 module.exports = machineLogs;

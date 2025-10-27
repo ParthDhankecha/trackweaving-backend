@@ -18,7 +18,7 @@ module.exports = {
                     let condition = {
                         machineId: { $in: req.body.machineIds },
                         workspaceId: req.user.workspaceId,
-                        createdAt: {
+                        shiftDate: {
                             $gte: moment(new Date(req.body.startDate).toISOString()).startOf('day'),
                             $lte: moment(new Date(req.body.endDate).toISOString()).endOf('day')
                         }
@@ -37,7 +37,7 @@ module.exports = {
                         avgCount: 0
                     };
                     for(let data of reportData) {
-                        let reportDate = moment(data.createdAt).startOf('day').toISOString();
+                        let reportDate = moment(data.shiftDate).startOf('day').toISOString();
                         let obj = {};
                         if(!finalData[reportDate]) {
                             if(req.body.shift.includes(global.config.SHIFT_TYPE.DAY)) {

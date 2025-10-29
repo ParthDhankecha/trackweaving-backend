@@ -118,12 +118,13 @@ const machineSchema = new Schema({
         default: 'lan',
         enum: ['lan', 'rs485']
     },
-    maxSpeedLimit: {
-        type: Number,
-    },
     displayType: {
         type: String,
-        default: 'nazon'
+        default: 'nazon',
+        enum: ['nazon', 'chitic']
+    },
+    maxSpeedLimit: {
+        type: Number,
     },
     isDeleted: {
         type: Boolean,
@@ -137,8 +138,8 @@ const machineSchema = new Schema({
 machineSchema.pre('save', async function (next) {
     if (this.isNew) {
         let maintenanceCategories = await maintenanceCategoryModel.find({ workspaceId: this.workspaceId });
-        for(let category of maintenanceCategories) {
-            let categoryDataRecord = new maintenanceDataModel({
+        for (let category of maintenanceCategories) {
+            const categoryDataRecord = new maintenanceDataModel({
                 maintenanceCategoryId: category._id,
                 workspaceId: this.workspaceId,
                 machineId: this._id,

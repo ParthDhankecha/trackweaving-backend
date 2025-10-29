@@ -54,7 +54,7 @@ module.exports = {
 
             const queryOption = utilService.getFilter(pageObj);
             queryOption.populate = { path: 'workspaceId', select: 'firmName' };
-            queryOption.projection = { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1 };
+            queryOption.projection = { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1, deviceType: 1, displayType: 1 };
 
             const searchQuery = {};
             if (body?.workspaceId) {
@@ -128,7 +128,7 @@ module.exports = {
             }
 
             const result = await machineService.findByIdAndUpdate(machineId, reqBody, {
-                projection: { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1 },
+                projection: { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1, deviceType: 1, displayType: 1 },
                 populate: { path: 'workspaceId', select: 'firmName' }
             });
             if (!result) {

@@ -29,12 +29,12 @@ module.exports = {
                 refreshInterval: global.config.REFRESH_INTERVAL,
                 efficiencyAveragePer: global.config.EFFICIENCY_AVERAGE_PER,
                 efficiencyGoodPer: global.config.EFFICIENCY_GOOD_PER,
-                androidVersion: androidVersionData.version || '',
-                androidShowPopup: androidVersionData.showPopup || false,
-                androidForceUpdate: androidVersionData.hardUpdate || false,
-                iosVersion: iosVersionData.version || '',
-                iosShowPopup: iosVersionData.showPopup || false,
-                iosForceUpdate: iosVersionData.hardUpdate || false
+                androidVersion: androidVersionData?.version || '',
+                androidShowPopup: androidVersionData?.showPopup || false,
+                androidForceUpdate: androidVersionData?.hardUpdate || false,
+                iosVersion: iosVersionData?.version || '',
+                iosShowPopup: iosVersionData?.showPopup || false,
+                iosForceUpdate: iosVersionData?.hardUpdate || false
             };
 
             return res.ok(syncData, global.config.message.OK);

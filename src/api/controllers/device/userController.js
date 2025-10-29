@@ -1,5 +1,6 @@
 
 
+const appVersionService = require("../../services/appVersionService");
 const usersService = require("../../services/usersService");
 const { log, checkRequiredParams, generateHashValue } = require("../../services/utilService")
 
@@ -22,10 +23,18 @@ module.exports = {
 
     syncData: async (req, res, next) => {
         try {
+            let iosVersionData = await appVersionService.findOne({ appType: 'ios' }, { sort: { createdAt: -1 }, useLean: true });
+            let androidVersionData = await appVersionService.findOne({ appType: 'android' }, { sort: { createdAt: -1 }, useLean: true });
             let syncData = {
                 refreshInterval: global.config.REFRESH_INTERVAL,
                 efficiencyAveragePer: global.config.EFFICIENCY_AVERAGE_PER,
                 efficiencyGoodPer: global.config.EFFICIENCY_GOOD_PER,
+                androidVersion: androidVersionData.version || '',
+                androidShowPopup: androidVersionData.showPopup || false,
+                androidForceUpdate: androidVersionData.hardUpdate || false,
+                iosVersion: iosVersionData.version || '',
+                iosShowPopup: iosVersionData.showPopup || false,
+                iosForceUpdate: iosVersionData.hardUpdate || false
             };
 
             return res.ok(syncData, global.config.message.OK);

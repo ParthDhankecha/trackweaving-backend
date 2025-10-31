@@ -9,5 +9,7 @@ router.use('/sync', require('./sync'));
 
 router.use('/machine-logs', require('./machineLogs'));
 
+router.use('/machine-group', require('./machineGroup'));
+
 
 module.exports = router;

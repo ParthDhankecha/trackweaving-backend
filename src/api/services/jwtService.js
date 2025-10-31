@@ -13,20 +13,20 @@ module.exports = {
      * @return {Object} - An object containing the access token and its expiration time.
      */
     createToken(user, expiresIn = JWT_EXPIRES_IN_SECONDS) {
-
         const payload = {
             user: {
                 id: user._id,
                 type: user?.userType,
+                uid: user?.uid || '',
                 workspaceId: user?.workspaceId || null,
                 subUserLimit: user?.plan?.subUserLimit || 4
             }
         };
 
-        let options = {
+        const options = {
             algorithm: ALGORITHM
         };
-        if(expiresIn) {
+        if (expiresIn) {
             options.expiresIn = expiresIn;
         }
 

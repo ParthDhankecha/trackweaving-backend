@@ -1,1 +1,0 @@
-import{gb as r,kb as t,pb as o,v as e}from"./chunk-FUTAJFPZ.js";var h=(u,a)=>{let i=e(r);if(!e(o).utils.isAuthenticated){let n=a.url.startsWith(`/${t.ADMIN.BASE}`);return i.navigateByUrl(n?t.ADMIN.getFullRoute(t.ADMIN.LOGIN):`/${t.AUTH.BASE}`),!1}return!0};export{h as a};

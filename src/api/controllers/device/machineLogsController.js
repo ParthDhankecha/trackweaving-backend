@@ -12,6 +12,8 @@ module.exports = {
 
             let machineData = [];
             for(let logData of machineLogsData.data) {
+                if(!logData.machineId.lastStartTime) logData.machineId.lastStartTime = new Date();
+                if(!logData.machineId.lastStopTime) logData.machineId.lastStopTime = new Date();
                 let data = {};
                 data.machineCode = logData.machineId.machineCode;
                 data.machineName = logData.machineId.machineName;

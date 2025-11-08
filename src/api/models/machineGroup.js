@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 const Types = mongoose.Types;
 
+
 const MachineGroupSchema = new Schema({
     groupName: {
         type: String,
@@ -19,12 +20,14 @@ const MachineGroupSchema = new Schema({
     },
     isDeleted: {
         type: Boolean,
-        default: false
+        default: false,
+        select: false
     }
 },{
     versionKey: false,
     timestamps: true
 });
+
 
 const machineGroup = mongoose.model('machineGroup', MachineGroupSchema, 'machineGroups');
 module.exports = machineGroup;

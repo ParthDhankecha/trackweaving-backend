@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
+
 const maintenanceCategorySchema = new Schema({
-    name:{
+    name: {
         type: String,
         trim: true,
         required: true
@@ -35,12 +36,14 @@ const maintenanceCategorySchema = new Schema({
     },
     isDeleted: {
         type: Boolean,
-        default: false
+        default: false,
+        select: false
     }
-},{
+}, {
     versionKey: false,
     timestamps: true
 });
+
 
 const maintenanceCategory = mongoose.model('maintenanceCategory', maintenanceCategorySchema, 'maintenanceCategory');
 module.exports = maintenanceCategory;

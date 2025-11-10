@@ -4,13 +4,13 @@ const usersController = require('../../controllers/client/usersController');
 const isAuth = require('../../middleware/auth');
 
 
-// router.get('/', isAuth, usersController.getList);
+router.get('/', isAuth, usersController.getList);
 
 // router.get('/:id', isAuth, usersController.getById);
 
-// router.put('/:id', isAuth, usersController.update);
+router.post('/', isAuth, usersController.create);
 
-// router.delete('/:id', isAuth, usersController.delete);
+router.put('/:id', isAuth, usersController.update);
 
 
 module.exports = router;

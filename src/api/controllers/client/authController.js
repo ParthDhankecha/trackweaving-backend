@@ -2,7 +2,6 @@ const authService = require('../../services/authService');
 const jwtService = require('../../services/jwtService');
 const usersService = require('../../services/usersService');
 const { log, checkRequiredParams } = require('../../services/utilService');
-const workspaceService = require('../../services/workspaceService');
 
 
 module.exports = {
@@ -71,13 +70,13 @@ module.exports = {
             checkRequiredParams(['userName', 'password'], reqBody);
 
             const userData = await authService.verifyingUser(reqBody.userName, reqBody.password);
-            const workspace = await workspaceService.findOne({ _id: userData.workspaceId });
+            const workspace = await usersService.validatePlanForSignIn(userData.workspaceId);
             if (!workspace) {
                 throw global.config.message.BAD_REQUEST;
             }
 
             userData.uid = workspace.uid;
-            const token = jwtService.createToken(userData);
+            const token = jwtService.createToken(userData, 0);
             const payload = {
                 token: token,
                 user: {

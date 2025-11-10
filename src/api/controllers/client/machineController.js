@@ -4,6 +4,19 @@ const { log } = require('../../services/utilService');
 
 
 module.exports = {
+    optionList: async (req, res, next) => {
+        try {
+            const workspaceId = req.user.workspaceId;
+            const projection = 'machineCode machineName machineGroupId';
+            const machines = await machineService.find({ workspaceId, isDeleted: false }, { projection: projection });
+
+            return res.ok(machines, global.config.message.OK);
+        } catch (error) {
+            log(error);
+            return res.serverError(error);
+        }
+    },
+
     getMachineList: async (req, res, next) => {
         try {
             const workspaceId = req.user.workspaceId;

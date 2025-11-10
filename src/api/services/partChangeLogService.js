@@ -30,9 +30,8 @@ module.exports = {
     },
 
     async getPartNamesList(workspaceId) {
-        const parts = await partChangeLogModel.find({ workspaceId, isDeleted: false }).distinct('name');
-
-        let list = [
+        const parts = await partChangeLogModel.distinct('partName', { workspaceId, isDeleted: false });
+        const defaultParts = [
             'LH Belt',
             'RH Belt',
             'LH Drive Wheel',
@@ -40,10 +39,8 @@ module.exports = {
             'LH Gripper',
             'RH Gripper'
         ];
-        let partsSet = new Set(list);
-        parts.map(part => partsSet.add(part.name));
-        
-        return Array.from(partsSet);
+
+        return Array.from(new Set([...defaultParts, ...parts]));
     },
 
     async findOne(options = {}, queryOptions = {}) {

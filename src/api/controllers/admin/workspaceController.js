@@ -15,12 +15,12 @@ module.exports = {
 
             const { workspaceName, GSTNo, isActive, shiftType, startTime, endTime, ...rest } = reqBody;
 
-            const user = await usersService.findOne({ userName: rest.userName.trim() });
+            const user = await usersService.findOneV2({ userName: { $regex: new RegExp(`^${rest.userName?.trim()}$`, 'i') } }, { useLean: true, projection: { _id: 1 } });
             if (user) {
                 throw global.config.message.IS_DUPLICATE;
             }
-            const newUser = await authService.createUser(rest);
 
+            const newUser = await authService.createUser(rest);
             const workspaceObj = {
                 firmName: workspaceName,
                 userId: newUser._id
@@ -67,6 +67,8 @@ module.exports = {
             };
             const queryOptions = utilService.getFilter(pageObj);
             queryOptions.populate = { path: 'userId', select: 'fullname userName' };
+            queryOptions.sort = { createdAt: -1 };
+            queryOptions.useLean = true;
 
             const result = await workspaceService.find(queryObj, queryOptions);
             const totalCount = await workspaceService.countDocuments(queryObj);
@@ -74,7 +76,7 @@ module.exports = {
             const response = {
                 list: result,
                 totalCount: totalCount
-            }
+            };
 
             return res.ok(response, global.config.message.OK);
         } catch (error) {
@@ -86,7 +88,7 @@ module.exports = {
     getAllList: async (req, res, next) => {
         try {
             const projection = { firmName: 1 };
-            const result = await workspaceService.find({}, { projection });
+            const result = await workspaceService.find({}, { projection, useLean: true });
 
             return res.ok(result, global.config.message.OK);
         } catch (error) {
@@ -99,8 +101,8 @@ module.exports = {
         try {
             checkRequiredParams(['id'], req.params);
 
-            let populate = { path: 'userId', select: 'fullname userName' };
-            const workspace = await workspaceService.findOne({ _id: req.params.id }, { populate });
+            const populate = { path: 'userId', select: 'fullname userName' };
+            const workspace = await workspaceService.findOne({ _id: req.params.id }, { populate, useLean: true });
             if (!workspace) {
                 throw global.config.message.RECORD_NOT_FOUND;
             }
@@ -147,7 +149,7 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const updatedWorkspace = await workspaceService.findByIdAndUpdate(workspace._id, updateObj, { populate: { path: 'userId', select: 'fullname userName' } });
+            const updatedWorkspace = await workspaceService.findByIdAndUpdate(workspace._id, updateObj, { populate: { path: 'userId', select: 'fullname userName' }, useLean: true });
 
             return res.ok(updatedWorkspace, global.config.message.OK);
         } catch (error) {

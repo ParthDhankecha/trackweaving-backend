@@ -84,8 +84,8 @@ module.exports = {
             code: "E_BAD_REQUEST",
             message: "Invalid selected file type. Select valid file type.",
             status: 400
-        },        
-        
+        },
+
 
 
 
@@ -115,6 +115,31 @@ module.exports = {
             code: "UNPROCESSABLE_ENTITY",
             message: "User not updated. Please try again.",
             status: 422
+        },
+        USER_LIMIT_EXCEEDED: {
+            code: "UNPROCESSABLE_ENTITY",
+            message: "You already reached maximum user add limit.",
+            status: 422
+        },
+        ACCESS_DENIED: {
+            code: "E_FORBIDDEN",
+            message: "Access denied.",
+            status: 403
+        },
+        PLAN_NOT_FOUND: {
+            code: "E_NOT_FOUND",
+            message: "Plan not found. Please try again.",
+            status: 404
+        },
+        PLAN_EXPIRED: {
+            code: "E_NOT_FOUND",
+            message: "Plan is expired, Please renew it to continue.",
+            status: 404
+        },
+        INACTIVE_ACCOUNT: {
+            code: "E_UNAUTHORIZED",
+            message: "Your account is inactive. Please contact to admin.",
+            status: 401
         },
 
 
@@ -201,8 +226,8 @@ module.exports = {
 
 
 
-        
-        
+
+
         IS_REQUIRED: {
             code: "UNPROCESSABLE_ENTITY",
             message: "is required.",
@@ -296,7 +321,7 @@ module.exports = {
 
 
 
-        MACHINE_GROUP_ALREADY_EXIST:{
+        MACHINE_GROUP_ALREADY_EXIST: {
             code: "E_DUPLICATE",
             message: "Machine group with this name already exist.",
             status: 409
@@ -305,11 +330,6 @@ module.exports = {
             code: "E_BAD_REQUEST",
             message: "Shift value is invalid, it should be either 'day' or 'night'.",
             status: 400
-        },
-        USER_LIMIT_EXCEEDED: {
-            code: "UNPROCESSABLE_ENTITY",
-            message: "You already reached maximum user add limit.",
-            status: 422
         }
     }
 };

@@ -12,12 +12,28 @@ module.exports = {
             const reqBody = await authService.decryptData(req.body);
             checkRequiredParams(['fullname', 'password', 'userName', 'workspaceId', 'isActive'], reqBody);
 
-            const isUserExists = await usersService.findOne({ userName: reqBody.userName });
-            if (isUserExists) {
-                throw global.config.message.IS_DUPLICATE;
+            const existingUser = await usersService.findOneV2({ userName: { $regex: new RegExp(`^${reqBody.userName?.trim()}$`, 'i') } }, {
+                useLean: true,
+                projection: '_id'
+            });
+            if (existingUser) {
+                throw global.config.message.USER_EXISTS;
             }
 
-            const newUser = await authService.createUser(reqBody);
+            await usersService.getUserPlan(reqBody.workspaceId, true);
+
+            const createObj = {
+                fullname: reqBody.fullname,
+                userName: reqBody.userName,
+                password: reqBody.password,
+                email: reqBody.email || '',
+                mobile: reqBody.mobile || '',
+                userType: global.config.USERS.TYPE.SUB_USER,
+                workspaceId: reqBody.workspaceId,
+                isActive: reqBody.isActive
+            };
+
+            const newUser = await authService.createUser(createObj);
             if (!newUser) {
                 throw global.config.message.CREATE_FAILED;
             }
@@ -116,35 +132,20 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            // const updateObj = {};
-            // for(const [key, value] of Object.entries(body)){
-            //     if(['fullname', 'userName', 'mobile', 'isActive', 'email'].includes(key)){
-            //         updateObj[key] = value;
-            //     }
-            // }
-
-            if (body?.userName || body?.email || body?.mobile) {
-                const searchQuery = {
-                    _id: { $ne: userId },
-                    $or: []
-                };
-                if (body?.userName) {
-                    searchQuery.$or.push({ userName: body.userName });
-                }
-                if (body?.email) {
-                    searchQuery.$or.push({ email: body.email });
-                }
-                if (body?.mobile) {
-                    searchQuery.$or.push({ mobile: body.mobile });
-                }
-
-                if (searchQuery.$or.length > 0) {
-                    const isExists = await usersService.findOne(searchQuery);
-                    if (isExists) {
-                        throw global.config.message.IS_DUPLICATE;
-                    }
+            if (body?.userName) {
+                const existingUser = await usersService.findOneV2({ _id: { $ne: userId }, userName: { $regex: new RegExp(`^${body.userName?.trim()}$`, 'i') } }, {
+                    useLean: true,
+                    projection: '_id'
+                });
+                if (existingUser) {
+                    throw global.config.message.USER_EXISTS;
                 }
             }
+
+            delete body.fcmToken;
+            delete body.workspaceId;
+            delete body.userType;
+            delete body.isDeleted;
 
             const updatedUser = await usersService.findByIdAndUpdate(userId, body, {
                 populate: { path: 'workspaceId', select: 'firmName uid' }

@@ -1,12 +1,18 @@
 const usersService = require('../../services/usersService');
-const { log, checkRequiredParams, generateHashValue } = require('../../services/utilService');
+const authService = require('../../services/authService');
+const { log, checkRequiredParams } = require('../../services/utilService');
 
 
 module.exports = {
-
     getList: async (req, res, next) => {
         try {
-            const users = await usersService.find({});
+            const conditions = {
+                workspaceId: req.user.workspaceId
+            };
+            if (req.user.type !== global.config.USERS.TYPE.ADMIN) {
+                conditions._id = req.user.id;
+            }
+            const users = await usersService.findV2(conditions, { useLean: true, projection: { password: 0, fcmToken: 0, userType: 0, plan: 0, updatedAt: 0, createdAt: 0 } });
 
             return res.ok(users, global.config.message.OK);
         } catch (error) {
@@ -30,50 +36,87 @@ module.exports = {
         }
     },
 
+    create: async (req, res, next) => {
+        try {
+            checkRequiredParams(['data', 'date'], req.body);
+            const reqBody = await authService.decryptData(req.body);
+            checkRequiredParams(['fullname', 'userName', 'password'], reqBody);
+
+            const reqUser = req.user;
+            if (reqUser.type !== global.config.USERS.TYPE.ADMIN) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            await usersService.getUserPlan(reqUser.workspaceId, true);
+
+            const existingUser = await usersService.findOneV2({ userName: { $regex: new RegExp(`^${reqBody.userName?.trim()}$`, 'i') } }, {
+                useLean: true,
+                projection: '_id'
+            });
+            if (existingUser) {
+                throw global.config.message.USER_EXISTS;
+            }
+
+            await usersService.create({
+                fullname: reqBody.fullname,
+                userName: reqBody.userName,
+                password: reqBody.password,
+                email: reqBody.email || '',
+                mobile: reqBody.mobile || '',
+                userType: global.config.USERS.TYPE.SUB_USER,
+                workspaceId: reqUser.workspaceId
+            });
+
+            return res.ok(null, global.config.message.CREATED);
+        } catch (error) {
+            log(error);
+
+            return res.serverError(error);
+        }
+    },
+
     update: async (req, res, next) => {
         try {
-            checkRequiredParams(['email'], req.body);
-            checkRequiredParams(['id'], req.params);
-            const body = req.body;
-            const id = req.params.id;
-
-            const user = await usersService.findOne({ _id: { $ne: id }, 'email': body.email });
-            if (user) {
-                return res.badRequest(null, global.config.message.EMAIL_ALREADY_REGISTERED);
+            const userId = req.params.id;
+            if (req.user.type !== global.config.USERS.TYPE.ADMIN && req.user.id != userId) {
+                throw global.config.message.BAD_REQUEST;
             }
 
-            if (body.password) body.password = await generateHashValue(body.password);
-
-            const result = await usersService.findByIdAndUpdate(id, body);
-            if (!result) {
-                throw global.config.message.USER_NOT_UPDATED;
+            checkRequiredParams(['data', 'date'], req.body);
+            const reqBody = await authService.decryptData(req.body);
+            if (Object.keys(reqBody).length === 0) {
+                throw global.config.message.BAD_REQUEST;
             }
 
-            return res.ok(null, global.config.message.OK);
+            delete reqBody.fcmToken;
+            delete reqBody.workspaceId;
+            delete reqBody.userType;
+            delete reqBody.plan;
+            delete reqBody.isDeleted;
+
+            if (req.user.id == userId) {
+                delete reqBody.isActive;
+            }
+            if (reqBody?.userName) {
+                const existingUser = await usersService.findOneV2({ _id: { $ne: userId }, userName: { $regex: new RegExp(`^${reqBody.userName?.trim()}$`, 'i') } }, {
+                    useLean: true,
+                    projection: '_id'
+                });
+                if (existingUser) {
+                    throw global.config.message.USER_EXISTS;
+                }
+            }
+
+            const updatedUser = await usersService.findByIdAndUpdate(userId, reqBody, { projection: { password: 0, fcmToken: 0, userType: 0, plan: 0, updatedAt: 0, createdAt: 0 } });
+            if (!updatedUser) {
+                throw global.config.message.NOT_UPDATED;
+            }
+
+            return res.ok(updatedUser, global.config.message.OK);
         } catch (error) {
             log(error);
 
             return res.serverError(error);
         }
-    },
-
-    delete: async (req, res, next) => {
-        try {
-            const params = req.params;
-            const paramsToRequired = ['id'];
-            checkRequiredParams(paramsToRequired, params);
-
-            const result = await usersService.findByIdAndDelete(params.id);
-            if (!result) {
-                throw global.config.message.USER_NOT_DELETED;
-            }
-
-            return res.ok(null, global.config.message.OK);
-        } catch (error) {
-            log(error);
-
-            return res.serverError(error);
-        }
-    },
-
+    }
 }

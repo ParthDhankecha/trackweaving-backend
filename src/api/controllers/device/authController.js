@@ -69,12 +69,12 @@ module.exports = {
             checkRequiredParams(['userName', 'password'], reqBody);
 
             const userData = await authService.verifyingUser(reqBody.userName, reqBody.password);
-
-            const token = jwtService.createToken(userData, 0);
-            const workspace = await workspaceService.findOne({ _id: userData.workspaceId });
+            const workspace = await usersService.validatePlanForSignIn(userData.workspaceId);
             if (!workspace) {
                 throw global.config.message.BAD_REQUEST;
             }
+
+            const token = jwtService.createToken(userData, 0);
             const payload = {
                 token: token,
                 user: {

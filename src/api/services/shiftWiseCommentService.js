@@ -1,12 +1,12 @@
 
 
 module.exports = {
-    create: async(body) =>{
+    create: async (body) => {
         const machine = new shiftWiseCommentModel(body);
         return await machine.save();
     },
 
-    async find(options = {}, queryOptions = {}){
+    async find(options = {}, queryOptions = {}) {
         queryOptions = {
             sort: undefined,
             skip: undefined,
@@ -63,6 +63,6 @@ module.exports = {
     },
 
     async updateOne(filter = {}, data) {
-        return await shiftWiseCommentModel.findOneAndUpdate({ ...filter, isDeleted: false }, data, { upsert: true });
+        return await shiftWiseCommentModel.findOneAndUpdate({ ...filter, isDeleted: false }, data, { upsert: true }).lean();
     }
-}
+};

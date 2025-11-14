@@ -17,5 +17,11 @@ router.use('/maintenance-categories', require('./maintenanceCategory'));
 
 router.use('/alerts', require('./alert'));
 
+router.use('/shift-wise-comments', require('./shiftWiseComment'));
+
+router.use('/reports', require('./report'));
+
+router.use('/part-change-logs', require('./partChangeLog'));
+
 
 module.exports = router;

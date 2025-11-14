@@ -1,3 +1,4 @@
+const moment = require('moment');
 const utilService = require('./utilService');
 
 
@@ -169,5 +170,37 @@ module.exports = {
 
     async count(filter = {}) {
         return await userModel.countDocuments({ ...filter, isDeleted: false });
+    },
+
+    async getUserPlan(workspaceId, validatePlanAndThrowError = false) {
+        const workspace = await workspaceModel.findById({ _id: workspaceId, isDeleted: false }, { userId: 1 }).populate('userId', 'plan').lean();
+        if (validatePlanAndThrowError) {
+            const plan = workspace?.userId?.plan ?? {};
+            if (!plan?.endDate) {
+                throw global.config.message.PLAN_NOT_FOUND;
+            }
+            const planExpired = moment(plan.endDate).endOf('day').isBefore(moment());
+            if (planExpired) {
+                throw global.config.message.PLAN_EXPIRED;
+            }
+            const userCount = await this.count({ workspaceId });
+            if (userCount >= (plan.subUserLimit || 4)) {
+                throw global.config.message.USER_LIMIT_EXCEEDED;
+            }
+        }
+        return workspace?.userId?.plan ?? null;
+    },
+
+    async validatePlanForSignIn(workspaceId) {
+        const workspace = await workspaceModel.findById({ _id: workspaceId, isDeleted: false }, { userId: 1, uid: 1, isActive: 1 }).populate('userId', 'plan').lean();
+        const plan = workspace?.userId?.plan ?? {};
+        if (!plan?.endDate) {
+            throw global.config.message.PLAN_NOT_FOUND;
+        }
+        const planExpired = moment(plan.endDate).endOf('day').isBefore(moment());
+        if (planExpired) {
+            throw global.config.message.PLAN_EXPIRED;
+        }
+        return workspace;
     }
 }

@@ -178,71 +178,79 @@ module.exports = {
     },
 
     parseBlock(body, displayType = 'nazon') {
+        const register = {
+            nazon: {
+                speedRpm: 5010,
+                stopCode: 5027,
+                stateCode: 5028,
+                efficiency: 5017,
+                pieceLenCm: 5013,
+                shiftWeftCountHi: 5016,
+                shiftWeftCountLo: 5015,
+                totalWeftHundredsHi: 5020,
+                totalWeftHundredsLo: 5019,
+                currentDensity: 5035,
+                beamLeft: 5023,
+                alarms: [5029, 5030, 5031, 5032],
+                stopsCount: {
+                    warp: { count: 5061, duration: 5057 },
+                    weft: { count: 5062, duration: 5058 },
+                    feeder: { count: 5063, duration: 5059 },
+                    other: { count: 5064, duration: 5060 }
+                },
+                runTime: { hours: 5055, minutes: 5056 },
+                shift: 5012
+            },
+            chitic: {
+                speedRpm: 5003,
+                stopCode: 5023,
+                stateCode: 5013,
+                efficiency: 5044,
+                pieceLenCm: 5045,
+                shiftWeftCountHi: 5048,
+                shiftWeftCountLo: 5047,
+                totalWeftHundredsHi: null,
+                totalWeftHundredsLo: null,
+                currentDensity: 5002,
+                beamLeft: 5022,
+                alarms: [],
+                stopsCount: {
+                    warp: { count: 5036, duration: 5040 },
+                    weft: { count: 5037, duration: 5041 },
+                    manual: { count: 5038, duration: 5042 },
+                    feeder: { count: 5049, duration: 5050 },
+                    other: { count: 5039, duration: 5043 }
+                },
+                runTime: { hours: 5034, minutes: 5035 },
+                shift: 5005
+            }
+        };
         const at = (lw) => body[lw - 4999];
 
-        const speedRpm   = displayType == "nazon" ? at(5010) : at(5003);
-        const stopCode   = displayType == "nazon" ? at(5027) : at(5023);
-        const stateCode  = displayType == "nazon" ? at(5028) : at(5013);
-        const efficiency = displayType == "nazon" ? at(5017) : at(5044);
+        const speedRpm   = register[displayType].speedRpm ? at(register[displayType].speedRpm) : 0;
+        const stopCode   = register[displayType].stopCode ? at(register[displayType].stopCode) : 0;
+        const stateCode  = register[displayType].stateCode ? at(register[displayType].stateCode) : 0;
+        const efficiency = register[displayType].efficiency ? at(register[displayType].efficiency) : 0;
 
-        const pieceLenCm     = displayType == "nazon" ? at(5013) : at(5045)/10;
+        let pieceLenCm     = register[displayType].pieceLenCm ? at(register[displayType].pieceLenCm) : 0;
+        if(displayType == "chitic"){
+            pieceLenCm = pieceLenCm / 10;
+        }
         const pieceLenMeters = parseFloat((pieceLenCm / 100).toFixed(2));
 
-        const shiftWeftCount = displayType == "nazon" ? toUint32(at(5016), at(5015)) : toUint32(at(5048), at(5047));
-        const totalWeftHundreds = displayType == "nazon" ? toUint32(at(5020), at(5019)) : 0;
+        const shiftWeftCount = register[displayType].shiftWeftCountHi && register[displayType].shiftWeftCountLo ? toUint32(at(register[displayType].shiftWeftCountHi), at(register[displayType].shiftWeftCountLo)) : 0;
+        const totalWeftHundreds = register[displayType].totalWeftHundredsHi && register[displayType].totalWeftHundredsLo ? toUint32(at(register[displayType].totalWeftHundredsHi), at(register[displayType].totalWeftHundredsLo)) : 0;
         const totalWeftCount = totalWeftHundreds * 100;
-        const currentDensity = displayType == "nazon" ? at(5035) : at(5002);
+        const currentDensity = register[displayType].currentDensity ? at(register[displayType].currentDensity) : 0;
 
-        const beamLeft = displayType == "nazon" ? at(5023) : at(5022);
+        const beamLeft = register[displayType].beamLeft ? at(register[displayType].beamLeft) : 0;
 
-        const alarms = displayType == "nazon" ? [at(5029), at(5030), at(5031), at(5032)] : [];
+        const alarms = register[displayType].alarms.length ? register[displayType].alarms.map(lw => at(lw)).filter(code => code !== 0) : [];
         let stopsCount = {};
-        if(displayType == "nazon"){
-            stopsCount = {
-                warp: {
-                    count: at(5061),
-                    duration: at(5057) || 0
-                },
-                weft: {
-                    count: at(5062),
-                    duration: at(5058) || 0
-                },
-                feeder: {
-                    count: at(5063),
-                    duration: at(5059) || 0
-                },
-                manual: {
-                    count: 0,
-                    duration: 0
-                },
-                other: {
-                    count: at(5064),
-                    duration: at(5060) || 0
-                }
-            }
-        } else if(displayType == "chitic") {
-            stopsCount = {
-                warp: {
-                    count: at(5036),
-                    duration: (at(5040) || 0) * 60
-                },
-                weft: {
-                    count: at(5037),
-                    duration: (at(5041) || 0) * 60
-                },
-                manual: {
-                    count: at(5038),
-                    duration: (at(5042) || 0) * 60
-                },
-                feeder: {
-                    count: at(5049),
-                    duration: (at(5050) || 0) * 60
-                },
-                other: {
-                    count: at(5039),
-                    duration: (at(5043) || 0) * 60
-                }
-            }
+        for (const [key, value] of Object.entries(register[displayType].stopsCount)) {
+            const count = value.count ? at(value.count) : 0;
+            const duration = value.duration ? at(value.duration) : 0;
+            stopsCount[key] = { count, duration };
         }
 
         return {
@@ -256,9 +264,9 @@ module.exports = {
             beamLeft: beamLeft,
             setPicks: currentDensity,
             alarmsActive: alarms,
-            shift: at(5012),
+            shift: at(register[displayType].shift),
             stopsCount: stopsCount,
-            runTime: (displayType == "nazon" ? `${at(5055).toString().padStart(2, '0')}:${at(5056).toString().padStart(2, '0')}` : `${at(5034).toString().padStart(2, '0')}:${at(5035).toString().padStart(2, '0')}`)
+            runTime: register[displayType].runTime && register[displayType].runTime.hours && register[displayType].runTime.minutes ? `${at(register[displayType].runTime.hours).toString().padStart(2, '0')}:${at(register[displayType].runTime.minutes).toString().padStart(2, '0')}` : ''
         };
     },
 

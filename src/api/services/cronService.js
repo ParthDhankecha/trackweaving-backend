@@ -1,4 +1,5 @@
 const _ = require('lodash');
+const machineLogsService = require("./machineLogsService");
 
 /** Minute: * (every minute)
  *  Hour: * (every hour)
@@ -12,12 +13,25 @@ const utilService = require("./utilService");
 
 module.exports = {
     async startCronJob() {
-        //every 12 hours
-        var job = new CronJob("0 */12 * * *", async function () {
-            utilService.log("Cron triggered!");
-            // write whatever you perform.
-        });
+        await this.updateNightShiftLogs();
+        await this.updateDayShiftLogs();
+    },
+
+    updateNightShiftLogs: async function () {
+         var job = new CronJob("0 4 * * *", async function () {
+            utilService.log("Starting cron job for night shift logs update...");
+            machineLogsService.updateNightShiftLogs();
+        }, null, true);
         job.start();
-        utilService.log("Cron job scheduled successfully.");
+        utilService.log("Cron job scheduled for night shift logs successfully.");
+    },
+
+    updateDayShiftLogs: async function () {
+         var job = new CronJob("0 15 * * *", async function () {
+            utilService.log("Starting cron job for day shift logs update...");
+            machineLogsService.updateDayShiftLogs();
+        }, null, true);
+        job.start();
+        utilService.log("Cron job scheduled for day shift logs successfully.");
     }
 }

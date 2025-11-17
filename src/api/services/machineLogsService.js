@@ -47,6 +47,69 @@ module.exports = {
         }
     },
 
+    async updateNightShiftLogs(){
+        let logs = await machineLatestLogsModel.find({ shift: global.config.SHIFT_TYPE.NIGHT }).lean();
+        let logIds = [];
+        let shiftDate = moment(body.updatedAt).startOf('day');
+        for(let log of logs) {
+            logIds.push(log._id);
+        }
+        await machineLatestLogsModel.updateMany({ _id: { $in: logIds } }, { 
+            shift: global.config.SHIFT_TYPE.DAY,
+            shiftDate: shiftDate,
+            stopsData: {
+                warp: [],
+                weft: [],
+                feeder: [],
+                manual: [],
+                other: []
+            },
+            speedRpm: 0,
+            stop: 0,
+            loomStateCode: 0,
+            efficiencyPercent: 0,
+            picksCurrentShift: 0,
+            picksTotal: 0,
+            pieceLengthM: 0,
+            beamLeft: 0,
+            setPicks: 0,
+            alarmsActive: [],
+            runTime: ''
+        });
+        console.log("Night shift logs updated to day shift successfully.");
+    },
+
+    async updateDayShiftLogs(){
+        let logs = await machineLatestLogsModel.find({ shift: global.config.SHIFT_TYPE.DAY }).lean();
+        let logIds = [];
+        let shiftDate = moment(body.updatedAt).startOf('day');
+        for(let log of logs) {
+            logIds.push(log._id);
+        }
+        await machineLatestLogsModel.updateMany({ _id: { $in: logIds } }, { 
+            shift: global.config.SHIFT_TYPE.NIGHT,
+            shiftDate: shiftDate,
+            stopsData: {
+                warp: [],
+                weft: [],
+                feeder: [],
+                manual: [],
+                other: []
+            },
+            speedRpm: 0,
+            stop: 0,
+            loomStateCode: 0,
+            efficiencyPercent: 0,
+            picksCurrentShift: 0,
+            picksTotal: 0,
+            pieceLengthM: 0,
+            beamLeft: 0,
+            setPicks: 0,
+            alarmsActive: [],
+            runTime: ''
+        });
+    },
+
     async checkAlertNotification(machineLog, body) {
         let isPickChanged = false;
         let isSpeedAlert = false;

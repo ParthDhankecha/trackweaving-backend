@@ -1,5 +1,6 @@
 const projectSetupConfigService = require("./config/projectSetupConfigService");
 const machineService = require("./machineService");
+const cronService = require("./cronService");
 const { infoLog, errLog } = require("./utilService");
 
 module.exports = {
@@ -11,6 +12,9 @@ module.exports = {
         infoLog('buildSetupConfig');
         const SetupConfig = await projectSetupConfigService.buildSetupConfig();
         if (SetupConfig) errLog(SetupConfig);
+
+        infoLog('CronStarted');
+        await cronService.startCronJob();
 
         infoLog('buildMachineAlertConfig');
         let machines = await machineService.find({ isDeleted: false }, { useLean: true, projection: { _id: 1, maxSpeedLimit: 1 } });

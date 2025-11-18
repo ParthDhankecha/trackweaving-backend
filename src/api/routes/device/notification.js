@@ -5,5 +5,6 @@ const isAuth = require('../../middleware/auth');
 router.post('/list', isAuth, notificationController.getNotifications);
 router.put('/mark-as-read', isAuth, notificationController.readNotification);
 router.get('/unread-count', isAuth, notificationController.unreadCount);
+router.post('/test', isAuth, notificationController.testNotification);
 
 module.exports = router;

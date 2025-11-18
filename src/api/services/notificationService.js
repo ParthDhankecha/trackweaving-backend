@@ -54,6 +54,19 @@ module.exports = {
         return await query;
     },
 
+    async sendTestNotification(payload, title, description, token) {
+        const message = {
+            notification: {
+                title: title,
+                body: description
+            },
+            data: payload,
+            token: token
+        };
+
+        return await admin.messaging().send(message);
+    },
+
     async markAsRead(queryFilter) {
         return await notificationModel.updateMany(queryFilter, { isRead: true });
     },

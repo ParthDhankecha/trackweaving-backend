@@ -50,7 +50,7 @@ module.exports = {
     async updateNightShiftLogs(){
         let logs = await machineLatestLogsModel.find({ shift: global.config.SHIFT_TYPE.NIGHT }).lean();
         let logIds = [];
-        let shiftDate = moment(body.updatedAt).startOf('day');
+        let shiftDate = moment().subtract(1, 'day').startOf('day');
         for(let log of logs) {
             logIds.push(log._id);
         }
@@ -82,7 +82,7 @@ module.exports = {
     async updateDayShiftLogs(){
         let logs = await machineLatestLogsModel.find({ shift: global.config.SHIFT_TYPE.DAY }).lean();
         let logIds = [];
-        let shiftDate = moment(body.updatedAt).startOf('day');
+        let shiftDate = moment().startOf('day');
         for(let log of logs) {
             logIds.push(log._id);
         }

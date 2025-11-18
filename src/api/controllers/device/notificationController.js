@@ -1,5 +1,5 @@
 const notificationService = require("../../services/notificationService");
-const { log } = require("../../services/utilService");
+const { log, checkRequiredParams } = require("../../services/utilService");
 
 
 module.exports = {
@@ -37,6 +37,25 @@ module.exports = {
             const count = await notificationService.count({ userId: req.user.id, isRead: false });
 
             return res.ok({ count: count }, global.config.message.OK);
+        } catch (error) {
+            log(error);
+            return res.serverError(error);
+        }
+    },
+
+    testNotification: async (req, res, next) => {
+        try {
+            const fields = ['payload', 'title', 'description', 'token'];
+            await checkRequiredParams(fields, req.body);
+
+            let data = await notificationService.sendTestNotification(
+                req.body.payload,
+                req.body.title,
+                req.body.description,
+                req.body.token
+            );
+
+            return res.ok(data, global.config.message.OK);
         } catch (error) {
             log(error);
             return res.serverError(error);

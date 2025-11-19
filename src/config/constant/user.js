@@ -3,7 +3,7 @@ module.exports = {
         TYPE: {
             SUPER_ADMIN: 0,
             ADMIN: 1,
-            SUB_USER: 2
+            MASTER: 2
         }
     }
 };

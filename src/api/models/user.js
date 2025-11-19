@@ -44,9 +44,14 @@ const UserSchema = new Schema({
     },
     userType: {
         type: Number,
-        enum: [USERS.TYPE.ADMIN, USERS.TYPE.SUB_USER],
+        enum: [USERS.TYPE.ADMIN, USERS.TYPE.MASTER],
         default: USERS.TYPE.ADMIN,
         select: false
+    },
+    shift: {
+        type: Number,
+        enum: [SHIFT_TYPE.DAY, SHIFT_TYPE.NIGHT],
+        default: SHIFT_TYPE.DAY
     },
     plan: getSubSchema({
         startDate: {

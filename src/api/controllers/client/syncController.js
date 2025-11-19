@@ -13,7 +13,7 @@ module.exports = {
                 roles: {
                     SUPER_ADMIN: global.config.USERS.TYPE.SUPER_ADMIN,
                     ADMIN: global.config.USERS.TYPE.ADMIN,
-                    SUB_USER: global.config.USERS.TYPE.SUB_USER,
+                    MASTER: global.config.USERS.TYPE.MASTER,
                 },
                 refreshInterval: global.config.REFRESH_INTERVAL,
                 efficiencyAveragePer: global.config.EFFICIENCY_AVERAGE_PER,

@@ -89,6 +89,10 @@ module.exports = {
             if (existingUser) {
                 throw global.config.message.USER_EXISTS;
             }
+            let shift = body.shift;
+            if(shift !== global.config.SHIFT_TYPE.DAY && shift !== global.config.SHIFT_TYPE.NIGHT) {
+                shift = global.config.SHIFT_TYPE.DAY;
+            }
 
             await usersService.create({
                 fullname: body.fullname,
@@ -96,8 +100,9 @@ module.exports = {
                 password: body.password,
                 email: body.email || '',
                 mobile: body.mobile || '',
-                userType: global.config.USERS.TYPE.SUB_USER,
-                workspaceId: req.user.workspaceId
+                userType: req.body.userType || global.config.USERS.TYPE.MASTER,
+                workspaceId: req.user.workspaceId,
+                shift: shift
             });
 
             return res.ok(null, global.config.message.CREATED);
@@ -140,9 +145,11 @@ module.exports = {
 
             delete reqBody.fcmToken;
             delete reqBody.workspaceId;
-            delete reqBody.userType;
             delete reqBody.plan;
             delete reqBody.isDeleted;
+            if(req.user.type !== global.config.USERS.TYPE.ADMIN) {
+                delete reqBody.userType;
+            }
 
             if (req.user.id == userId) {
                 delete reqBody.isActive;

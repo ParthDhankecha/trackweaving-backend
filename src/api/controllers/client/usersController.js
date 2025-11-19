@@ -63,7 +63,7 @@ module.exports = {
                 password: reqBody.password,
                 email: reqBody.email || '',
                 mobile: reqBody.mobile || '',
-                userType: global.config.USERS.TYPE.SUB_USER,
+                userType: global.config.USERS.TYPE.MASTER,
                 workspaceId: reqUser.workspaceId
             });
 

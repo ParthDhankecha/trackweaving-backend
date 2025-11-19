@@ -46,8 +46,7 @@ const UserSchema = new Schema({
     userType: {
         type: Number,
         enum: [USERS.TYPE.ADMIN, USERS.TYPE.MASTER],
-        default: USERS.TYPE.ADMIN,
-        select: false
+        default: USERS.TYPE.ADMIN
     },
     shift: {
         type: Number,

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 const { USERS } = require('../../config/constant/user');
+const { SHIFT_TYPE } = require('../../config/constant/machineLog');
 
 
 

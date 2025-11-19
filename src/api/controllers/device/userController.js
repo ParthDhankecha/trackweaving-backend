@@ -122,7 +122,7 @@ module.exports = {
                 conditions._id = req.user.id;
             }
 
-            const users = await usersService.findV2(conditions, { useLean: true, projection: { password: 0, fcmToken: 0, userType: 0 } });
+            const users = await usersService.findV2(conditions, { useLean: true, projection: { password: 0, fcmToken: 0} });
 
             return res.ok(users, global.config.message.OK);
         } catch (error) {

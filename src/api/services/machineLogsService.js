@@ -329,7 +329,7 @@ module.exports = {
             alarmsActive: alarms,
             shift: at(register[displayType].shift),
             stopsCount: stopsCount,
-            runTime: register[displayType].runTime && register[displayType].runTime.hours && register[displayType].runTime.minutes ? `${at(register[displayType].runTime.hours).toString().padStart(2, '0')}:${at(register[displayType].runTime.minutes).toString().padStart(2, '0')}` : ''
+            runTime: at(register[displayType].runTime.hours) && at(register[displayType].runTime.minutes) ? `${at(register[displayType].runTime.hours).toString().padStart(2, '0')}:${at(register[displayType].runTime.minutes).toString().padStart(2, '0')}` : ''
         };
     },
 

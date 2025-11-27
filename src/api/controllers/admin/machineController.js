@@ -28,7 +28,7 @@ module.exports = {
                 workspaceId: reqBody.workspaceId,
                 $or: [
                     { machineCode: { $regex: reqBody.machineCode, $options: 'i' } },
-                    { ip: { $regex: reqBody.ip, $options: 'i' } }
+                    { ip: reqBody.ip }
                 ]
             });
             if (isMachineExist) {

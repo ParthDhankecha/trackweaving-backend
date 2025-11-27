@@ -115,10 +115,10 @@ module.exports = {
 
                 const existObj = { workspaceId: reqBody.workspaceId, $or: [] };
                 if (reqBody.machineCode) {
-                    existObj.$or.push({ machineCode: { $regex: reqBody.machineCode, $options: 'i' } });
+                    existObj.$or.push({ machineCode: reqBody.machineCode });
                 }
                 if (reqBody.ip) {
-                    existObj.$or.push({ ip: { $regex: reqBody.ip.replace(/\./g, '\\.'), $options: 'i' } });
+                    existObj.$or.push({ ip: reqBody.ip });
                 }
 
                 const machineData = await machineService.findOne({ _id: { $ne: machineId }, ...existObj });

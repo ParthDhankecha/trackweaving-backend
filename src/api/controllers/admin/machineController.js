@@ -27,7 +27,7 @@ module.exports = {
             const isMachineExist = await machineService.findOne({
                 workspaceId: reqBody.workspaceId,
                 $or: [
-                    { machineCode: { $regex: reqBody.machineCode, $options: 'i' } },
+                    { machineCode: reqBody.machineCode },
                     { ip: reqBody.ip }
                 ]
             });

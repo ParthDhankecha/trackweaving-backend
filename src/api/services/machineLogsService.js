@@ -377,7 +377,7 @@ module.exports = {
         let aggregateReport = {
             efficiency: totalMachines ? Math.round(efficiency / totalMachines) : 0,
             pick: pick,
-            avgSpeed: totalMachines ? Math.round(speed / totalMachines) : 0,
+            avgSpeed: totalMachines ? Math.round(speed / running) : 0,
             avgPicks: totalMachines ? Math.round(pick / totalMachines) : 0,
             running: running,
             stopped: stopped,

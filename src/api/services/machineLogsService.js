@@ -10,7 +10,7 @@ module.exports = {
         let machineLog = await machineLatestLogsModel.findOneAndUpdate({machineId: body.machineId}, body, { upsert: true, returnDocument: 'before' });
         let shiftDate;
         if(body.shift == 0) {
-            shiftDate = moment(body.updatedAt).startOf('day');
+            shiftDate = moment(body.updatedTime).startOf('day');
         } else if(body.shift == 1) {
             shiftDate = moment().hour() < 11 ? moment().subtract(1, 'day').startOf('day') : moment().startOf('day');
         }

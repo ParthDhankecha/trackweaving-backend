@@ -5,6 +5,12 @@
         "clientUrl": "http://localhost:4200",
         "refreshInterval": 10,
         "efficiencyGoodPer": 90,
-        "efficiencyAveragePer": 85
+        "efficiencyAveragePer": 85,
+        "panNumber": "",
+        "gstNumber": "",
+        "amcAmount": 0,
+        "sacCode": "",
+        "invoicePhone": "",
+        "invoiceAddress": ""
     }
 ]

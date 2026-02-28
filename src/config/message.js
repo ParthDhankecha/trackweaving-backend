@@ -330,6 +330,16 @@ module.exports = {
             code: "E_BAD_REQUEST",
             message: "Shift value is invalid, it should be either 'day' or 'night'.",
             status: 400
+        },
+        INVALID_INVOICE_DETAILS_CHANGE: {
+            code: "UNPROCESSABLE_ENTITY",
+            message: "While changing invoice details, you can not change the GST status it will affect the invoice number.",
+            status: 422
+        },
+        PAYMENT_INFO_REQUIRED: {
+            code: "UNPROCESSABLE_ENTITY",
+            message: "Payment method and payment date are required when marking invoice as paid.",
+            status: 422
         }
     }
 };

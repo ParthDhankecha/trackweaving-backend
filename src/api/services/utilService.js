@@ -168,6 +168,38 @@ module.exports = {
         return result;
     },
 
+    /**
+     * Validates if a given value is a finite number and optionally checks if it falls within a range.
+     * @param {number} value - The number to validate.
+     * @param {object} [range={}] - Optional range limits.
+     * @param {number} [range.min] - Minimum acceptable value (inclusive).
+     * @param {number} [range.max] - Maximum acceptable value (inclusive).
+     * @param {number} [range.exact] - Exact value to match.
+     * @returns {boolean} `true` if the value is finite and within range, otherwise `false`.
+     */
+    isNumber(value, range = {}) {
+        // unwrap Number objects
+        if (value instanceof Number) value = value.valueOf();
+
+        if (!Number.isFinite(value)) return false;
+
+        const { min, max, exact } = range;
+        if (min !== undefined) {
+            if (!Number.isFinite(min)) return false;
+            if (value < min) return false;
+        }
+        if (max !== undefined) {
+            if (!Number.isFinite(max)) return false;
+            if (value > max) return false;
+        }
+        if (exact !== undefined) {
+            if (!Number.isFinite(exact)) return false;
+            if (value !== exact) return false;
+        }
+
+        return true;
+    },
+
     async deleteLocalFile(filePath) {
         return await new Promise((resolve, reject) => {
             const fullPath = path.resolve(filePath);

@@ -1,12 +1,12 @@
 
 
 module.exports = {
-    async create(body){
+    async create(body) {
         const workspace = new workspaceModel(body);
         return await workspace.save();
     },
 
-    async find(options = {}, queryOptions = {}){
+    async find(options = {}, queryOptions = {}) {
         queryOptions = {
             sort: undefined,
             skip: undefined,
@@ -64,6 +64,15 @@ module.exports = {
 
     async findByIdAndDelete(_id) {
         return await workspaceModel.findByIdAndUpdate({ _id: _id }, { isDeleted: true }, { new: true });
+    },
+
+    async distinct(field, filter = {}, options = {}) {
+        const { handleDeleted = true } = options;
+
+        return await workspaceModel.distinct(field, {
+            ...(handleDeleted && { isDeleted: false }),
+            ...filter
+        });
     },
 
     async countDocuments(filter = {}) {

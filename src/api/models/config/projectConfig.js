@@ -9,6 +9,12 @@ const projectConfigSchema = new Schema({
     refreshInterval: { type: Number, default: 10 }, // in seconds
     efficiencyGoodPer: { type: Number, default: 90 }, // in percentage
     efficiencyAveragePer: { type: Number, default: 85 }, // in percentage
+    amcAmount: { type: Number, default: 0 },
+    panNumber: { type: String, default: '' },
+    gstNumber: { type: String, default: '' },
+    sacCode: { type: String, default: '' },
+    invoicePhone: { type: String, default: '' },
+    invoiceAddress: { type: String, default: '' },
 }, {
     timestamps: true,
     versionKey: false

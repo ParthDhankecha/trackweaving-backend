@@ -37,7 +37,6 @@ module.exports = {
                 todayDate: moment().format('DD-MM-YYYY'),
                 panNumber: global.config.PAN_NUMBER || '',
                 gstNumber: global.config.GST_NUMBER || '',
-                amcAmount: global.config.AMC_AMOUNT || 0,
                 sacCode: global.config.SAC_CODE || '',
                 mobile: global.config.INVOICE_PHONE || '',
                 address: global.config.INVOICE_ADDRESS || '',
@@ -132,6 +131,7 @@ module.exports = {
                 'discount',
                 'finalAmount',
                 'includesGst',
+                'amcAmount',
             ], body);
             utilService.checkRequiredParams([
                 'firmName',
@@ -143,6 +143,9 @@ module.exports = {
             ], body.workspace);
 
             if (!Array.isArray(body.lineItems) || body.lineItems.length === 0) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            if (!utilService.isNumber(body.amcAmount, { min: 0 })) {
                 throw global.config.message.BAD_REQUEST;
             }
 
@@ -205,6 +208,7 @@ module.exports = {
                 'discount',
                 'finalAmount',
                 'includesGst',
+                'amcAmount',
             ], body);
             utilService.checkRequiredParams([
                 'firmName',
@@ -215,6 +219,9 @@ module.exports = {
                 'subscriptionEndDate'
             ], body.workspace);
 
+            if (!utilService.isNumber(body.amcAmount, { min: 0 })) {
+                throw global.config.message.BAD_REQUEST;
+            }
             if (!Array.isArray(body.lineItems) || body.lineItems.length === 0) {
                 throw global.config.message.BAD_REQUEST;
             }

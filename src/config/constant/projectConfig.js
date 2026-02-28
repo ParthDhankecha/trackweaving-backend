@@ -7,7 +7,6 @@ module.exports = {
     EFFICIENCY_AVERAGE_PER: 85, // in percentage
     PAN_NUMBER: "",
     GST_NUMBER: "",
-    AMC_AMOUNT: 0,
     SAC_CODE: "",
     INVOICE_PHONE: "",
     INVOICE_ADDRESS: "",

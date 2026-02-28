@@ -151,6 +151,10 @@ const InvoiceSchema = new Schema({
         type: Number,
         default: 0
     },
+    amcAmount: {
+        type: Number,
+        default: 0
+    },
     payment: {
         type: paymentSchema,
         default: () => ({})

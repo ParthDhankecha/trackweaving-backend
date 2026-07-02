@@ -6,7 +6,7 @@ admin.initializeApp({
 });
 
 module.exports = {
-    async createNotification(body, userIds = [], tokens = []) {
+    async createNotification(body, userIds = []) {
         if(!userIds.length) return;
 
         for(let userId of userIds) {
@@ -14,21 +14,82 @@ module.exports = {
             const notification = new notificationModel(body);
             await notification.save();
         }
-        
-        if(tokens.length) {
-            var message = {
-                notification: {
-                    title: body.title,
-                    body: body.description
-                },
-                tokens: tokens
-            };
-            
-            admin.messaging().sendEachForMulticast(message)
-            .then((response) => {
-                console.log(response.successCount + ' messages were sent successfully');
-            });
+
+        let chunks = [];
+        for(let i=0; i<userIds.length; i += 5) {
+            chunks.push(userIds.slice(i, i+5));
         }
+        
+        var messages = chunks.map(chunk => ({
+            notification: {
+                title: body.title,
+                body: body.description
+            },
+            condition: chunk.map(t => `'${t}' in topics`).join(' || '),
+            android: {
+                notification: {
+                    channelId: "general_notifications",
+                    defaultSound: false,
+                    priority: "high"
+                },
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: "default",
+                    },
+                },
+            },
+        }));
+        
+        const results = await Promise.all(messages.map(message => admin.messaging().send(message)));
+        
+        return results;
+    },
+
+    async createAlertNotification(body, userIds = []) {
+        if(!userIds.length) return;
+
+        for(let userId of userIds) {
+            body.userId = userId;
+            const notification = new notificationModel(body);
+            await notification.save();
+        }
+
+        let chunks = [];
+        for(let i=0; i<userIds.length; i += 5) {
+            chunks.push(userIds.slice(i, i+5));
+        }
+        
+        var messages = chunks.map(chunk => ({
+            notification: {
+                title: body.title,
+                body: body.description
+            },
+            condition: chunk.map(t => `'${t}' in topics`).join(' || '),
+            data: {
+                sound: "siren.caf",
+            },
+            android: {
+                notification: {
+                    channelId: "alert_notifications",
+                    defaultSound: false,
+                    sound: "siren.mp3",
+                    priority: "high"
+                },
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: "siren.caf",
+                    },
+                },
+            },
+        }));
+        
+        const results = await Promise.all(messages.map(message => admin.messaging().send(message)));
+        
+        return results;
     },
 
     async find(options = {}, queryOptions = {}) {
@@ -55,16 +116,7 @@ module.exports = {
     },
 
     async sendTestNotification(payload, title, description, token) {
-        const message = {
-            notification: {
-                title: title,
-                body: description
-            },
-            data: payload,
-            token: token
-        };
-
-        return await admin.messaging().send(message);
+        this.createNotification({title, description}, [token]);
     },
 
     async markAsRead(queryFilter) {

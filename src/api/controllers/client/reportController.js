@@ -29,7 +29,7 @@ module.exports = {
                         condition.shift = { $in: body.shift };
                     }
                     let machines = await machineService.find({ _id: { $in: body.machineIds }, workspaceId: req.user.workspaceId }, {
-                        projection: { machineCode: 1 },
+                        projection: { machineCode: 1, machineType: 1 },
                         useLean: true
                     });
                     let reportData = await machineLogsService.find(condition, {
@@ -71,14 +71,17 @@ module.exports = {
                         }
 
                         let shift = data.shift == global.config.SHIFT_TYPE.DAY ? "dayShift" : "nightShift";
-                        data.machineCode = machines.find(m => m._id.toString() === data.machineId.toString())?.machineCode || '';
+                        let machine = machines.find(m => m._id.toString() === data.machineId.toString());
+                        data.machineCode = machine?.machineCode || '';
+                        data.machineType = machine?.machineType || 'rapier';
                         data.stopsData = {};
                         let totalStopCount = 0;
                         let totalStopDuration = 0;
-                        for (let key in data.stopsCount) {
+                        const stopKeys = global.config.MACHINE_TYPE_KEY_MAPPING[data.machineType] || global.config.MACHINE_TYPE_KEY_MAPPING.rapier;
+                        for (let key of stopKeys) {
                             data.stopsData[key] = {
-                                count: data.stopsCount[key].count || 0,
-                                duration: data.stopsCount[key].duration || 0
+                                count: data.stopsCount[key]?.count || 0,
+                                duration: data.stopsCount[key]?.duration || 0
                             };
                             totalStopCount += data.stopsData[key].count || 0;
                             totalStopDuration += data.stopsData[key].duration || 0;

@@ -121,7 +121,12 @@ const machineSchema = new Schema({
     displayType: {
         type: String,
         default: 'nazon',
-        enum: ['nazon', 'chitic']
+        enum: ['nazon', 'chitic', 'pickwell', 'biana']
+    },
+    machineType: {
+        type: String,
+        default: 'rapier',
+        enum: ['rapier', 'airjet', 'waterjet', 'circular']
     },
     maxSpeedLimit: {
         type: Number,

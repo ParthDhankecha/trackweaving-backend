@@ -4,6 +4,128 @@ const { capitalize } = require("lodash");
 const moment = require('moment');
 
 const toUint32 = (hi, lo) => (((hi << 16) >>> 0) + (lo >>> 0)) >>> 0;
+const get16 = (r, csvRegister) => { return r[csvRegister - 1] ?? 0; }
+const register = {
+    nazon: {
+        speedRpm: 5010,
+        stopCode: 5027,
+        stateCode: 5028,
+        efficiency: 5017,
+        pieceLenCm: 5013,
+        shiftWeftCountHi: 5016,
+        shiftWeftCountLo: 5015,
+        totalWeftHundredsHi: 5020,
+        totalWeftHundredsLo: 5019,
+        currentDensity: 5035,
+        beamLeft: 5023,
+        alarms: [5029, 5030, 5031, 5032],
+        stopsCount: {
+            warp: { count: 5061, duration: 5057 },
+            weft: { count: 5062, duration: 5058 },
+            feeder: { count: 5063, duration: 5059 },
+            other: { count: 5064, duration: 5060 }
+        },
+        runTime: { hours: 5055, minutes: 5056 },
+        shift: 5012
+    },
+    chitic: {
+        speedRpm: 5003,
+        stopCode: 5023,
+        stateCode: 5013,
+        efficiency: 5044,
+        pieceLenCm: 5045,
+        shiftWeftCountHi: 5048,
+        shiftWeftCountLo: 5047,
+        totalWeftHundredsHi: null,
+        totalWeftHundredsLo: null,
+        currentDensity: 5002,
+        beamLeft: 5022,
+        alarms: [],
+        stopsCount: {
+            warp: { count: 5036, duration: 5040 },
+            weft: { count: 5037, duration: 5041 },
+            manual: { count: 5038, duration: 5042 },
+            feeder: { count: 5049, duration: 5050 },
+            other: { count: 5039, duration: 5043 }
+        },
+        runTime: { hours: 5034, minutes: 5035 },
+        shift: 5005
+    },
+    pickwell: {
+        speedRpm: 5003,
+        stopCode: 5023,
+        stateCode: 5013,
+        efficiency: 5044,
+        pieceLenCm: 5045,
+        pieceLenHi: 5007,
+        pieceLenLo: 5006,
+        pieceLenDecimals: 3,
+        shiftWeftCountHi: 5049,
+        shiftWeftCountLo: 5050,
+        totalWeftHundredsHi: null,
+        totalWeftHundredsLo: null,
+        currentDensity: 5002,
+        beamLeft: 5022,
+        alarms: [5014, 5015, 5016, 5017, 5018, 5019],
+        stopsCount: {
+            warp: { count: 5036, duration: 5040 },
+            weft: { count: 5037, duration: 5041 },
+            manual: { count: 5038, duration: 5042 },
+            other: { count: 5039, duration: 5043 }
+        },
+        runTime: { hours: 5034, minutes: 5035 },
+        shift: 5005
+    },
+    biana: {
+        "shift": 2,
+        "0": {
+            speedRpm: 3,
+            stopCode: 7,
+            stateCode: 8,
+            efficiency: 4,
+            pieceLenHi: 9,
+            pieceLenLo: 10,
+            shiftWeftCountHi: 59,
+            shiftWeftCountLo: 58,
+            totalWeftHundredsHi: null,
+            totalWeftHundredsLo: null,
+            currentDensity: 57,
+            beamLeftHi: 15,
+            beamLeftLo: 16,
+            alarms: [],
+            stopsCount: {
+                warp: { count: 47, duration: 48 },
+                h1: { count: 49, duration: 50 },
+                h2: { count: 51, duration: 52 },
+                other: { count: 53, duration: 54 }
+            },
+            runTime: 45,
+        },
+        "1": {
+            speedRpm: 3,
+            stopCode: 7,
+            stateCode: 8,
+            efficiency: 4,
+            pieceLenHi: 9,
+            pieceLenLo: 10,
+            shiftWeftCountHi: 89,
+            shiftWeftCountLo: 88,
+            totalWeftHundredsHi: null,
+            totalWeftHundredsLo: null,
+            currentDensity: 87,
+            beamLeftHi: 15,
+            beamLeftLo: 16,
+            alarms: [],
+            stopsCount: {
+                warp: { count: 77, duration: 78 },
+                h1: { count: 79, duration: 80 },
+                h2: { count: 81, duration: 82 },
+                other: { count: 83, duration: 84 }
+            },
+            runTime: 75,
+        }
+    }
+};
 
 module.exports = {
     async create(body){
@@ -112,31 +234,35 @@ module.exports = {
 
     async checkAlertNotification(machineLog, body) {
         let isPickChanged = false;
-        let isSpeedAlert = false;
+        let isMaxSpeedAlert = false;
+        let isMinSpeedAlert = false;
 
         if(machineLog.setPicks !== body.setPicks) {
             isPickChanged = true;
         }
         if(global.config.MACHINE_ALERT_CONFIG && global.config.MACHINE_ALERT_CONFIG[body.machineId]) {
-            if(body.speedRpm > global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit) {
+            if(body.speedRpm > global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit+10) {
                 if(!global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime || moment().diff(global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime, 'minutes') > 10) {
                     if(global.config.MACHINE_ALERT_CONFIG[body.machineId].sendAlert) {
-                        isSpeedAlert = true;
+                        isMaxSpeedAlert = true;
+                    }
+                }
+            }
+            if(body.speedRpm < global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit-10) {
+                if(!global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime || moment().diff(global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime, 'minutes') > 10) {
+                    if(global.config.MACHINE_ALERT_CONFIG[body.machineId].sendAlert) {
+                        isMinSpeedAlert = true;
                     }
                 }
             }
         }
         
-        if(isPickChanged || isSpeedAlert) {
+        if(isPickChanged || isMaxSpeedAlert || isMinSpeedAlert) {
             let machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { machineName: 1, machineCode: 1 } });
-            let users = await userModel.find({ workspaceId: body.workspaceId, isActive: true, isDeleted: false }, { _id: 1, fcmToken: 1 }).lean() || [];
+            let users = await userModel.find({ workspaceId: body.workspaceId, isActive: true, isDeleted: false }, { _id: 1 }).lean() || [];
             if(users.length) {
-                let tokens = [];
                 let userIds = [];
                 for(let user of users) {
-                    if(user.fcmToken) {
-                        tokens.push(user.fcmToken);
-                    }
                     userIds.push(user._id);
                 }
                 if(isPickChanged) {
@@ -146,16 +272,26 @@ module.exports = {
                         title: `Picks changed on ${capitalize(machine.machineName)} (${machine.machineCode})`,
                         description: `Picks changed from ${machineLog.setPicks} to ${body.setPicks}`
                     };
-                    notificationService.createNotification(pickNotification, userIds, tokens);
+                    notificationService.createNotification(pickNotification, userIds);
                 }
-                if(isSpeedAlert) {
+                if(isMaxSpeedAlert) {
                     let speedNotification = {
                         machineId: body.machineId,
                         workspaceId: body.workspaceId,
-                        title: `Speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
+                        title: `Max speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
                         description: `Machine speed ${body.speedRpm} RPM exceeded the limit of ${global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit} RPM`
                     };
-                    notificationService.createNotification(speedNotification, userIds, tokens);
+                    notificationService.createNotification(speedNotification, userIds);
+                    global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
+                }
+                if(isMinSpeedAlert) {
+                    let speedNotification = {
+                        machineId: body.machineId,
+                        workspaceId: body.workspaceId,
+                        title: `Low speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
+                        description: `Machine speed ${body.speedRpm} RPM is below the limit of ${global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit} RPM`
+                    };
+                    notificationService.createNotification(speedNotification, userIds);
                     global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
                 }
             }
@@ -241,96 +377,82 @@ module.exports = {
     },
 
     parseBlock(body, displayType = 'nazon') {
-        const register = {
-            nazon: {
-                speedRpm: 5010,
-                stopCode: 5027,
-                stateCode: 5028,
-                efficiency: 5017,
-                pieceLenCm: 5013,
-                shiftWeftCountHi: 5016,
-                shiftWeftCountLo: 5015,
-                totalWeftHundredsHi: 5020,
-                totalWeftHundredsLo: 5019,
-                currentDensity: 5035,
-                beamLeft: 5023,
-                alarms: [5029, 5030, 5031, 5032],
-                stopsCount: {
-                    warp: { count: 5061, duration: 5057 },
-                    weft: { count: 5062, duration: 5058 },
-                    feeder: { count: 5063, duration: 5059 },
-                    other: { count: 5064, duration: 5060 }
-                },
-                runTime: { hours: 5055, minutes: 5056 },
-                shift: 5012
-            },
-            chitic: {
-                speedRpm: 5003,
-                stopCode: 5023,
-                stateCode: 5013,
-                efficiency: 5044,
-                pieceLenCm: 5045,
-                shiftWeftCountHi: 5048,
-                shiftWeftCountLo: 5047,
-                totalWeftHundredsHi: null,
-                totalWeftHundredsLo: null,
-                currentDensity: 5002,
-                beamLeft: 5022,
-                alarms: [],
-                stopsCount: {
-                    warp: { count: 5036, duration: 5040 },
-                    weft: { count: 5037, duration: 5041 },
-                    manual: { count: 5038, duration: 5042 },
-                    feeder: { count: 5049, duration: 5050 },
-                    other: { count: 5039, duration: 5043 }
-                },
-                runTime: { hours: 5034, minutes: 5035 },
-                shift: 5005
+        if(global.config.RAPIER_DISPLAYS.includes(displayType)) {
+            const at = (lw) => body[lw - 4999];
+
+            const speedRpm   = register[displayType].speedRpm ? at(register[displayType].speedRpm) : 0;
+            const stopCode   = register[displayType].stopCode ? at(register[displayType].stopCode) : 0;
+            const stateCode  = register[displayType].stateCode ? at(register[displayType].stateCode) : 0;
+            const efficiency = register[displayType].efficiency ? at(register[displayType].efficiency) : 0;
+    
+            let pieceLenMeters = 0;
+            if (register[displayType].pieceLenHi && register[displayType].pieceLenLo) {
+                const wovenLen = toUint32(at(register[displayType].pieceLenHi), at(register[displayType].pieceLenLo));
+                const decimals = register[displayType].pieceLenDecimals || 2;
+                pieceLenMeters = parseFloat((wovenLen / Math.pow(10, decimals)).toFixed(2));
+            } else {
+                let pieceLenCm = register[displayType].pieceLenCm ? at(register[displayType].pieceLenCm) : 0;
+                if (displayType == "chitic") {
+                    pieceLenCm = pieceLenCm / 10;
+                }
+                pieceLenMeters = parseFloat((pieceLenCm / 100).toFixed(2));
             }
-        };
-        const at = (lw) => body[lw - 4999];
-
-        const speedRpm   = register[displayType].speedRpm ? at(register[displayType].speedRpm) : 0;
-        const stopCode   = register[displayType].stopCode ? at(register[displayType].stopCode) : 0;
-        const stateCode  = register[displayType].stateCode ? at(register[displayType].stateCode) : 0;
-        const efficiency = register[displayType].efficiency ? at(register[displayType].efficiency) : 0;
-
-        let pieceLenCm     = register[displayType].pieceLenCm ? at(register[displayType].pieceLenCm) : 0;
-        if(displayType == "chitic"){
-            pieceLenCm = pieceLenCm / 10;
+    
+            const shiftWeftCount = register[displayType].shiftWeftCountHi && register[displayType].shiftWeftCountLo ? toUint32(at(register[displayType].shiftWeftCountHi), at(register[displayType].shiftWeftCountLo)) : 0;
+            const totalWeftHundreds = register[displayType].totalWeftHundredsHi && register[displayType].totalWeftHundredsLo ? toUint32(at(register[displayType].totalWeftHundredsHi), at(register[displayType].totalWeftHundredsLo)) : 0;
+            const totalWeftCount = totalWeftHundreds * 100;
+            const currentDensity = register[displayType].currentDensity ? at(register[displayType].currentDensity) : 0;
+    
+            const beamLeft = register[displayType].beamLeft ? at(register[displayType].beamLeft) : 0;
+    
+            const alarms = register[displayType].alarms.length ? register[displayType].alarms.map(lw => at(lw)).filter(code => code !== 0) : [];
+            let stopsCount = {};
+            for (const [key, value] of Object.entries(register[displayType].stopsCount)) {
+                const count = value.count ? at(value.count) : 0;
+                const duration = value.duration ? at(value.duration) : 0;
+                stopsCount[key] = { count, duration };
+            }
+    
+            return {
+                speedRpm: speedRpm,
+                efficiencyPercent: efficiency,
+                stop: stopCode,
+                loomStateCode: stateCode,
+                picksCurrentShift: shiftWeftCount,
+                picksTotal: totalWeftCount,
+                pieceLengthM: pieceLenMeters,
+                beamLeft: beamLeft,
+                setPicks: currentDensity,
+                alarmsActive: alarms,
+                shift: at(register[displayType].shift),
+                stopsCount: stopsCount,
+                runTime: register[displayType].runTime && at(register[displayType].runTime.hours) && at(register[displayType].runTime.minutes) ? `${at(register[displayType].runTime.hours).toString().padStart(2, '0')}:${at(register[displayType].runTime.minutes).toString().padStart(2, '0')}` : ''
+            };
+        } else if(global.config.AIRJET_DISPLAYS.includes(displayType)) {
+            let shift = get16(body, register[displayType].shift);
+            let runTime = get16(body, register[displayType][shift].runTime);
+            let hours = Math.floor(runTime / 60);
+            let minutes = runTime % 60;
+            let stopsCount = {};
+            for (const [key, value] of Object.entries(register[displayType][shift].stopsCount)) {
+                const count = value.count ? get16(body, value.count) : 0;
+                const duration = value.duration ? get16(body, value.duration) : 0;
+                stopsCount[key] = { count, duration };
+            }
+            return {
+                speedRpm: get16(body, register[displayType][shift].speedRpm),
+                efficiencyPercent: (get16(body, register[displayType][shift].efficiency) || 0)/10,
+                stop: get16(body, register[displayType][shift].stopCode),
+                loomStateCode: get16(body, register[displayType][shift].stateCode),
+                picksCurrentShift: toUint32(get16(body, register[displayType][shift].shiftWeftCountHi), get16(body, register[displayType][shift].shiftWeftCountLo)),
+                pieceLengthM: toUint32(get16(body, register[displayType][shift].pieceLenHi), get16(body, register[displayType][shift].pieceLenLo)),
+                beamLeft: toUint32(get16(body, register[displayType][shift].beamLeftHi), get16(body, register[displayType][shift].beamLeftLo)),
+                setPicks: (get16(body, register[displayType][shift].currentDensity) || 0) / 100,
+                shift: shift,
+                stopsCount: stopsCount,
+                runTime: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+            };
         }
-        const pieceLenMeters = parseFloat((pieceLenCm / 100).toFixed(2));
-
-        const shiftWeftCount = register[displayType].shiftWeftCountHi && register[displayType].shiftWeftCountLo ? toUint32(at(register[displayType].shiftWeftCountHi), at(register[displayType].shiftWeftCountLo)) : 0;
-        const totalWeftHundreds = register[displayType].totalWeftHundredsHi && register[displayType].totalWeftHundredsLo ? toUint32(at(register[displayType].totalWeftHundredsHi), at(register[displayType].totalWeftHundredsLo)) : 0;
-        const totalWeftCount = totalWeftHundreds * 100;
-        const currentDensity = register[displayType].currentDensity ? at(register[displayType].currentDensity) : 0;
-
-        const beamLeft = register[displayType].beamLeft ? at(register[displayType].beamLeft) : 0;
-
-        const alarms = register[displayType].alarms.length ? register[displayType].alarms.map(lw => at(lw)).filter(code => code !== 0) : [];
-        let stopsCount = {};
-        for (const [key, value] of Object.entries(register[displayType].stopsCount)) {
-            const count = value.count ? at(value.count) : 0;
-            const duration = value.duration ? at(value.duration) : 0;
-            stopsCount[key] = { count, duration };
-        }
-
-        return {
-            speedRpm: speedRpm,
-            efficiencyPercent: efficiency,
-            stop: stopCode,
-            loomStateCode: stateCode,
-            picksCurrentShift: shiftWeftCount,
-            picksTotal: totalWeftCount,
-            pieceLengthM: pieceLenMeters,
-            beamLeft: beamLeft,
-            setPicks: currentDensity,
-            alarmsActive: alarms,
-            shift: at(register[displayType].shift),
-            stopsCount: stopsCount,
-            runTime: register[displayType].runTime && at(register[displayType].runTime.hours) && at(register[displayType].runTime.minutes) ? `${at(register[displayType].runTime.hours).toString().padStart(2, '0')}:${at(register[displayType].runTime.minutes).toString().padStart(2, '0')}` : ''
-        };
     },
 
     async getMachineLogsWithPagination(options = {}) {
@@ -476,13 +598,26 @@ module.exports = {
                 16: "Weft stop area 2", 17: "Weft stop area 3", 18: "Weft stop area 4",
                 19: "Warp stop area 1", 20: "Warp stop area 2"
             };
-        } else if(displayType == "chitic") {
+        } else if (displayType == "chitic") {
             STOP_REASON = {
                 0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Hand stop", 5: "Full piece",
                 6: "Emergency stop", 7: "Lack weft stop", 8: "Loom error", 9: "Power off (running)",
                 10: "ELOETU error stop", 11: "Weft present on empty cycle", 12: "Weft present on double cycle",
                 13: "SRDB Fault", 14: "MCB Instruction Err", 15: "Safety barrier stop",
                 16: "Jacquard fix length stop"
+            };
+        } else if (displayType == "pickwell") {
+            STOP_REASON = {
+                0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Manual stop", 5: "Full piece",
+                6: "Emergency stop", 7: "Weft feeder lacks yarn", 8: "Loom failure", 9: "Power outage during fast driving",
+                10: "ETU-ELO failure", 11: "Empty weft with weft yarn", 12: "Double weft with broken weft",
+                13: "Driver board alarm", 14: "Main board instruction error", 15: "Safety light curtain action",
+                16: "Jacquard quantitative parking"
+            };
+        } else if (displayType == "biana") {
+            STOP_REASON = {
+                0: "--", 1: "Manual stop", 2: "Warp stop", 6: "Storer break stop", 7: "Lack weft stop", 8: "Color 1 short weft stop",
+                9: "Color 2 short weft stop",
             };
         }
         return STOP_REASON[stopCode] || "Unknown stop reason";

@@ -193,6 +193,7 @@ module.exports = {
                 let data = {};
                 data.machineCode = logData.machineId.machineCode;
                 data.machineName = logData.machineId.machineName;
+                data.machineType = logData.machineId.machineType || 'rapier';
                 data.efficiency = logData.efficiencyPercent;
                 data.picks = logData.picksCurrentShift;
                 data.speed = logData.speedRpm;
@@ -207,13 +208,14 @@ module.exports = {
 
                 let totalStopDuration = 0;
                 let totalStops = 0;
-                for (let key in logData?.machineId?.stopsCount) {
+                const stopKeys = global.config.MACHINE_TYPE_KEY_MAPPING[data.machineType] || global.config.MACHINE_TYPE_KEY_MAPPING.rapier;
+                for (let key of stopKeys) {
                     data.stopsData[key] = {
-                        count: logData?.machineId?.stopsCount[key].count || 0,
-                        duration: moment.utc(logData?.machineId?.stopsCount[key].duration * 1000).format('HH:mm'),
-                    }
-                    totalStops += logData?.machineId?.stopsCount[key].count || 0;
-                    totalStopDuration += logData?.machineId?.stopsCount[key].duration || 0;
+                        count: logData?.machineId?.stopsCount[key]?.count || 0,
+                        duration: moment.utc((logData?.machineId?.stopsCount[key]?.duration || 0) * 1000).format('HH:mm'),
+                    };
+                    totalStops += logData?.machineId?.stopsCount[key]?.count || 0;
+                    totalStopDuration += logData?.machineId?.stopsCount[key]?.duration || 0;
                 }
                 data.stopsData.total = {
                     duration: moment.utc(totalStopDuration * 1000).format('HH:mm'),

@@ -135,6 +135,14 @@ const machineLogsSchema = new Schema({
             other: {
                 type: machineStopsCountSubSchema,
                 default: { count: 0, duration: 0 }
+            },
+            h1: {
+                type: machineStopsCountSubSchema,
+                default: { count: 0, duration: 0 }
+            },
+            h2: {
+                type: machineStopsCountSubSchema,
+                default: { count: 0, duration: 0 }
             }
         }),
         default: {}

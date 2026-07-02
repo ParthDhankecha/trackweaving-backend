@@ -17,6 +17,7 @@ module.exports = {
                 let data = {};
                 data.machineCode = logData.machineId.machineCode;
                 data.machineName = logData.machineId.machineName;
+                data.machineType = logData.machineId.machineType || 'rapier';
                 data.efficiency = logData.efficiencyPercent;
                 data.picks = logData.picksCurrentShift;
                 data.speed = logData.speedRpm;
@@ -30,13 +31,13 @@ module.exports = {
                 data.totalDuration = logData.stop === 0 ? (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStartTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00') : (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStopTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00');
                 let totalStopDuration = 0;
                 let totalStops = 0;
-                for(let key in logData?.machineId?.stopsCount){
+                for(let key of (global.config.MACHINE_TYPE_KEY_MAPPING[data.machineType] || global.config.MACHINE_TYPE_KEY_MAPPING.rapier)){
                     data.stopsData[key] = {
-                        count: logData?.machineId?.stopsCount[key].count || 0,
-                        duration: moment.utc(logData?.machineId?.stopsCount[key].duration * 1000).format('HH:mm'),
+                        count: logData?.machineId?.stopsCount[key]?.count || 0,
+                        duration: moment.utc((logData?.machineId?.stopsCount[key]?.duration || 0) * 1000).format('HH:mm'),
                     }
-                    totalStops += logData?.machineId?.stopsCount[key].count || 0;
-                    totalStopDuration += logData?.machineId?.stopsCount[key].duration || 0;
+                    totalStops += logData?.machineId?.stopsCount[key]?.count || 0;
+                    totalStopDuration += logData?.machineId?.stopsCount[key]?.duration || 0;
                 }
                 data.stopsData.total = {
                     duration: moment.utc(totalStopDuration * 1000).format('HH:mm'),

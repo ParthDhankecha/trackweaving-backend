@@ -617,7 +617,8 @@ module.exports = {
         } else if (displayType == "biana") {
             STOP_REASON = {
                 0: "--", 1: "Manual stop", 2: "Warp stop", 6: "Storer break stop", 7: "Lack weft stop", 8: "Color 1 short weft stop",
-                9: "Color 2 short weft stop",
+                9: "Color 2 short weft stop", 10: "Color 3 short weft stop", 11: "Color 4 short weft stop", 12: "Color 1 long weft stop",
+                13: "Color 2 long weft stop", 14: "Color 3 long weft stop", 15: "Color 4 long weft stop"
             };
         }
         return STOP_REASON[stopCode] || "Unknown stop reason";

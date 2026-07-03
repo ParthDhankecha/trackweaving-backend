@@ -457,7 +457,7 @@ module.exports = {
 
     async getMachineLogsWithPagination(options = {}) {
         const page = parseInt(options.page) || 1;
-        const limit = parseInt(options.limit) || 10;
+        const limit = parseInt(options.limit) || 100;
         const skip = (page - 1) * limit;
         const status = options.status || 'all'; // all, running, stopped
         let condition = { workspaceId: options.workspaceId, isDeleted: false };

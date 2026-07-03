@@ -105,6 +105,7 @@ module.exports = {
             let logs = req.body.logs;
             for (let machineId in logs) {
                 let body = machineLogsService.parseBlock(logs[machineId].rawData, logs[machineId].displayType);
+                console.log(body);
                 let record = {
                     ...body,
                     stopsData: logs[machineId].stopsData,

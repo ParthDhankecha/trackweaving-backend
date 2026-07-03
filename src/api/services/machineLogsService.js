@@ -4,7 +4,7 @@ const { capitalize } = require("lodash");
 const moment = require('moment');
 
 const toUint32 = (hi, lo) => (((hi << 16) >>> 0) + (lo >>> 0)) >>> 0;
-const get16 = (r, csvRegister) => { return r[csvRegister - 1] ?? 0; }
+const get16 = (r, csvRegister) => { return r[csvRegister] ?? 0; }
 const register = {
     nazon: {
         speedRpm: 5010,
@@ -77,7 +77,7 @@ const register = {
         shift: 5005
     },
     biana: {
-        "shift": 2,
+        "shift": 1,
         "0": {
             speedRpm: 3,
             stopCode: 7,

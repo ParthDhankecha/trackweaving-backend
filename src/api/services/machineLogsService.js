@@ -436,7 +436,7 @@ module.exports = {
             let stopsCount = {};
             for (const [key, value] of Object.entries(register[displayType][shift].stopsCount)) {
                 const count = value.count ? get16(body, value.count) : 0;
-                const duration = value.duration ? get16(body, value.duration) : 0;
+                const duration = (value.duration ? get16(body, value.duration) : 0) * 60;
                 stopsCount[key] = { count, duration };
             }
             return {

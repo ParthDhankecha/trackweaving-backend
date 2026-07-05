@@ -446,7 +446,7 @@ module.exports = {
                 loomStateCode: get16(body, register[displayType][shift].stateCode),
                 picksCurrentShift: toUint32(get16(body, register[displayType][shift].shiftWeftCountHi), get16(body, register[displayType][shift].shiftWeftCountLo)),
                 pieceLengthM: (toUint32(get16(body, register[displayType][shift].pieceLenHi), get16(body, register[displayType][shift].pieceLenLo))) / 100,
-                beamLeft: Math.round(((get16(body, register[displayType][shift].beamLeftHi) << 16) | get16(body, register[displayType][shift].beamLeftLo)) || 0 )/100,
+                beamLeft: Math.round(((get16(body, register[displayType][shift].beamLeftHi) << 16) | get16(body, register[displayType][shift].beamLeftLo) || 0 )/100),
                 setPicks: (get16(body, register[displayType][shift].currentDensity) || 0) / 100,
                 shift: shift,
                 stopsCount: stopsCount,

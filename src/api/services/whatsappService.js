@@ -19,7 +19,7 @@ function formatMobileNumber(mobile) {
 
 function apiRequest({ method, apiPath, headers = {}, body = null }) {
     const token = process.env.WHATSAPP_ACCESS_TOKEN;
-    const apiVersion = process.env.WHATSAPP_API_VERSION || 'v21.0';
+    const apiVersion = process.env.WHATSAPP_API_VERSION || 'v25.0';
 
     return new Promise((resolve, reject) => {
         const req = https.request({

@@ -63,7 +63,7 @@ async function sendShiftReportForWorkspace(workspace, shiftType) {
     });
 
     const ownerName = owner.fullname || owner.userName || 'User';
-    const caption = `Hello ${ownerName}, please find attached the ${shiftLabel} Production Report for ${workspace.firmName} dated ${moment(reportDate).format('DD MMM YYYY')}.`;
+    const caption = `Hello *${ownerName},*\nShift: *${shiftLabel}*\nDate: *${moment(reportDate).format('DD MMM YYYY')}*\nUnit: *${workspace.firmName}*.`;
 
     try {
         await whatsappService.sendDocumentMessage({

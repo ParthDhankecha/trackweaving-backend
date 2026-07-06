@@ -15,4 +15,6 @@ router.use('/invoice', require('./invoice'));
 
 router.use('/app-version', require('./appVersion'));
 
+router.use('/lead', require('./lead'));
+
 module.exports = router;

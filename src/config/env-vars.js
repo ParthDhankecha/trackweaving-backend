@@ -52,5 +52,6 @@ module.exports = {
   },
   serverResponseRecordLimit: process.env.RECORD_LIMIT ?? 50, // Default record limit for server responses
   masterOTP: process.env.MASTER_OTP, // Master OTP for admin access
+  CRON_TIMEZONE: process.env.CRON_TIMEZONE || 'Asia/Kolkata',
   // encryptionKey: process.env.ENCRYPTION_KEY,
 };

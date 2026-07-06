@@ -78,6 +78,11 @@ module.exports = {
                 queryObj.visitedBy = new RegExp(filter.visitedBy.trim(), 'i');
             }
 
+            // Filter by landmark
+            if (typeof filter.landmark === 'string' && filter.landmark.trim() !== '') {
+                queryObj.landmark = new RegExp(filter.landmark.trim(), 'i');
+            }
+
             // Date range filter by createdAt
             if (filter.createdAtFrom || filter.createdAtTo) {
                 queryObj.createdAt = {};

@@ -66,6 +66,12 @@ const LeadSchema = new Schema({
         trim: true,
         default: '',
     },
+    landmark: {
+        type: String,
+        trim: true,
+        default: '',
+        index: true,
+    },
     city: {
         type: String,
         trim: true,

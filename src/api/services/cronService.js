@@ -25,7 +25,7 @@ module.exports = {
          var job = new CronJob("0 4 * * *", async function () {
             utilService.log("Starting cron job for night shift logs update...");
             machineLogsService.updateNightShiftLogs();
-        }, null, true, CRON_TIMEZONE);
+        }, null, true);
         job.start();
         utilService.log("Cron job scheduled for night shift logs successfully.");
     },
@@ -34,7 +34,7 @@ module.exports = {
          var job = new CronJob("0 15 * * *", async function () {
             utilService.log("Starting cron job for day shift logs update...");
             machineLogsService.updateDayShiftLogs();
-        }, null, true, CRON_TIMEZONE);
+        }, null, true);
         job.start();
         utilService.log("Cron job scheduled for day shift logs successfully.");
     },

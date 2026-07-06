@@ -3,6 +3,8 @@ const notificationService = require("./notificationService");
 const { capitalize } = require("lodash");
 const moment = require('moment');
 
+const BEAM_THRESHOLDS = [1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 50, 25, 0];
+
 const toUint32 = (hi, lo) => (((hi << 16) >>> 0) + (lo >>> 0)) >>> 0;
 const get16 = (r, csvRegister) => { return r[csvRegister - 1] ?? 0; }
 const register = {
@@ -147,7 +149,9 @@ module.exports = {
                     weft: [],
                     feeder: [],
                     manual: [],
-                    other: []
+                    other: [],
+                    h1: [],
+                    h2: []
                 };
                 let log = new machineLogsModel(body);
                 await log.save();
@@ -162,7 +166,9 @@ module.exports = {
                 weft: [],
                 feeder: [],
                 manual: [],
-                other: []
+                other: [],
+                h1: [],
+                h2: []
             };
             let log = new machineLogsModel(body);
             await log.save();
@@ -184,7 +190,18 @@ module.exports = {
                 weft: [],
                 feeder: [],
                 manual: [],
-                other: []
+                other: [],
+                h1: [],
+                h2: []
+            },
+            stopsCount: {
+                warp: { count: 0, duration: 0 },
+                weft: { count: 0, duration: 0 },
+                feeder: { count: 0, duration: 0 },
+                manual: { count: 0, duration: 0 },
+                other: { count: 0, duration: 0 },
+                h1: { count: 0, duration: 0 },
+                h2: { count: 0, duration: 0 }
             },
             speedRpm: 0,
             stop: 0,
@@ -216,7 +233,18 @@ module.exports = {
                 weft: [],
                 feeder: [],
                 manual: [],
-                other: []
+                other: [],
+                h1: [],
+                h2: []
+            },
+            stopsCount: {
+                warp: { count: 0, duration: 0 },
+                weft: { count: 0, duration: 0 },
+                feeder: { count: 0, duration: 0 },
+                manual: { count: 0, duration: 0 },
+                other: { count: 0, duration: 0 },
+                h1: { count: 0, duration: 0 },
+                h2: { count: 0, duration: 0 }
             },
             speedRpm: 0,
             stop: 0,
@@ -293,6 +321,43 @@ module.exports = {
                     };
                     notificationService.createNotification(speedNotification, userIds);
                     global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
+                }
+            }
+        }
+
+        // ── Beam left threshold alerts ────────────────────────────────────────
+        // Fire once per threshold: only when beamLeft crosses from above to below
+        // (prevBeamLeft > threshold && newBeamLeft <= threshold).
+        // Beam replacement (beamLeft going up) is handled naturally — thresholds
+        // re-fire when the new beam decreases past them again.
+        const prevBeam = machineLog.beamLeft;
+        const newBeam  = body.beamLeft;
+        if (prevBeam != null && newBeam != null) {
+            const crossed = BEAM_THRESHOLDS.filter(t => prevBeam > t && newBeam <= t);
+            if (crossed.length) {
+                try {
+                    const machine = await machineService.findOne(
+                        { _id: body.machineId },
+                        { useLean: true, projection: { machineCode: 1, machineName: 1 } }
+                    );
+                    const users = await userModel.find(
+                        { workspaceId: body.workspaceId, isActive: true, isDeleted: false },
+                        { _id: 1 }
+                    ).lean() || [];
+                    const userIds = users.map(u => u._id);
+
+                    if (userIds.length && machine) {
+                        for (const threshold of crossed) {
+                            notificationService.createNotification({
+                                machineId:   body.machineId,
+                                workspaceId: body.workspaceId,
+                                title:       `Beam Left Alert — ${machine.machineCode}`,
+                                description: `Beam left has reached ${newBeam} meters (threshold: ${threshold} meters)`
+                            }, userIds);
+                        }
+                    }
+                } catch (err) {
+                    require('./utilService').errLog(`Beam alert error: ${err.message}`);
                 }
             }
         }

@@ -8,8 +8,8 @@ const routes = require('../api/routes/indexRoute');
 
 const expressApp = express();
 
-expressApp.use(bodyParser.urlencoded({ extended: true }));
-expressApp.use(bodyParser.json());
+expressApp.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+expressApp.use(bodyParser.json({ limit: '10mb' }));
 
 expressApp.use(express.static(path.join(__dirname, '..', 'public')));
 expressApp.use(express.static(path.join(__dirname, '..', '..', 'client')));

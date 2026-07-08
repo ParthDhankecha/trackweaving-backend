@@ -85,15 +85,17 @@ module.exports = {
                             duration: `${Math.floor(totalStopDuration / 3600).toString().padStart(2, '0')}:${Math.floor((totalStopDuration % 3600) / 60).toString().padStart(2, '0')}`
                         }
                         delete data.stopsCount;
-                        let runTime = data.runTime.split(':');
-                        if(runTime.length > 1) {
-                            let runHours = parseInt(runTime[0]);
-                            let runMins = parseInt(runTime[1]);
-                            runMins += runHours * 60;
-                            runMins -= Math.floor(totalStopDuration / 60);
-                            data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
+                        if(data.machineType === 'rapier') {
+                            let runTime = data.runTime.split(':');
+                            if(runTime.length > 1) {
+                                let runHours = parseInt(runTime[0]);
+                                let runMins = parseInt(runTime[1]);
+                                runMins += runHours * 60;
+                                runMins -= Math.floor(totalStopDuration / 60);
+                                data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
+                            }
+                            finalData[reportDate][shift].list.push(data);
                         }
-                        finalData[reportDate][shift].list.push(data);
                         finalData[reportDate][shift].totalPicks += data.picksCurrentShift || 0;
                         finalData[reportDate][shift].efficiency += data.efficiencyPercent || 0;
                         finalData[reportDate][shift].prodMeter += data.pieceLengthM || 0;

@@ -128,12 +128,12 @@ module.exports = {
             };
             delete data.stopsCount;
 
-            const runTime = data.runTime?.split(':') || [];
-            if (runTime.length > 1) {
-                let runMins = parseInt(runTime[0]) * 60 + parseInt(runTime[1]);
-                runMins -= Math.floor(totalStopDuration / 60);
-                data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
-            }
+            // const runTime = data.runTime?.split(':') || [];
+            // if (runTime.length > 1) {
+            //     let runMins = parseInt(runTime[0]) * 60 + parseInt(runTime[1]);
+            //     runMins -= Math.floor(totalStopDuration / 60);
+            //     data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
+            // }
 
             finalData[reportDate][shiftKey].list.push(data);
             finalData[reportDate][shiftKey].totalPicks += data.picksCurrentShift || 0;

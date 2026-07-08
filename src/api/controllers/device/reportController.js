@@ -94,8 +94,8 @@ module.exports = {
                                 runMins -= Math.floor(totalStopDuration / 60);
                                 data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
                             }
-                            finalData[reportDate][shift].list.push(data);
                         }
+                        finalData[reportDate][shift].list.push(data);
                         finalData[reportDate][shift].totalPicks += data.picksCurrentShift || 0;
                         finalData[reportDate][shift].efficiency += data.efficiencyPercent || 0;
                         finalData[reportDate][shift].prodMeter += data.pieceLengthM || 0;

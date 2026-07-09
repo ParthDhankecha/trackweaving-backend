@@ -52,6 +52,34 @@ module.exports = {
     },
 
     /**
+     * Creates a JWT token for a manufacturer.
+     */
+    createManufacturerToken(manufacturer, expiresIn = JWT_EXPIRES_IN_SECONDS) {
+        const payload = {
+            manufacturer: {
+                id: manufacturer._id,
+                companyName: manufacturer.companyName,
+                email: manufacturer.email
+            }
+        };
+
+        const options = { algorithm: ALGORITHM };
+        if (expiresIn) options.expiresIn = expiresIn;
+
+        const accessToken = jwt.sign(payload, JWT_SECRET_KEY, options);
+        return { expiresIn, accessToken };
+    },
+
+    /**
+     * Verifies a manufacturer JWT and returns the manufacturer payload.
+     */
+    verifyManufacturerToken(token) {
+        const payload = jwt.verify(token, JWT_SECRET_KEY, { algorithms: [ALGORITHM] });
+        if (!payload.manufacturer) throw new Error('Not a manufacturer token');
+        return payload.manufacturer;
+    },
+
+    /**
      * Checks if the error is a JWT token expired error.
      * @param {Error} error - The error to check.
      * @return {boolean} - Returns true if the error is a JWT token expired error, otherwise false.

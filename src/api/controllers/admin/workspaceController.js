@@ -3,6 +3,7 @@ const usersService = require("../../services/usersService");
 const utilService = require("../../services/utilService");
 const { log, checkRequiredParams } = require("../../services/utilService");
 const workspaceService = require("../../services/workspaceService");
+const manufacturerService = require("../../services/manufacturerService");
 
 
 
@@ -145,11 +146,35 @@ module.exports = {
                 updateObj.nightShift = body.nightShift;
             }
 
+            // manufacturerId assignment (null to remove, string/ObjectId to assign)
+            const manufacturerChanged = body.hasOwnProperty('manufacturerId');
+            if (manufacturerChanged) {
+                const newManufacturerId = body.manufacturerId || null;
+
+                if (newManufacturerId) {
+                    const mfr = await manufacturerService.findOne(
+                        { _id: newManufacturerId },
+                        { useLean: true, projection: { _id: 1 } }
+                    );
+                    if (!mfr) throw global.config.message.RECORD_NOT_FOUND;
+                }
+
+                updateObj.manufacturerId = newManufacturerId;
+            }
+
             if (Object.keys(updateObj).length === 0) {
                 throw global.config.message.BAD_REQUEST;
             }
 
             const updatedWorkspace = await workspaceService.findByIdAndUpdate(workspace._id, updateObj, { populate: { path: 'userId', select: 'fullname userName' }, useLean: true });
+
+            // Cascade manufacturerId to all machines in this workspace
+            if (manufacturerChanged) {
+                await machineModel.updateMany(
+                    { workspaceId: workspace._id, isDeleted: false },
+                    { $set: { manufacturerId: updateObj.manufacturerId } }
+                );
+            }
 
             return res.ok(updatedWorkspace, global.config.message.OK);
         } catch (error) {

@@ -17,4 +17,6 @@ router.use('/app-version', require('./appVersion'));
 
 router.use('/lead', require('./lead'));
 
+router.use('/manufacturer', require('./manufacturer'));
+
 module.exports = router;

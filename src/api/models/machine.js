@@ -131,6 +131,12 @@ const machineSchema = new Schema({
     maxSpeedLimit: {
         type: Number,
     },
+    manufacturerId: {
+        type: Schema.Types.ObjectId,
+        ref: 'manufacturer',
+        default: null,
+        index: true
+    },
     isDeleted: {
         type: Boolean,
         default: false
@@ -157,6 +163,8 @@ machineSchema.pre('save', async function (next) {
     }
     next();
 });
+
+machineSchema.index({ machineName: 1 });
 
 const machine = mongoose.model('machine', machineSchema, 'machines');
 module.exports = machine;

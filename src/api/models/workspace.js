@@ -43,6 +43,12 @@ const WorkspaceSchema = new Schema({
         type: Number,
         default: null
     },
+    manufacturerId: {
+        type: Schema.Types.ObjectId,
+        ref: 'manufacturer',
+        default: null,
+        index: true
+    },
     isActive: {
         type: Boolean,
         default: true

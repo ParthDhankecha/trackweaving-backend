@@ -81,10 +81,10 @@ const register = {
     biana: {
         "shift": 1,
         "0": {
-            speedRpm: 3,
+            speedRpm: 43,
             stopCode: 7,
             stateCode: 8,
-            efficiency: 4,
+            efficiency: 44,
             pieceLenHi: 61,
             pieceLenLo: 60,
             shiftWeftCountHi: 59,
@@ -104,10 +104,10 @@ const register = {
             runTime: 45,
         },
         "1": {
-            speedRpm: 3,
+            speedRpm: 73,
             stopCode: 7,
             stateCode: 8,
-            efficiency: 4,
+            efficiency: 74,
             pieceLenHi: 91,
             pieceLenLo: 90,
             shiftWeftCountHi: 89,

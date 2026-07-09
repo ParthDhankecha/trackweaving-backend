@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const { log, errLog } = require('./utilService');
+const moment = require('moment');
 
 function isEnabled() {
     return process.env.WHATSAPP_ENABLED === 'true'
@@ -142,7 +143,7 @@ module.exports = {
         return result;
     },
 
-    async sendDocumentMessage({ mobile, filePath, fileName, caption }) {
+    async sendDocumentMessage({ mobile, filePath, fileName, workspaceName, shiftLabel, shiftDate, productionMeter, efficiency, picks }) {
         if (!isEnabled()) {
             errLog('WhatsApp is not configured. Skipping document message.');
             return null;
@@ -159,11 +160,37 @@ module.exports = {
         const payload = JSON.stringify({
             messaging_product: 'whatsapp',
             to,
-            type: 'document',
-            document: {
-                id: mediaId,
-                filename: fileName || path.basename(filePath),
-                caption: caption || ''
+            type: 'template',
+            template: {
+                name: "shift_production_report_pdf",
+                language: {
+                    code: "en"
+                },
+                components: [
+                    {
+                        type: "header",
+                        parameters: [
+                            {
+                                type: "document",
+                                document: {
+                                    id: mediaId,
+                                    filename: fileName || path.basename(filePath),
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        type: "body",
+                        parameters: [
+                            { type: "text", text: workspaceName },
+                            { type: "text", text: shiftLabel },
+                            { type: "text", text: moment(shiftDate).format('DD MMM YYYY') },
+                            { type: "text", text: `${productionMeter} Meters` },
+                            { type: "text", text: picks },
+                            { type: "text", text: `${efficiency}%` },
+                        ]
+                    }
+                ]
             }
         });
 

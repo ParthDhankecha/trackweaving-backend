@@ -17,6 +17,7 @@ module.exports = {
                 let data = {};
                 data.machineCode = logData.machineId.machineCode;
                 data.machineName = logData.machineId.machineName;
+                data.quality = logData.machineId.quality || '';
                 data.machineType = logData.machineId.machineType || 'rapier';
                 data.efficiency = Math.round(logData.efficiencyPercent || 0);
                 data.picks = logData.picksCurrentShift;

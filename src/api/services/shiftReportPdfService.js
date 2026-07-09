@@ -39,11 +39,12 @@ const FIXED_COLS = [
     { key: 'date',    label: ['Date'],           w: 52,  align: 'center' },
     { key: 'shift',   label: ['Shift'],          w: 50,  align: 'center' },
     { key: 'machine', label: ['Machine'],        w: 45,  align: 'center' },
-    { key: 'prod',    label: ['Prod (Mtrs)'], w: 60,  align: 'right'  },
-    { key: 'picks',   label: ['Picks'],          w: 50,  align: 'right'  },
-    { key: 'eff',     label: ['Eff %'],          w: 35,  align: 'right'  },
-    { key: 'runtime', label: ['Run Time'],    w: 50,  align: 'center' },
-    { key: 'beam',    label: ['Beam Left'],   w: 50,  align: 'right'  },
+    { key: 'quality', label: ['Quality'],        w: 45,  align: 'center' },
+    { key: 'prod',    label: ['Prod (Mtrs)'], w: 55,  align: 'right'  },
+    { key: 'picks',   label: ['Picks'],          w: 48,  align: 'right'  },
+    { key: 'eff',     label: ['Eff %'],          w: 32,  align: 'right'  },
+    { key: 'runtime', label: ['Run Time'],    w: 48,  align: 'center' },
+    { key: 'beam',    label: ['Beam Left'],   w: 47,  align: 'right'  },
 ];
 const FIXED_W = FIXED_COLS.reduce((s, c) => s + c.w, 0);  // 312
 
@@ -198,6 +199,7 @@ function drawDataRow(doc, x, y, machine, item, cols, bg) {
         if      (c.key === 'date')    val = fmtDate(item.reportDate);
         else if (c.key === 'shift')   val = str(item.shiftLabel);
         else if (c.key === 'machine') val = str(machine.machineCode);
+        else if (c.key === 'quality') val = str(machine.quality);
         else if (c.key === 'prod')    val = fmtNum(machine.pieceLengthM);
         else if (c.key === 'picks')   val = str(machine.picksCurrentShift);
         else if (c.key === 'eff')     val = fmtNum(machine.efficiencyPercent, 1);

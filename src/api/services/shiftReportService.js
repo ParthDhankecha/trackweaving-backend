@@ -70,7 +70,12 @@ async function sendShiftReportForWorkspace(workspace, shiftType) {
             mobile: owner.mobile,
             filePath: pdf.filePath,
             fileName: pdf.fileName,
-            caption
+            workspaceName: workspace.firmName,
+            shiftLabel: shiftLabel,
+            shiftDate: reportDate,
+            productionMeter: reportData.avgProdMeter,
+            efficiency: reportData.totalEfficiency,
+            picks: reportData.totalPicks,
         });
         log(`Shift report sent to ${owner.mobile} for workspace ${workspace.firmName} (${shiftLabel}).`);
     } finally {

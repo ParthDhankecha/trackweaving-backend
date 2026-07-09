@@ -58,7 +58,7 @@ module.exports = {
 
         const machines = await machineService.find(
             { _id: { $in: machineIds }, workspaceId },
-            { projection: { machineCode: 1, machineType: 1 }, useLean: true }
+            { projection: { machineCode: 1, machineType: 1, quality: 1 }, useLean: true }
         );
 
         const reportData = await machineLogsService.find(condition, {
@@ -107,6 +107,7 @@ module.exports = {
             const machine = machines.find(m => m._id.toString() === data.machineId.toString());
             data.machineCode = machine?.machineCode || '';
             data.machineType = machine?.machineType || 'rapier';
+            data.quality = machine?.quality || '';
             data.stopsData = {};
 
             let totalStopCount = 0;

@@ -131,6 +131,11 @@ const machineSchema = new Schema({
     maxSpeedLimit: {
         type: Number,
     },
+    quality: {
+        type: String,
+        trim: true,
+        default: ''
+    },
     manufacturerId: {
         type: Schema.Types.ObjectId,
         ref: 'manufacturer',

@@ -137,6 +137,7 @@ module.exports = {
                     machineType: 1,
                     numberOfMachines: 1,
                     city: 1,
+                    landmark: 1,
                     leadStatus: 1,
                     isVisited: 1,
                     visitedBy: 1,

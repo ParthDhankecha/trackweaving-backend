@@ -143,7 +143,7 @@ module.exports = {
         return result;
     },
 
-    async sendDocumentMessage({ mobile, filePath, fileName, workspaceName, shiftLabel, shiftDate, productionMeter, efficiency, picks }) {
+    async sendDocumentMessage({ mobile, filePath, fileName, workspaceName, shiftLabel, shiftDate, productionMeter, efficiency, picks, mediaId = null }) {
         if (!isEnabled()) {
             errLog('WhatsApp is not configured. Skipping document message.');
             return null;
@@ -155,7 +155,7 @@ module.exports = {
             return null;
         }
 
-        const mediaId = await uploadMedia(filePath);
+        const resolvedMediaId = mediaId || await uploadMedia(filePath);
         const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
         const payload = JSON.stringify({
             messaging_product: 'whatsapp',
@@ -173,7 +173,7 @@ module.exports = {
                             {
                                 type: "document",
                                 document: {
-                                    id: mediaId,
+                                    id: resolvedMediaId,
                                     filename: fileName || path.basename(filePath),
                                 }
                             }
@@ -206,5 +206,47 @@ module.exports = {
 
         log(`WhatsApp document sent to ${to}`);
         return result;
+    },
+
+    async sendDocumentMessageToMany({ mobiles, filePath, fileName, workspaceName, shiftLabel, shiftDate, productionMeter, efficiency, picks }) {
+        if (!isEnabled()) {
+            errLog('WhatsApp is not configured. Skipping document message.');
+            return [];
+        }
+
+        const recipients = [...new Set(
+            (mobiles || [])
+                .map(formatMobileNumber)
+                .filter(Boolean)
+        )];
+
+        if (!recipients.length) {
+            errLog('No valid WhatsApp mobile numbers provided.');
+            return [];
+        }
+
+        const mediaId = await uploadMedia(filePath);
+        const messagePayload = {
+            filePath,
+            fileName,
+            workspaceName,
+            shiftLabel,
+            shiftDate,
+            productionMeter,
+            efficiency,
+            picks,
+            mediaId
+        };
+
+        const results = await Promise.allSettled(
+            recipients.map((mobile) => this.sendDocumentMessage({ mobile, ...messagePayload }))
+        );
+
+        return results.map((result, index) => ({
+            mobile: recipients[index],
+            status: result.status,
+            value: result.status === 'fulfilled' ? result.value : null,
+            error: result.status === 'rejected' ? result.reason : null
+        }));
     }
 };

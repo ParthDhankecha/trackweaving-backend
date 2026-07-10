@@ -30,7 +30,8 @@ module.exports = {
                 mobile: reqBody.mobile || '',
                 userType: global.config.USERS.TYPE.MASTER,
                 workspaceId: reqBody.workspaceId,
-                isActive: reqBody.isActive
+                isActive: reqBody.isActive,
+                receiveWhatsappReport: reqBody.receiveWhatsappReport === true
             };
 
             const newUser = await authService.createUser(createObj);
@@ -146,6 +147,20 @@ module.exports = {
             delete body.workspaceId;
             delete body.userType;
             delete body.isDeleted;
+
+            if (body.receiveWhatsappReport !== undefined) {
+                body.receiveWhatsappReport = body.receiveWhatsappReport === true;
+                if (body.receiveWhatsappReport) {
+                    const userData = await usersService.findOneV2({ _id: userId }, {
+                        useLean: true,
+                        projection: 'mobile'
+                    });
+                    const mobile = body.mobile ?? userData?.mobile;
+                    if (!mobile) {
+                        throw global.config.message.BAD_REQUEST;
+                    }
+                }
+            }
 
             const updatedUser = await usersService.findByIdAndUpdate(userId, body, {
                 populate: { path: 'workspaceId', select: 'firmName uid' }

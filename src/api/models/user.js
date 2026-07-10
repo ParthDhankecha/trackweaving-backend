@@ -71,6 +71,10 @@ const UserSchema = new Schema({
         type: Boolean,
         default: true
     },
+    receiveWhatsappReport: {
+        type: Boolean,
+        default: false
+    },
     fcmToken: {
         type: String,
         default: '',

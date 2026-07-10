@@ -5,6 +5,7 @@ const shiftReportPdfService = require('./shiftReportPdfService');
 const whatsappService = require('./whatsappService');
 const machineService = require('./machineService');
 const workspaceService = require('./workspaceService');
+const usersService = require('./usersService');
 const { log, errLog } = require('./utilService');
 
 function getShiftLabel(shiftType) {
@@ -22,9 +23,19 @@ function getReportDateForShift(shiftType) {
 }
 
 async function sendShiftReportForWorkspace(workspace, shiftType) {
-    const owner = workspace.userId;
-    if (!owner?.mobile) {
-        errLog(`Shift report skipped for workspace ${workspace.firmName}: owner mobile missing.`);
+    const reportUsers = await usersService.findV2({
+        workspaceId: workspace._id,
+        receiveWhatsappReport: true,
+        isActive: true,
+        isDeleted: false,
+        mobile: { $nin: ['', null] }
+    }, {
+        useLean: true,
+        projection: { mobile: 1, fullname: 1, userName: 1 }
+    });
+
+    if (!reportUsers.length) {
+        log(`Shift report skipped for workspace ${workspace.firmName}: no users with WhatsApp reports enabled.`);
         return;
     }
 
@@ -62,22 +73,31 @@ async function sendShiftReportForWorkspace(workspace, shiftType) {
         shiftLabel
     });
 
-    const ownerName = owner.fullname || owner.userName || 'User';
-    const caption = `Hello *${ownerName},*\nShift: *${shiftLabel}*\nDate: *${moment(reportDate).format('DD MMM YYYY')}*\nUnit: *${workspace.firmName}*.`;
-
     try {
-        await whatsappService.sendDocumentMessage({
-            mobile: owner.mobile,
+        const sendResults = await whatsappService.sendDocumentMessageToMany({
+            mobiles: reportUsers.map(user => user.mobile),
             filePath: pdf.filePath,
             fileName: pdf.fileName,
             workspaceName: workspace.firmName,
-            shiftLabel: shiftLabel,
+            shiftLabel,
             shiftDate: reportDate,
             productionMeter: reportData.avgProdMeter,
             efficiency: reportData.totalEfficiency,
             picks: reportData.totalPicks,
         });
-        log(`Shift report sent to ${owner.mobile} for workspace ${workspace.firmName} (${shiftLabel}).`);
+
+        sendResults.forEach((result, index) => {
+            const user = reportUsers[index];
+            const userName = user?.fullname || user?.userName || 'User';
+            if (result.status === 'fulfilled') {
+                log(`Shift report sent to ${result.mobile} (${userName}) for workspace ${workspace.firmName} (${shiftLabel}).`);
+                return;
+            }
+            errLog(`Failed to send shift report to ${result.mobile} (${userName}) for workspace ${workspace.firmName}: ${result.error?.message || 'Unknown error'}`);
+            if (result.error) {
+                log(result.error);
+            }
+        });
     } finally {
         if (fs.existsSync(pdf.filePath)) {
             fs.unlinkSync(pdf.filePath);
@@ -97,10 +117,7 @@ module.exports = {
 
         const workspaces = await workspaceService.find(
             { isActive: true },
-            {
-                populate: { path: 'userId', select: 'mobile fullname userName' },
-                useLean: true
-            }
+            { useLean: true }
         );
 
         for (const workspace of workspaces) {

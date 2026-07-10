@@ -147,6 +147,7 @@ module.exports = {
             delete reqBody.workspaceId;
             delete reqBody.plan;
             delete reqBody.isDeleted;
+            delete reqBody.receiveWhatsappReport;
             if(req.user.type !== global.config.USERS.TYPE.ADMIN) {
                 delete reqBody.userType;
             }

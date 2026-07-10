@@ -93,6 +93,7 @@ module.exports = {
             delete reqBody.userType;
             delete reqBody.plan;
             delete reqBody.isDeleted;
+            delete reqBody.receiveWhatsappReport;
 
             if (req.user.id == userId) {
                 delete reqBody.isActive;

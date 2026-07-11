@@ -477,7 +477,7 @@ module.exports = {
                 const duration = value.duration ? at(value.duration) : 0;
                 stopsCount[key] = { count, duration };
             }
-    
+            console.log(register[displayType].runTime);
             return {
                 speedRpm: speedRpm,
                 efficiencyPercent: efficiency,

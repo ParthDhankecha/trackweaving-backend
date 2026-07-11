@@ -477,7 +477,7 @@ module.exports = {
                 const duration = value.duration ? at(value.duration) : 0;
                 stopsCount[key] = { count, duration };
             }
-            console.log(register[displayType].runTime);
+
             return {
                 speedRpm: speedRpm,
                 efficiencyPercent: efficiency,
@@ -491,7 +491,7 @@ module.exports = {
                 alarmsActive: alarms,
                 shift: at(register[displayType].shift),
                 stopsCount: stopsCount,
-                runTime: register[displayType].runTime && at(register[displayType].runTime.hours) && at(register[displayType].runTime.minutes) ? `${at(register[displayType].runTime.hours).toString().padStart(2, '0')}:${at(register[displayType].runTime.minutes).toString().padStart(2, '0')}` : ''
+                runTime: register[displayType].runTime && typeof at(register[displayType].runTime.hours) === 'number' && typeof at(register[displayType].runTime.minutes) === 'number' ? `${at(register[displayType].runTime.hours).toString().padStart(2, '0')}:${at(register[displayType].runTime.minutes).toString().padStart(2, '0')}` : ''
             };
         } else if(global.config.AIRJET_DISPLAYS.includes(displayType)) {
             let shift = get16(body, register[displayType].shift);

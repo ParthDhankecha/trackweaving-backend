@@ -48,6 +48,7 @@ module.exports = {
                         data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
                     }
                 }
+                console.log(data.runTime);
                 data.stopsData.total = {
                     duration: moment.utc(totalStopDuration * 1000).format('HH:mm'),
                     count: totalStops

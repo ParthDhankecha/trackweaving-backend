@@ -201,7 +201,6 @@ module.exports = {
                 data.currentStop = logData.stop;
                 data.stopReason = machineLogsService.getStopReason(logData.stop, logData.machineId.displayType);
                 data.pieceLengthM = logData.pieceLengthM;
-                data.runTime = logData?.runTime || "00:00";
                 data.beamLeft = logData.beamLeft;
                 data.setPicks = logData.setPicks;
                 data.stopsData = {};
@@ -217,6 +216,14 @@ module.exports = {
                     };
                     totalStops += logData?.machineId?.stopsCount[key]?.count || 0;
                     totalStopDuration += logData?.machineId?.stopsCount[key]?.duration || 0;
+                }
+                if(data.machineType === 'rapier') {
+                    const runTime = logData.runTime?.split(':') || [];
+                    if (runTime.length > 1) {
+                        let runMins = parseInt(runTime[0]) * 60 + parseInt(runTime[1]);
+                        runMins -= Math.floor(totalStopDuration / 60);
+                        data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
+                    }
                 }
                 data.stopsData.total = {
                     duration: moment.utc(totalStopDuration * 1000).format('HH:mm'),

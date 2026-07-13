@@ -24,6 +24,20 @@ module.exports = {
                     });
                     break;
 
+                case 'stoppageReport':
+                    if (!body.minStopMinutes || body.minStopMinutes <= 0) {
+                        throw global.config.message.BAD_REQUEST;
+                    }
+                    resObj = await reportService.generateStoppageReport({
+                        workspaceId: req.user.workspaceId,
+                        machineIds: body.machineIds,
+                        startDate: body.startDate,
+                        endDate: body.endDate,
+                        shift: body.shift,
+                        minStopMinutes: body.minStopMinutes
+                    });
+                    break;
+
                 case 'stopageFilter':
                     break;
 

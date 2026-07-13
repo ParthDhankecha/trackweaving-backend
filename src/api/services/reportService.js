@@ -35,6 +35,34 @@ function formatDurationSeconds(totalSeconds = 0) {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 }
 
+function formatStopDurationSeconds(totalSeconds = 0) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+const STOP_CATEGORY_CODE = {
+    warp: 1,
+    weft: 2,
+    feeder: 7,
+    manual: 4,
+    h1: 8,
+    h2: 9
+};
+
+const ALL_STOP_DATA_KEYS = ['h1', 'h2', 'warp', 'weft', 'feeder', 'manual', 'other'];
+
+function getStopReasonForEvent(category, stopEvent, displayType) {
+    const stopCode = category === 'other'
+        ? stopEvent.statusCode
+        : (stopEvent.statusCode ?? STOP_CATEGORY_CODE[category]);
+    if (stopCode == null) {
+        return STOP_KEY_LABELS[category] || category;
+    }
+    return machineLogsService.getStopReason(stopCode, displayType);
+}
+
 module.exports = {
     STOP_KEY_LABELS,
     getStopColumnsForTypes,
@@ -184,6 +212,86 @@ module.exports = {
             totalEfficiency: Math.round((totalNumbers.totalEfficiency / totalNumbers.avgCount) || 0),
             avgProdMeter: totalNumbers.totalProdMeter,
             avgPicks: Math.round((totalNumbers.avgPicks / totalNumbers.avgCount) || 0)
+        };
+    },
+
+    async generateStoppageReport({ workspaceId, machineIds, startDate, endDate, shift, minStopMinutes }) {
+        if (!Array.isArray(machineIds) || machineIds.length === 0) {
+            throw global.config.message.BAD_REQUEST;
+        }
+        if (!minStopMinutes || minStopMinutes <= 0) {
+            throw global.config.message.BAD_REQUEST;
+        }
+
+        const shiftFilter = Array.isArray(shift) ? shift : [shift];
+        const minStopSeconds = minStopMinutes * 60;
+        const condition = {
+            machineId: { $in: machineIds },
+            workspaceId,
+            shiftDate: {
+                $gte: moment(new Date(startDate).toISOString()).startOf('day'),
+                $lte: moment(new Date(endDate).toISOString()).endOf('day')
+            },
+            shift: { $in: shiftFilter }
+        };
+
+        const machines = await machineService.find(
+            { _id: { $in: machineIds }, workspaceId },
+            { projection: { machineCode: 1, displayType: 1 }, useLean: true }
+        );
+
+        const reportData = await machineLogsService.find(condition, {
+            projection: {
+                machineId: 1,
+                shift: 1,
+                shiftDate: 1,
+                stopsData: 1
+            },
+            sort: { shiftDate: 1, machineId: 1 },
+            useLean: true
+        });
+
+        const list = [];
+        for (const log of reportData) {
+            const machine = machines.find(m => m._id.toString() === log.machineId.toString());
+            const displayType = machine?.displayType || 'nazon';
+            const machineCode = machine?.machineCode || '';
+            const shiftLabel = log.shift === global.config.SHIFT_TYPE.DAY ? 'Day Shift' : 'Night Shift';
+            const reportDate = moment(log.shiftDate).startOf('day').toISOString();
+            const stopsData = log.stopsData || {};
+
+            for (const key of ALL_STOP_DATA_KEYS) {
+                for (const stop of stopsData[key] || []) {
+                    const duration = stop.duration || 0;
+                    if (duration < minStopSeconds) continue;
+
+                    list.push({
+                        reportDate,
+                        machineCode,
+                        machineId: log.machineId,
+                        shift: log.shift,
+                        shiftLabel,
+                        stopReason: getStopReasonForEvent(key, stop, displayType),
+                        from: stop.start,
+                        to: stop.end,
+                        stopTime: formatStopDurationSeconds(duration)
+                    });
+                }
+            }
+        }
+
+        list.sort((a, b) => {
+            const dateCompare = new Date(a.reportDate) - new Date(b.reportDate);
+            if (dateCompare !== 0) return dateCompare;
+            if (a.shift !== b.shift) return a.shift - b.shift;
+            const machineCompare = (a.machineCode || '').localeCompare(b.machineCode || '');
+            if (machineCompare !== 0) return machineCompare;
+            return new Date(a.from || 0) - new Date(b.from || 0);
+        });
+
+        return {
+            list,
+            totalStops: list.length
         };
     },
 

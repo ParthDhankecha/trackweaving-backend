@@ -326,41 +326,58 @@ module.exports = {
         }
 
         // ── Beam left threshold alerts ────────────────────────────────────────
-        // Fire once per threshold: only when beamLeft crosses from above to below
+        // Fire when beamLeft crosses from above to below a threshold
         // (prevBeamLeft > threshold && newBeamLeft <= threshold).
-        // Beam replacement (beamLeft going up) is handled naturally — thresholds
-        // re-fire when the new beam decreases past them again.
-        // const prevBeam = machineLog.beamLeft;
-        // const newBeam  = body.beamLeft;
-        // if (prevBeam != null && newBeam != null) {
-        //     const crossed = BEAM_THRESHOLDS.filter(t => prevBeam > t && newBeam <= t);
-        //     if (crossed.length) {
-        //         try {
-        //             const machine = await machineService.findOne(
-        //                 { _id: body.machineId },
-        //                 { useLean: true, projection: { machineCode: 1, machineName: 1 } }
-        //             );
-        //             const users = await userModel.find(
-        //                 { workspaceId: body.workspaceId, isActive: true, isDeleted: false },
-        //                 { _id: 1 }
-        //             ).lean() || [];
-        //             const userIds = users.map(u => u._id);
+        // If a single update skips multiple thresholds, notify only for the
+        // lowest one reached. Each threshold fires at most once per beam cycle
+        // (until beamLeft increases past it again on replenishment).
+        const prevBeam = machineLog.beamLeft;
+        const newBeam  = body.beamLeft;
+        if (prevBeam != null && newBeam != null) {
+            if (!global.config.BEAM_ALERT_STATE) global.config.BEAM_ALERT_STATE = {};
+            const machineKey = String(machineLog.machineId);
+            if (!global.config.BEAM_ALERT_STATE[machineKey]) {
+                global.config.BEAM_ALERT_STATE[machineKey] = new Set();
+            }
+            const notified = global.config.BEAM_ALERT_STATE[machineKey];
 
-        //             if (userIds.length && machine) {
-        //                 for (const threshold of crossed) {
-        //                     notificationService.createNotification({
-        //                         machineId:   body.machineId,
-        //                         workspaceId: body.workspaceId,
-        //                         title:       `Beam Left Alert — ${machine.machineCode}`,
-        //                         description: `Beam left has reached ${newBeam} meters (threshold: ${threshold} meters)`
-        //                     }, userIds);
-        //                 }
-        //             }
-        //         } catch (err) {
-        //             require('./utilService').errLog(`Beam alert error: ${err.message}`);
-        //         }
-        //     }
-        // }
+            if (newBeam > prevBeam) {
+                for (const t of [...notified]) {
+                    if (newBeam > t) notified.delete(t);
+                }
+            }
+
+            const crossed = BEAM_THRESHOLDS.filter(t => prevBeam > t && newBeam <= t);
+            if (crossed.length) {
+                const threshold = Math.min(...crossed);
+                if (!notified.has(threshold)) {
+                    notified.add(threshold);
+                    try {
+                        const machine = await machineService.findOne(
+                            { _id: body.machineId },
+                            { useLean: true, projection: { machineCode: 1, machineName: 1 } }
+                        );
+                        const users = await userModel.find(
+                            { workspaceId: body.workspaceId, isActive: true, isDeleted: false },
+                            { _id: 1 }
+                        ).lean() || [];
+                        const userIds = users.map(u => u._id);
+
+                        if (userIds.length && machine) {
+                            notificationService.createNotification({
+                                machineId:   body.machineId,
+                                workspaceId: body.workspaceId,
+                                title:       `Beam Left Alert — ${machine.machineCode}`,
+                                description: `Beam left has reached ${newBeam} meters (threshold: ${threshold} meters)`
+                            }, userIds);
+                        }
+                    } catch (err) {
+                        notified.delete(threshold);
+                        require('./utilService').errLog(`Beam alert error: ${err.message}`);
+                    }
+                }
+            }
+        }
     },
 
     async find(condition, queryOptions = {}) {

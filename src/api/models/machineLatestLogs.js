@@ -194,6 +194,10 @@ const machineLatestLogsSchema = new Schema({
         }),
         default: {}
     },
+    beamAlertNotifiedThresholds: {
+        type: [Number],
+        default: []
+    },
     isDeleted: {
         type: Boolean,
         default: false

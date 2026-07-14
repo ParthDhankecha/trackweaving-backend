@@ -17,11 +17,11 @@ module.exports = {
         await cronService.startCronJob();
 
         infoLog('buildMachineAlertConfig');
-        let machines = await machineService.find({ isDeleted: false }, { useLean: true, projection: { _id: 1, maxSpeedLimit: 1 } });
+        let machines = await machineService.find({ isDeleted: false }, { useLean: true, projection: { _id: 1, maxSpeedLimit: 1, isAlertActive: 1 } });
         global.config.MACHINE_ALERT_CONFIG = {};
         for (let machine of machines) {
             if(machine.maxSpeedLimit) {
-                global.config.MACHINE_ALERT_CONFIG[machine._id] = {
+                global.config.MACHINE_ALERT_CONFIG[String(machine._id)] = {
                     speedLimit: machine.maxSpeedLimit,
                     sendAlert: machine.isAlertActive || false,
                 };

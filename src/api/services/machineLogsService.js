@@ -269,7 +269,7 @@ module.exports = {
         const alertUpdate = {};
         const machineKey = String(body.machineId);
 
-        if (machineLog.setPicks !== body.setPicks) {
+        if ((machineLog.setPicks || body.setPicks) && machineLog.setPicks !== body.setPicks) {
             isPickChanged = true;
         }
 

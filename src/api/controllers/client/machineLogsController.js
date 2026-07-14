@@ -195,6 +195,7 @@ module.exports = {
                 data.machineName = logData.machineId.machineName;
                 data.quality = logData.machineId.quality || '';
                 data.machineType = logData.machineId.machineType || 'rapier';
+                data.machineGroupId = logData.machineId?.machineGroupId || '';
                 data.efficiency = logData.efficiencyPercent;
                 data.picks = logData.picksCurrentShift;
                 data.speed = logData.speedRpm;
@@ -217,7 +218,7 @@ module.exports = {
                     totalStops += logData?.machineId?.stopsCount[key]?.count || 0;
                     totalStopDuration += logData?.machineId?.stopsCount[key]?.duration || 0;
                 }
-                if(data.machineType === 'rapier') {
+                if (data.machineType === 'rapier') {
                     const runTime = logData.runTime?.split(':') || [];
                     if (runTime.length > 1) {
                         let runMins = parseInt(runTime[0]) * 60 + parseInt(runTime[1]);

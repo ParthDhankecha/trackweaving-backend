@@ -1,7 +1,9 @@
-const machineService = require("./machineService");
-const notificationService = require("./notificationService");
-const { capitalize } = require("lodash");
+const { capitalize } = require('lodash');
 const moment = require('moment');
+
+const machineService = require('./machineService');
+const notificationService = require('./notificationService');
+const utilService = require('./utilService');
 
 const BEAM_THRESHOLDS = [1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 50, 25, 0];
 
@@ -130,17 +132,17 @@ const register = {
 };
 
 module.exports = {
-    async create(body){
-        let machineLog = await machineLatestLogsModel.findOneAndUpdate({machineId: body.machineId}, body, { upsert: true, returnDocument: 'before' });
+    async create(body) {
+        let machineLog = await machineLatestLogsModel.findOneAndUpdate({ machineId: body.machineId }, body, { upsert: true, returnDocument: 'before' });
         let shiftDate;
-        if(body.shift == 0) {
+        if (body.shift == 0) {
             shiftDate = moment(body.updatedTime).startOf('day');
-        } else if(body.shift == 1) {
+        } else if (body.shift == 1) {
             shiftDate = moment().hour() < 11 ? moment().subtract(1, 'day').startOf('day') : moment().startOf('day');
         }
-        if(machineLog) {
-            if(machineLog.shift != body.shift) {
-                if(body.prevData){
+        if (machineLog) {
+            if (machineLog.shift != body.shift) {
+                if (body.prevData) {
                     await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createdAt: -1 } });
                 }
                 body.shiftDate = shiftDate;
@@ -158,7 +160,7 @@ module.exports = {
             } else {
                 await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
             }
-            this.checkAlertNotification(machineLog, body);
+            await this.checkAlertNotification(machineLog, body);
         } else {
             body.shiftDate = shiftDate;
             body.stopsData = {
@@ -175,14 +177,14 @@ module.exports = {
         }
     },
 
-    async updateNightShiftLogs(){
+    async updateNightShiftLogs() {
         let logs = await machineLatestLogsModel.find({ shift: global.config.SHIFT_TYPE.NIGHT }).lean();
         let logIds = [];
         let shiftDate = moment().subtract(1, 'day').startOf('day');
-        for(let log of logs) {
+        for (let log of logs) {
             logIds.push(log._id);
         }
-        await machineLatestLogsModel.updateMany({ _id: { $in: logIds } }, { 
+        await machineLatestLogsModel.updateMany({ _id: { $in: logIds } }, {
             shift: global.config.SHIFT_TYPE.DAY,
             shiftDate: shiftDate,
             stopsData: {
@@ -218,14 +220,14 @@ module.exports = {
         console.log("Night shift logs updated to day shift successfully.");
     },
 
-    async updateDayShiftLogs(){
+    async updateDayShiftLogs() {
         let logs = await machineLatestLogsModel.find({ shift: global.config.SHIFT_TYPE.DAY }).lean();
         let logIds = [];
         let shiftDate = moment().startOf('day');
-        for(let log of logs) {
+        for (let log of logs) {
             logIds.push(log._id);
         }
-        await machineLatestLogsModel.updateMany({ _id: { $in: logIds } }, { 
+        await machineLatestLogsModel.updateMany({ _id: { $in: logIds } }, {
             shift: global.config.SHIFT_TYPE.NIGHT,
             shiftDate: shiftDate,
             stopsData: {
@@ -264,63 +266,75 @@ module.exports = {
         let isPickChanged = false;
         let isMaxSpeedAlert = false;
         let isMinSpeedAlert = false;
+        const alertUpdate = {};
+        const machineKey = String(body.machineId);
 
-        if(machineLog.setPicks !== body.setPicks) {
+        if (machineLog.setPicks !== body.setPicks) {
             isPickChanged = true;
         }
-        if(global.config.MACHINE_ALERT_CONFIG && global.config.MACHINE_ALERT_CONFIG[body.machineId]) {
-            if(body.speedRpm > global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit+10) {
-                if(!global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime || moment().diff(global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime, 'minutes') > 10) {
-                    if(global.config.MACHINE_ALERT_CONFIG[body.machineId].sendAlert) {
-                        isMaxSpeedAlert = true;
-                    }
-                }
-            }
-            if(body.speedRpm < global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit-10) {
-                if(!global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime || moment().diff(global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime, 'minutes') > 10) {
-                    if(global.config.MACHINE_ALERT_CONFIG[body.machineId].sendAlert) {
-                        isMinSpeedAlert = true;
-                    }
+
+        // Speed alerts only while machine is running — stopped looms report ~0 RPM
+        // and would otherwise spam low-speed alerts every cooldown window.
+        const alertConfig = global.config.MACHINE_ALERT_CONFIG && global.config.MACHINE_ALERT_CONFIG[machineKey];
+        if (alertConfig && alertConfig.sendAlert && body.stop === 0) {
+            const lastSpeedAlertTime = alertConfig.lastSpeedAlertTime;
+            const canSendSpeedAlert = !lastSpeedAlertTime || moment().diff(moment(lastSpeedAlertTime), 'minutes') > 10;
+            if (canSendSpeedAlert) {
+                if (body.speedRpm > alertConfig.speedLimit + 10) {
+                    isMaxSpeedAlert = true;
+                } else if (body.speedRpm < alertConfig.speedLimit - 10) {
+                    isMinSpeedAlert = true;
                 }
             }
         }
-        
-        if(isPickChanged || isMaxSpeedAlert || isMinSpeedAlert) {
-            let machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { machineName: 1, machineCode: 1 } });
-            let users = await userModel.find({ workspaceId: body.workspaceId, isActive: true, isDeleted: false }, { _id: 1 }).lean() || [];
-            if(users.length) {
-                let userIds = [];
-                for(let user of users) {
-                    userIds.push(user._id);
-                }
-                if(isPickChanged) {
-                    let pickNotification = {
+
+        const needsMachineUsers = isPickChanged || isMaxSpeedAlert || isMinSpeedAlert;
+        let machine = null;
+        let userIds = [];
+
+        if (needsMachineUsers) {
+            machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { machineName: 1, machineCode: 1 } });
+            const users = await userModel.find({ workspaceId: body.workspaceId, isActive: true, isDeleted: false }, { _id: 1 }).lean() || [];
+            userIds = users.map(u => u._id);
+        }
+
+        if (machine && userIds.length) {
+            if (isPickChanged) {
+                try {
+                    await notificationService.createNotification({
                         machineId: body.machineId,
                         workspaceId: body.workspaceId,
                         title: `Picks changed on ${capitalize(machine.machineName)} (${machine.machineCode})`,
                         description: `Picks changed from ${machineLog.setPicks} to ${body.setPicks}`
-                    };
-                    notificationService.createNotification(pickNotification, userIds);
+                    }, userIds);
+                } catch (err) {
+                    utilService.errLog(`Pick alert error: ${err.message}`);
                 }
-                if(isMaxSpeedAlert) {
-                    let speedNotification = {
+            }
+            if (isMaxSpeedAlert) {
+                try {
+                    await notificationService.createNotification({
                         machineId: body.machineId,
                         workspaceId: body.workspaceId,
                         title: `Max speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
-                        description: `Machine speed ${body.speedRpm} RPM exceeded the limit of ${global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit} RPM`
-                    };
-                    notificationService.createNotification(speedNotification, userIds);
+                        description: `Machine speed ${body.speedRpm} RPM exceeded the limit of ${alertConfig.speedLimit} RPM`
+                    }, userIds);
                     global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
+                } catch (err) {
+                    utilService.errLog(`Max speed alert error: ${err.message}`);
                 }
-                if(isMinSpeedAlert) {
-                    let speedNotification = {
+            }
+            if (isMinSpeedAlert) {
+                try {
+                    await notificationService.createNotification({
                         machineId: body.machineId,
                         workspaceId: body.workspaceId,
                         title: `Low speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
-                        description: `Machine speed ${body.speedRpm} RPM is below the limit of ${global.config.MACHINE_ALERT_CONFIG[body.machineId].speedLimit} RPM`
-                    };
-                    notificationService.createNotification(speedNotification, userIds);
+                        description: `Machine speed ${body.speedRpm} RPM is below the limit of ${alertConfig.speedLimit} RPM`
+                    }, userIds);
                     global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
+                } catch (err) {
+                    utilService.errLog(`Min speed alert error: ${err.message}`);
                 }
             }
         }
@@ -332,18 +346,17 @@ module.exports = {
         // lowest one reached. Each threshold fires at most once per beam cycle
         // (until beamLeft increases past it again on replenishment).
         const prevBeam = machineLog.beamLeft;
-        const newBeam  = body.beamLeft;
+        const newBeam = body.beamLeft;
         if (prevBeam != null && newBeam != null) {
-            if (!global.config.BEAM_ALERT_STATE) global.config.BEAM_ALERT_STATE = {};
-            const machineKey = String(machineLog.machineId);
-            if (!global.config.BEAM_ALERT_STATE[machineKey]) {
-                global.config.BEAM_ALERT_STATE[machineKey] = new Set();
-            }
-            const notified = global.config.BEAM_ALERT_STATE[machineKey];
+            const notified = new Set(machineLog.beamAlertNotifiedThresholds || []);
+            let beamStateChanged = false;
 
             if (newBeam > prevBeam) {
                 for (const t of [...notified]) {
-                    if (newBeam > t) notified.delete(t);
+                    if (newBeam > t) {
+                        notified.delete(t);
+                        beamStateChanged = true;
+                    }
                 }
             }
 
@@ -351,32 +364,49 @@ module.exports = {
             if (crossed.length) {
                 const threshold = Math.min(...crossed);
                 if (!notified.has(threshold)) {
-                    notified.add(threshold);
                     try {
-                        const machine = await machineService.findOne(
-                            { _id: body.machineId },
-                            { useLean: true, projection: { machineCode: 1, machineName: 1 } }
-                        );
-                        const users = await userModel.find(
-                            { workspaceId: body.workspaceId, isActive: true, isDeleted: false },
-                            { _id: 1 }
-                        ).lean() || [];
-                        const userIds = users.map(u => u._id);
+                        if (!machine) {
+                            machine = await machineService.findOne(
+                                { _id: body.machineId },
+                                { useLean: true, projection: { machineCode: 1, machineName: 1 } }
+                            );
+                        }
+                        if (!userIds.length) {
+                            const users = await userModel.find(
+                                { workspaceId: body.workspaceId, isActive: true, isDeleted: false },
+                                { _id: 1 }
+                            ).lean() || [];
+                            userIds = users.map(u => u._id);
+                        }
 
+                        // Only mark threshold as notified after a successful send,
+                        // so we can retry if there were no users / notify failed.
                         if (userIds.length && machine) {
-                            notificationService.createNotification({
-                                machineId:   body.machineId,
+                            await notificationService.createNotification({
+                                machineId: body.machineId,
                                 workspaceId: body.workspaceId,
-                                title:       `Beam Left Alert — ${machine.machineCode}`,
+                                title: `Beam Left Alert — ${machine.machineCode}`,
                                 description: `Beam left has reached ${newBeam} meters (threshold: ${threshold} meters)`
                             }, userIds);
+                            notified.add(threshold);
+                            beamStateChanged = true;
                         }
                     } catch (err) {
-                        notified.delete(threshold);
-                        require('./utilService').errLog(`Beam alert error: ${err.message}`);
+                        utilService.errLog(`Beam alert error: ${err.message}`);
                     }
                 }
             }
+
+            if (beamStateChanged) {
+                alertUpdate.beamAlertNotifiedThresholds = [...notified];
+            }
+        }
+
+        if (Object.keys(alertUpdate).length) {
+            await machineLatestLogsModel.findOneAndUpdate(
+                { machineId: body.machineId },
+                { $set: alertUpdate }
+            );
         }
     },
 
@@ -459,14 +489,14 @@ module.exports = {
     },
 
     parseBlock(body, displayType = 'nazon') {
-        if(global.config.RAPIER_DISPLAYS.includes(displayType)) {
+        if (global.config.RAPIER_DISPLAYS.includes(displayType)) {
             const at = (lw) => body[lw - 4999];
 
-            const speedRpm   = register[displayType].speedRpm ? at(register[displayType].speedRpm) : 0;
-            const stopCode   = register[displayType].stopCode ? at(register[displayType].stopCode) : 0;
-            const stateCode  = register[displayType].stateCode ? at(register[displayType].stateCode) : 0;
+            const speedRpm = register[displayType].speedRpm ? at(register[displayType].speedRpm) : 0;
+            const stopCode = register[displayType].stopCode ? at(register[displayType].stopCode) : 0;
+            const stateCode = register[displayType].stateCode ? at(register[displayType].stateCode) : 0;
             const efficiency = register[displayType].efficiency ? at(register[displayType].efficiency) : 0;
-    
+
             let pieceLenMeters = 0;
             if (register[displayType].pieceLenHi && register[displayType].pieceLenLo) {
                 const wovenLen = toUint32(at(register[displayType].pieceLenHi), at(register[displayType].pieceLenLo));
@@ -479,14 +509,14 @@ module.exports = {
                 }
                 pieceLenMeters = parseFloat((pieceLenCm / 100).toFixed(2));
             }
-    
+
             const shiftWeftCount = register[displayType].shiftWeftCountHi && register[displayType].shiftWeftCountLo ? toUint32(at(register[displayType].shiftWeftCountHi), at(register[displayType].shiftWeftCountLo)) : 0;
             const totalWeftHundreds = register[displayType].totalWeftHundredsHi && register[displayType].totalWeftHundredsLo ? toUint32(at(register[displayType].totalWeftHundredsHi), at(register[displayType].totalWeftHundredsLo)) : 0;
             const totalWeftCount = totalWeftHundreds * 100;
             const currentDensity = register[displayType].currentDensity ? at(register[displayType].currentDensity) : 0;
-    
+
             const beamLeft = register[displayType].beamLeft ? at(register[displayType].beamLeft) : 0;
-    
+
             const alarms = register[displayType].alarms.length ? register[displayType].alarms.map(lw => at(lw)).filter(code => code !== 0) : [];
             let stopsCount = {};
             for (const [key, value] of Object.entries(register[displayType].stopsCount)) {
@@ -510,7 +540,7 @@ module.exports = {
                 stopsCount: stopsCount,
                 runTime: register[displayType].runTime && typeof at(register[displayType].runTime.hours) === 'number' && typeof at(register[displayType].runTime.minutes) === 'number' ? `${at(register[displayType].runTime.hours).toString().padStart(2, '0')}:${at(register[displayType].runTime.minutes).toString().padStart(2, '0')}` : ''
             };
-        } else if(global.config.AIRJET_DISPLAYS.includes(displayType)) {
+        } else if (global.config.AIRJET_DISPLAYS.includes(displayType)) {
             let shift = get16(body, register[displayType].shift);
             let runTime = get16(body, register[displayType][shift].runTime);
             let hours = Math.floor(runTime / 60);
@@ -523,12 +553,12 @@ module.exports = {
             }
             return {
                 speedRpm: get16(body, register[displayType][shift].speedRpm),
-                efficiencyPercent: (get16(body, register[displayType][shift].efficiency) || 0)/10,
+                efficiencyPercent: (get16(body, register[displayType][shift].efficiency) || 0) / 10,
                 stop: get16(body, register[displayType][shift].stopCode),
                 loomStateCode: get16(body, register[displayType][shift].stateCode),
                 picksCurrentShift: toUint32(get16(body, register[displayType][shift].shiftWeftCountHi), get16(body, register[displayType][shift].shiftWeftCountLo)),
                 pieceLengthM: (toUint32(get16(body, register[displayType][shift].pieceLenHi), get16(body, register[displayType][shift].pieceLenLo))) / 100,
-                beamLeft: Math.round(((get16(body, register[displayType][shift].beamLeftLo) << 16) | get16(body, register[displayType][shift].beamLeftHi) || 0 )/100),
+                beamLeft: Math.round(((get16(body, register[displayType][shift].beamLeftLo) << 16) | get16(body, register[displayType][shift].beamLeftHi) || 0) / 100),
                 setPicks: (get16(body, register[displayType][shift].currentDensity) || 0) / 100,
                 shift: shift,
                 stopsCount: stopsCount,
@@ -549,26 +579,26 @@ module.exports = {
         let speed = 0;
         let running = 0;
         let stopped = 0;
-        for(let machineLog of data) {
+        for (let machineLog of data) {
             efficiency += machineLog.efficiencyPercent;
             pick += machineLog.picksCurrentShift;
             speed += machineLog.speedRpm;
-            if(machineLog.stop === 0) {
+            if (machineLog.stop === 0) {
                 running++;
             } else {
                 stopped++;
             }
         }
         let totalMachines = data.length;
-        if(status === 'running') {
+        if (status === 'running') {
             data = data.filter(d => d.stop === 0);
-        } else if(status === 'stopped') {
+        } else if (status === 'stopped') {
             data = data.filter(d => d.stop !== 0);
         }
         let machineLogs = data.slice(skip, skip + limit);
         let machineIds = machineLogs.map(log => log.machineId);
         let machines = await machineModel.find({ _id: { $in: machineIds } }).lean();
-        for(let log of machineLogs) {
+        for (let log of machineLogs) {
             let machine = machines.find(m => m._id.toString() === log.machineId.toString());
             log.machineId = {
                 ...machine,
@@ -669,9 +699,9 @@ module.exports = {
          return data[0];*/
     },
 
-    getStopReason(stopCode, displayType = 'nazon'){
+    getStopReason(stopCode, displayType = 'nazon') {
         let STOP_REASON = {};
-        if(displayType == 'nazon') {
+        if (displayType == 'nazon') {
             STOP_REASON = {
                 0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Hand stop", 5: "Full piece",
                 6: "Emergency stop", 7: "Lack weft stop", 8: "Loom error", 9: "Power off (running)",

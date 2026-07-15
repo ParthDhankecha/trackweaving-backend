@@ -78,8 +78,9 @@ function getAvailableShiftMinutes(shiftDate, shiftKey, workspace, now = moment()
 
     const fullMinutes = window.end.diff(window.start, 'minutes');
     if (fullMinutes <= 0) return null;
-
+    console.log(window.start, window.end);
     const isToday = moment(shiftDate).startOf('day').isSame(now.clone().startOf('day'));
+    console.log(isToday);
     if (!isToday) {
         return fullMinutes;
     }

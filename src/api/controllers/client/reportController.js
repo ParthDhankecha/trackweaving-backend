@@ -38,6 +38,15 @@ module.exports = {
                     });
                     break;
 
+                case 'beamLeftReport':
+                    resObj = await reportService.generateBeamLeftReport({
+                        workspaceId: req.user.workspaceId,
+                        machineIds: body.machineIds,
+                        startDate: body.startDate,
+                        endDate: body.endDate,
+                    });
+                    break;
+
                 case 'stopageFilter':
                     break;
 

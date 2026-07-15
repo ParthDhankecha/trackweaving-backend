@@ -371,6 +371,53 @@ module.exports = {
         };
     },
 
+    async generateBeamLeftReport({ workspaceId, machineIds, startDate, endDate }) {
+        if (!Array.isArray(machineIds) || machineIds.length === 0) {
+            throw global.config.message.BAD_REQUEST;
+        }
+
+        const rangeStart = moment(new Date(startDate).toISOString()).startOf('day').toDate();
+        const rangeEnd = moment(new Date(endDate).toISOString()).endOf('day').toDate();
+
+        const [machines, beamRecords] = await Promise.all([
+            machineService.find(
+                { _id: { $in: machineIds }, workspaceId },
+                { projection: { machineCode: 1, machineName: 1 }, useLean: true }
+            ),
+            beamLeftModel.find({
+                machineId: { $in: machineIds },
+                workspaceId,
+                isDeleted: false,
+                startDate: { $gte: rangeStart, $lte: rangeEnd }
+            }).sort({ startDate: 1, machineId: 1 }).lean()
+        ]);
+
+        const machineMap = {};
+        machines.forEach(m => {
+            machineMap[m._id.toString()] = m;
+        });
+
+        const list = beamRecords.map(record => {
+            const machine = machineMap[record.machineId?.toString()] || {};
+            const shiftVal = Number(record.shift);
+            return {
+                machineName: `${machine.machineName || ''} (${machine.machineCode || '-'})`,
+                startDate: record.startDate,
+                shift: shiftVal === global.config.SHIFT_TYPE.NIGHT ? 'Night Shift' : 'Day Shift',
+                endDate: record.endDate || null,
+                quality: record.quality || '',
+                beamLength: record.beamLength ?? null,
+                productionMtr: record.productionMtr ?? null
+            };
+        });
+
+        return {
+            list,
+            totalRecords: list.length,
+            totalProductionMtr: list.reduce((sum, row) => sum + (row.productionMtr || 0), 0)
+        };
+    },
+
     flattenReportForExport(reportData, shiftType) {
         const shiftKey = shiftType === global.config.SHIFT_TYPE.DAY ? 'dayShift' : 'nightShift';
         const shiftLabel = shiftType === global.config.SHIFT_TYPE.DAY ? 'Day Shift' : 'Night Shift';

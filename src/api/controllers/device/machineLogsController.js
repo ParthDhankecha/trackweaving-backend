@@ -47,6 +47,8 @@ module.exports = {
                         runMins -= Math.floor(totalStopDuration / 60);
                         data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
                     }
+                } else {
+                    data.runTime = logData.runTime;
                 }
 
                 data.stopsData.total = {

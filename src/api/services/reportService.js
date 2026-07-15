@@ -86,6 +86,7 @@ function getAvailableShiftMinutes(shiftDate, shiftKey, workspace, now = moment()
     }
 
     if (now.isBefore(window.start)) {
+        console.log("now", now)
         return 0;
     }
     if (now.isBefore(window.end)) {

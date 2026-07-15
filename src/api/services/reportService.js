@@ -1,6 +1,7 @@
 const moment = require('moment');
 const machineService = require('./machineService');
 const machineLogsService = require('./machineLogsService');
+const workspaceService = require('./workspaceService');
 
 const STOP_KEY_LABELS = {
     warp: 'Warp',
@@ -40,6 +41,56 @@ function formatStopDurationSeconds(totalSeconds = 0) {
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = Math.floor(totalSeconds % 60);
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function parseDurationToMinutes(value = '') {
+    const parts = String(value || '').split(':').map(part => parseInt(part, 10));
+    if (parts.length < 2 || parts.slice(0, 2).some(Number.isNaN)) return 0;
+    return Math.max(0, (parts[0] * 60) + parts[1]);
+}
+
+function getShiftWindow(shiftDate, shiftConfig = {}) {
+    if (!shiftConfig?.startTime || !shiftConfig?.endTime) {
+        return null;
+    }
+    const [startHour = 0, startMinute = 0] = String(shiftConfig.startTime).split(':').map(Number);
+    const [endHour = 0, endMinute = 0] = String(shiftConfig.endTime).split(':').map(Number);
+    if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) {
+        return null;
+    }
+    const start = moment(shiftDate).startOf('day').hour(startHour).minute(startMinute).second(0).millisecond(0);
+    let end = moment(shiftDate).startOf('day').hour(endHour).minute(endMinute).second(0).millisecond(0);
+    if (!end.isAfter(start)) {
+        end.add(1, 'day');
+    }
+    return { start, end };
+}
+
+/**
+ * Minutes used as denominator for real efficiency.
+ * Ongoing shift → elapsed since start; completed/future → full shift length.
+ * Returns null when workspace shift timing is missing/invalid so callers can skip.
+ */
+function getAvailableShiftMinutes(shiftDate, shiftConfig, now = moment()) {
+    const window = getShiftWindow(shiftDate, shiftConfig);
+    if (!window) return null;
+
+    const { start, end } = window;
+    const fullMinutes = end.diff(start, 'minutes');
+    if (fullMinutes <= 0) return null;
+
+    if (!now.isBefore(start) && now.isBefore(end)) {
+        return Math.max(now.diff(start, 'minutes'), 1);
+    }
+    return fullMinutes;
+}
+
+function calculateRealEfficiencyPercent(runTime, availableMinutes) {
+    if (!availableMinutes || availableMinutes <= 0) return 0;
+    const runMinutes = parseDurationToMinutes(runTime);
+    const value = (runMinutes / availableMinutes) * 100;
+    if (!Number.isFinite(value) || value < 0) return 0;
+    return Math.min(100, Math.round(value * 10) / 10);
 }
 
 const STOP_CATEGORY_CODE = {
@@ -84,10 +135,16 @@ module.exports = {
             shift: { $in: shiftFilter }
         };
 
-        const machines = await machineService.find(
-            { _id: { $in: machineIds }, workspaceId },
-            { projection: { machineCode: 1, machineType: 1, quality: 1 }, useLean: true }
-        );
+        const [machines, workspace] = await Promise.all([
+            machineService.find(
+                { _id: { $in: machineIds }, workspaceId },
+                { projection: { machineCode: 1, machineType: 1, quality: 1 }, useLean: true }
+            ),
+            workspaceService.findOne(
+                { _id: workspaceId },
+                { projection: { dayShift: 1, nightShift: 1 }, useLean: true }
+            )
+        ]);
 
         const reportData = await machineLogsService.find(condition, {
             projection: {
@@ -107,9 +164,12 @@ module.exports = {
         });
 
         const finalData = {};
+        const availableMinutesCache = {};
+        const now = moment();
         const totalNumbers = {
             totalPicks: 0,
             totalEfficiency: 0,
+            totalRealEfficiency: 0,
             totalProdMeter: 0,
             avgPicks: 0,
             avgCount: 0
@@ -127,6 +187,7 @@ module.exports = {
                     list: [],
                     totalPicks: 0,
                     efficiency: 0,
+                    realEfficiency: 0,
                     prodMeter: 0,
                     avgPicks: 0
                 };
@@ -157,7 +218,7 @@ module.exports = {
             };
             delete data.stopsCount;
 
-            if(data.machineType === 'rapier') {
+            if (data.machineType === 'rapier') {
                 const runTime = data.runTime?.split(':') || [];
                 if (runTime.length > 1) {
                     let runMins = parseInt(runTime[0]) * 60 + parseInt(runTime[1]);
@@ -166,39 +227,48 @@ module.exports = {
                 }
             }
 
+            // Additive only — does not alter efficiencyPercent / efficiency aggregates.
+            const cacheKey = `${reportDate}_${data.shift}`;
+            if (!(cacheKey in availableMinutesCache)) {
+                const shiftConfig = data.shift === global.config.SHIFT_TYPE.DAY ? workspace?.dayShift : workspace?.nightShift;
+                availableMinutesCache[cacheKey] = getAvailableShiftMinutes(data.shiftDate, shiftConfig, now);
+            }
+            data.realEfficiencyPercent = calculateRealEfficiencyPercent(data.runTime, availableMinutesCache[cacheKey]);
+
             finalData[reportDate][shiftKey].list.push(data);
             finalData[reportDate][shiftKey].totalPicks += data.picksCurrentShift || 0;
             finalData[reportDate][shiftKey].efficiency += data.efficiencyPercent || 0;
+            finalData[reportDate][shiftKey].realEfficiency += data.realEfficiencyPercent || 0;
             finalData[reportDate][shiftKey].prodMeter += data.pieceLengthM || 0;
         }
 
         const parsedData = [];
         for (const date in finalData) {
             if (finalData[date].dayShift) {
-                finalData[date].dayShift.avgPicks = finalData[date].dayShift.list.length
-                    ? Math.round(finalData[date].dayShift.totalPicks / finalData[date].dayShift.list.length)
-                    : 0;
-                finalData[date].dayShift.efficiency = finalData[date].dayShift.list.length
-                    ? Math.round(finalData[date].dayShift.efficiency / finalData[date].dayShift.list.length)
-                    : 0;
-                totalNumbers.totalPicks += finalData[date].dayShift.totalPicks;
-                totalNumbers.totalEfficiency += finalData[date].dayShift.efficiency;
-                totalNumbers.totalProdMeter += finalData[date].dayShift.prodMeter;
+                const dayShift = finalData[date].dayShift;
+                const dayCount = dayShift.list.length;
+                dayShift.avgPicks = dayCount ? Math.round(dayShift.totalPicks / dayCount) : 0;
+                dayShift.efficiency = dayCount ? Math.round(dayShift.efficiency / dayCount) : 0;
+                dayShift.realEfficiency = dayCount ? Math.round((dayShift.realEfficiency / dayCount) * 10) / 10 : 0;
+                totalNumbers.totalPicks += dayShift.totalPicks;
+                totalNumbers.totalEfficiency += dayShift.efficiency;
+                totalNumbers.totalRealEfficiency += dayShift.realEfficiency;
+                totalNumbers.totalProdMeter += dayShift.prodMeter;
                 totalNumbers.avgCount += 1;
-                totalNumbers.avgPicks = finalData[date].dayShift.avgPicks;
+                totalNumbers.avgPicks = dayShift.avgPicks;
             }
             if (finalData[date].nightShift) {
-                finalData[date].nightShift.avgPicks = finalData[date].nightShift.list.length
-                    ? Math.round(finalData[date].nightShift.totalPicks / finalData[date].nightShift.list.length)
-                    : 0;
-                finalData[date].nightShift.efficiency = finalData[date].nightShift.list.length
-                    ? Math.round(finalData[date].nightShift.efficiency / finalData[date].nightShift.list.length)
-                    : 0;
-                totalNumbers.totalPicks += finalData[date].nightShift.totalPicks;
-                totalNumbers.totalEfficiency += finalData[date].nightShift.efficiency;
-                totalNumbers.totalProdMeter += finalData[date].nightShift.prodMeter;
+                const nightShift = finalData[date].nightShift;
+                const nightCount = nightShift.list.length;
+                nightShift.avgPicks = nightCount ? Math.round(nightShift.totalPicks / nightCount) : 0;
+                nightShift.efficiency = nightCount ? Math.round(nightShift.efficiency / nightCount) : 0;
+                nightShift.realEfficiency = nightCount ? Math.round((nightShift.realEfficiency / nightCount) * 10) / 10 : 0;
+                totalNumbers.totalPicks += nightShift.totalPicks;
+                totalNumbers.totalEfficiency += nightShift.efficiency;
+                totalNumbers.totalRealEfficiency += nightShift.realEfficiency;
+                totalNumbers.totalProdMeter += nightShift.prodMeter;
                 totalNumbers.avgCount += 1;
-                totalNumbers.avgPicks = finalData[date].nightShift.avgPicks;
+                totalNumbers.avgPicks = nightShift.avgPicks;
             }
             parsedData.push({
                 reportDate: date,
@@ -210,6 +280,7 @@ module.exports = {
             list: parsedData,
             totalPicks: totalNumbers.totalPicks,
             totalEfficiency: Math.round((totalNumbers.totalEfficiency / totalNumbers.avgCount) || 0),
+            totalRealEfficiency: Math.round(((totalNumbers.totalRealEfficiency / totalNumbers.avgCount) || 0) * 10) / 10,
             avgProdMeter: totalNumbers.totalProdMeter,
             avgPicks: Math.round((totalNumbers.avgPicks / totalNumbers.avgCount) || 0)
         };
@@ -320,6 +391,7 @@ module.exports = {
             list,
             totalPicks: reportData.totalPicks,
             totalEfficiency: reportData.totalEfficiency,
+            totalRealEfficiency: reportData.totalRealEfficiency,
             avgProdMeter: reportData.avgProdMeter,
             avgPicks: reportData.avgPicks,
             shiftLabel,

@@ -71,14 +71,25 @@ function getShiftWindow(shiftDate, shiftConfig = {}) {
  * - Today only (shiftDate === today) and still running → currentTime - startTime
  * - All other dates / completed shifts → endTime - startTime from workspace
  */
-function getAvailableShiftMinutes(shiftDate, shiftType, workspace, now = moment()) {
-    const shiftConfig = workspace?.[shiftType === global.config.SHIFT_TYPE.DAY ? 'dayShift' : 'nightShift'];
+function getAvailableShiftMinutes(shiftDate, shiftKey, workspace, now = moment()) {
+    const shiftConfig = workspace?.[shiftKey];
     const window = getShiftWindow(shiftDate, shiftConfig);
     if (!window) return null;
 
     const fullMinutes = window.end.diff(window.start, 'minutes');
     if (fullMinutes <= 0) return null;
 
+    const isToday = moment(shiftDate).startOf('day').isSame(now.clone().startOf('day'));
+    if (!isToday) {
+        return fullMinutes;
+    }
+
+    if (now.isBefore(window.start)) {
+        return 0;
+    }
+    if (now.isBefore(window.end)) {
+        return now.diff(window.start, 'minutes');
+    }
     return fullMinutes;
 }
 
@@ -223,23 +234,9 @@ module.exports = {
                 }
             }
 
-            let totalShiftMinutes = 0;
-            let now = moment();
-            if(reportDate === moment().startOf('day').toISOString()) {
-                let dayShiftStartTime = moment().startOf('day').hour(workspace.dayShift.startTime).minute(workspace.dayShift.startMinute).second(0).millisecond(0);
-                let dayShiftEndTime = moment().startOf('day').hour(workspace.dayShift.endTime).minute(workspace.dayShift.endMinute).second(0).millisecond(0);
-                if(now.isBetween(dayShiftStartTime, dayShiftEndTime)) {
-                    totalShiftMinutes = now.diff(dayShiftStartTime, 'minutes');
-                } else {
-                    let nightShiftStartTime = moment().startOf('day').hour(workspace.nightShift.startTime).minute(workspace.nightShift.startMinute).second(0).millisecond(0);
-                    totalShiftMinutes = now.diff(nightShiftStartTime, 'minutes');
-                }
-            } else {
-                if(shiftKey === 'dayShift') {
-                    totalShiftMinutes = getAvailableShiftMinutes(data.shiftDate, 'dayShift', workspace);
-                } else {
-                    totalShiftMinutes = getAvailableShiftMinutes(data.shiftDate, 'nightShift', workspace);
-                }
+            const cacheKey = `${reportDate}|${shiftKey}`;
+            if (!(cacheKey in availableMinutesCache)) {
+                availableMinutesCache[cacheKey] = getAvailableShiftMinutes(data.shiftDate, shiftKey, workspace);
             }
             data.realEfficiencyPercent = calculateRealEfficiencyPercent(data.runTime, availableMinutesCache[cacheKey]);
 

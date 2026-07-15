@@ -71,7 +71,8 @@ function getShiftWindow(shiftDate, shiftConfig = {}) {
  * - Today only (shiftDate === today) and still running → currentTime - startTime
  * - All other dates / completed shifts → endTime - startTime from workspace
  */
-function getAvailableShiftMinutes(shiftDate, shiftKey, workspace, now = moment()) {
+function getAvailableShiftMinutes(shiftDate, shiftKey, workspace) {
+    let now = moment().add(330, 'minutes');
     const shiftConfig = workspace?.[shiftKey];
     const window = getShiftWindow(shiftDate, shiftConfig);
     if (!window) return null;

@@ -143,7 +143,7 @@ module.exports = {
         return result;
     },
 
-    async sendDocumentMessage({ mobile, filePath, fileName, workspaceName, shiftLabel, shiftDate, productionMeter, efficiency, picks, mediaId = null }) {
+    async sendDocumentMessage({ mobile, filePath, fileName, workspaceName, shiftLabel, shiftDate, productionMeter, efficiency, realEfficiency, picks, mediaId = null }) {
         if (!isEnabled()) {
             errLog('WhatsApp is not configured. Skipping document message.');
             return null;
@@ -188,6 +188,7 @@ module.exports = {
                             { type: "text", text: `${productionMeter} Meters` },
                             { type: "text", text: picks },
                             { type: "text", text: `${efficiency}%` },
+                            { type: "text", text: `${realEfficiency}%` },
                         ]
                     }
                 ]
@@ -208,7 +209,7 @@ module.exports = {
         return result;
     },
 
-    async sendDocumentMessageToMany({ mobiles, filePath, fileName, workspaceName, shiftLabel, shiftDate, productionMeter, efficiency, picks }) {
+    async sendDocumentMessageToMany({ mobiles, filePath, fileName, workspaceName, shiftLabel, shiftDate, productionMeter, efficiency, realEfficiency, picks }) {
         if (!isEnabled()) {
             errLog('WhatsApp is not configured. Skipping document message.');
             return [];
@@ -234,6 +235,7 @@ module.exports = {
             shiftDate,
             productionMeter,
             efficiency,
+            realEfficiency,
             picks,
             mediaId
         };

@@ -83,6 +83,7 @@ async function sendShiftReportForWorkspace(workspace, shiftType) {
             shiftDate: reportDate,
             productionMeter: reportData.avgProdMeter,
             efficiency: reportData.totalEfficiency,
+            realEfficiency: reportData.totalRealEfficiency,
             picks: reportData.totalPicks,
         });
 

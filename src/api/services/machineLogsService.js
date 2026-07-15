@@ -7,6 +7,66 @@ const utilService = require('./utilService');
 
 const BEAM_THRESHOLDS = [1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 50, 25, 0];
 
+/**
+ * On beam replenishment (beamLeft increased), close the open beamLeft record
+ * and open a new cycle for the freshly loaded beam.
+ */
+async function recordBeamCycleChange(body, machine, newBeam) {
+    const endDate = body.updatedTime ? new Date(body.updatedTime) : new Date();
+    const endProduction = body.pieceLengthM ?? 0;
+
+    const openBeam = await beamLeftModel.findOne({
+        machineId: body.machineId,
+        workspaceId: body.workspaceId,
+        endDate: null,
+        isDeleted: false
+    }).sort({ createdAt: -1 });
+
+    let quality = machine?.quality;
+    if (quality === undefined) {
+        const machineDoc = await machineService.findOne(
+            { _id: body.machineId },
+            { useLean: true, projection: { quality: 1 } }
+        );
+        quality = machineDoc?.quality || null;
+    }
+
+    if (openBeam) {
+        const logs = await machineLogsModel.find({
+            machineId: body.machineId,
+            workspaceId: body.workspaceId,
+            isDeleted: false,
+            shiftDate: {
+                $gte: moment(openBeam.startDate).startOf('day').toDate(),
+                $lte: endDate
+            }
+        }).sort({ shiftDate: 1, shift: 1 }).select({ pieceLengthM: 1 }).lean();
+
+        let productionMtr = 0;
+        for (let i = 0; i < logs.length; i++) {
+            const m = logs[i].pieceLengthM || 0;
+            // First shift of the beam cycle: only meters produced after the beam started
+            productionMtr += (i === 0) ? Math.max(0, m - (openBeam.startProduction || 0)) : m;
+        }
+
+        openBeam.endDate = endDate;
+        openBeam.endProduction = endProduction;
+        openBeam.productionMtr = productionMtr;
+        if (quality !== openBeam.quality) openBeam.quality = quality;
+        await openBeam.save();
+    }
+
+    await beamLeftModel.create({
+        machineId: body.machineId,
+        workspaceId: body.workspaceId,
+        shift: String(body.shift),
+        quality,
+        startDate: endDate,
+        startProduction: endProduction,
+        beamLength: newBeam
+    });
+}
+
 const toUint32 = (hi, lo) => (((hi << 16) >>> 0) + (lo >>> 0)) >>> 0;
 const get16 = (r, csvRegister) => { return r[csvRegister - 1] ?? 0; }
 const register = {
@@ -269,7 +329,7 @@ module.exports = {
         const alertUpdate = {};
         const machineKey = String(body.machineId);
 
-        if ((machineLog.setPicks || body.setPicks) && machineLog.setPicks !== body.setPicks) {
+        if ((machineLog.setPicks && body.setPicks) && machineLog.setPicks !== body.setPicks) {
             isPickChanged = true;
         }
 
@@ -293,7 +353,7 @@ module.exports = {
         let userIds = [];
 
         if (needsMachineUsers) {
-            machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { machineName: 1, machineCode: 1 } });
+            machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { machineCode: 1, machineName: 1, quality: 1 } });
             const users = await userModel.find({ workspaceId: body.workspaceId, isActive: true, isDeleted: false }, { _id: 1 }).lean() || [];
             userIds = users.map(u => u._id);
         }
@@ -357,6 +417,19 @@ module.exports = {
                         notified.delete(t);
                         beamStateChanged = true;
                     }
+                }
+
+                // Beam replenishment: close previous beam cycle and open a new one
+                try {
+                    if (!machine) {
+                        machine = await machineService.findOne(
+                            { _id: body.machineId },
+                            { useLean: true, projection: { machineCode: 1, machineName: 1, quality: 1 } }
+                        );
+                    }
+                    await recordBeamCycleChange(body, machine, newBeam);
+                } catch (err) {
+                    utilService.errLog(`Beam cycle record error: ${err.message}`);
                 }
             }
 

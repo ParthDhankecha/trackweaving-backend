@@ -238,6 +238,7 @@ module.exports = {
             if (!(cacheKey in availableMinutesCache)) {
                 availableMinutesCache[cacheKey] = getAvailableShiftMinutes(data.shiftDate, shiftKey, workspace);
             }
+            console.log(availableMinutesCache[cacheKey]);
             data.realEfficiencyPercent = calculateRealEfficiencyPercent(data.runTime, availableMinutesCache[cacheKey]);
 
             finalData[reportDate][shiftKey].list.push(data);

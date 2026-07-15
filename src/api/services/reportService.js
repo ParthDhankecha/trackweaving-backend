@@ -67,21 +67,23 @@ function getShiftWindow(shiftDate, shiftConfig = {}) {
 }
 
 /**
- * Minutes used as denominator for real efficiency.
- * Ongoing shift → elapsed since start; completed/future → full shift length.
- * Returns null when workspace shift timing is missing/invalid so callers can skip.
+ * Denominator for real efficiency:
+ * - Today only (shiftDate === today) and still running → currentTime - startTime
+ * - All other dates / completed shifts → endTime - startTime from workspace
  */
-function getAvailableShiftMinutes(shiftDate, shiftConfig, now = moment()) {
+function getAvailableShiftMinutes(shiftDate, shiftType, workspace, now = moment()) {
+    const shiftConfig = workspace?.[shiftType === global.config.SHIFT_TYPE.DAY ? 'dayShift' : 'nightShift'];
     const window = getShiftWindow(shiftDate, shiftConfig);
     if (!window) return null;
 
-    const { start, end } = window;
-    const fullMinutes = end.diff(start, 'minutes');
+    const fullMinutes = window.end.diff(window.start, 'minutes');
     if (fullMinutes <= 0) return null;
 
-    if (!now.isBefore(start) && now.isBefore(end)) {
-        return Math.max(now.diff(start, 'minutes'), 1);
+    const isToday = moment(shiftDate).startOf('day').isSame(now.clone().startOf('day'), 'day');
+    if (isToday && !now.isBefore(window.start) && now.isBefore(window.end)) {
+        return Math.max(now.diff(window.start, 'minutes'), 1);
     }
+
     return fullMinutes;
 }
 
@@ -230,8 +232,12 @@ module.exports = {
             // Additive only — does not alter efficiencyPercent / efficiency aggregates.
             const cacheKey = `${reportDate}_${data.shift}`;
             if (!(cacheKey in availableMinutesCache)) {
-                const shiftConfig = data.shift === global.config.SHIFT_TYPE.DAY ? workspace?.dayShift : workspace?.nightShift;
-                availableMinutesCache[cacheKey] = getAvailableShiftMinutes(data.shiftDate, shiftConfig, now);
+                availableMinutesCache[cacheKey] = getAvailableShiftMinutes(
+                    data.shiftDate,
+                    data.shift,
+                    workspace,
+                    now
+                );
             }
             data.realEfficiencyPercent = calculateRealEfficiencyPercent(data.runTime, availableMinutesCache[cacheKey]);
 

@@ -111,7 +111,8 @@ module.exports = {
                     stopCount: logs[machineId].stopCount,
                     machineId,
                     workspaceId: req.body.workspaceId,
-                    rawData: logs[machineId].rawData
+                    rawData: logs[machineId].rawData,
+                    displayType: logs[machineId].displayType
                 };
                 if (logs[machineId].lastStartTime) {
                     record.lastStartTime = logs[machineId].lastStartTime;

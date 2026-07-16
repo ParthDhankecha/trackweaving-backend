@@ -215,6 +215,10 @@ module.exports = {
                     h1: [],
                     h2: []
                 };
+                if(body.displayType == 'biana' && body.beamLeft == 0) {
+                    console.log(JSON.stringify(body));
+                    return;
+                }
                 let log = new machineLogsModel(body);
                 await log.save();
             } else {

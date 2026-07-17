@@ -1,5 +1,6 @@
 const { hash } = require('bcrypt');
 const moment = require('moment');
+const { ObjectId } = require('mongoose').Types;
 
 const { serverResponseRecordLimit } = require('../../config/env-vars');
 
@@ -128,6 +129,10 @@ module.exports = {
 
     isDateFuture(date, dateToCompare) {
         return moment(date).isAfter(dateToCompare);
+    },
+
+    isValidObjectId(id) {
+        return ObjectId.isValid(id);
     },
 
     // // Returns current timestamp in milliseconds

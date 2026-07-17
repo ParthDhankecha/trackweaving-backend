@@ -125,5 +125,9 @@ module.exports = {
 
     async count(condition = {}) {
         return await notificationModel.countDocuments({ ...condition, isDeleted: false });
+    },
+
+    async deleteOlderThan(date) {
+        return await notificationModel.deleteMany({ createdAt: { $lt: date } });
     }
 }

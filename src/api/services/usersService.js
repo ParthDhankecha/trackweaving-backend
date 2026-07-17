@@ -192,6 +192,8 @@ module.exports = {
     },
 
     async validatePlanForSignIn(workspaceId) {
+        if (!workspaceId) return null;
+
         const workspace = await workspaceModel.findById({ _id: workspaceId, isDeleted: false }, { userId: 1, uid: 1, isActive: 1 }).populate('userId', 'plan').lean();
         const plan = workspace?.userId?.plan ?? {};
         if (!plan?.endDate) {

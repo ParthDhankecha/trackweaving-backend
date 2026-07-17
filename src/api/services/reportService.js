@@ -122,6 +122,141 @@ function getStopReasonForEvent(category, stopEvent, displayType) {
     return machineLogsService.getStopReason(stopCode, displayType);
 }
 
+function buildProductionReportData(reportData, machines, workspace, options = {}) {
+    const finalData = {};
+    const availableMinutesCache = {};
+    const totalNumbers = {
+        totalPicks: 0,
+        totalEfficiency: 0,
+        totalRealEfficiency: 0,
+        totalProdMeter: 0,
+        avgPicks: 0,
+        avgCount: 0
+    };
+
+    const isQualityReport = options.isQualityReport ?? false;
+    for (const data of reportData) {
+        const reportDate = moment(data.shiftDate).startOf('day').toISOString();
+        if (!finalData[reportDate]) {
+            finalData[reportDate] = {};
+        }
+
+        const shiftKey = data.shift === global.config.SHIFT_TYPE.DAY ? 'dayShift' : 'nightShift';
+        if (!finalData[reportDate][shiftKey]) {
+            finalData[reportDate][shiftKey] = {
+                list: [],
+                totalPicks: 0,
+                efficiency: 0,
+                realEfficiency: 0,
+                prodMeter: 0,
+                avgPicks: 0
+            };
+        }
+
+        const machine = machines.find(m => m._id.toString() === data.machineId.toString());
+        data.machineCode = machine?.machineCode || '';
+        data.machineType = machine?.machineType || 'rapier';
+        if (!isQualityReport) data.quality = data?.quality || machine?.quality || '';
+        data.stopsData = {};
+
+        let totalStopCount = 0;
+        let totalStopDuration = 0;
+        const stopKeys = global.config.MACHINE_TYPE_KEY_MAPPING[data.machineType] || global.config.MACHINE_TYPE_KEY_MAPPING.rapier;
+
+        for (const key of stopKeys) {
+            data.stopsData[key] = {
+                count: data.stopsCount[key]?.count || 0,
+                duration: formatDurationSeconds(data.stopsCount[key]?.duration || 0)
+            };
+            totalStopCount += data.stopsData[key].count || 0;
+            totalStopDuration += data.stopsCount[key]?.duration || 0;
+        }
+
+        data.stopsData.total = {
+            count: totalStopCount,
+            duration: formatDurationSeconds(totalStopDuration)
+        };
+        delete data.stopsCount;
+
+        if (data.machineType === 'rapier') {
+            const runTime = data.runTime?.split(':') || [];
+            if (runTime.length > 1) {
+                let runMins = parseInt(runTime[0]) * 60 + parseInt(runTime[1]);
+                runMins -= Math.floor(totalStopDuration / 60);
+                data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
+            }
+        }
+
+        const cacheKey = `${reportDate}|${shiftKey}`;
+        if (!(cacheKey in availableMinutesCache)) {
+            availableMinutesCache[cacheKey] = getAvailableShiftMinutes(data.shiftDate, shiftKey, workspace);
+        }
+        data.realEfficiencyPercent = calculateRealEfficiencyPercent(data.runTime, availableMinutesCache[cacheKey]);
+
+        finalData[reportDate][shiftKey].list.push(data);
+        finalData[reportDate][shiftKey].totalPicks += data.picksCurrentShift || 0;
+        finalData[reportDate][shiftKey].efficiency += data.efficiencyPercent || 0;
+        finalData[reportDate][shiftKey].realEfficiency += data.realEfficiencyPercent || 0;
+        finalData[reportDate][shiftKey].prodMeter += data.pieceLengthM || 0;
+    }
+
+    const parsedData = [];
+    for (const date in finalData) {
+        if (finalData[date].dayShift) {
+            const dayShift = finalData[date].dayShift;
+            const dayCount = dayShift.list.length;
+            dayShift.avgPicks = dayCount ? Math.round(dayShift.totalPicks / dayCount) : 0;
+            dayShift.efficiency = dayCount ? Math.round(dayShift.efficiency / dayCount) : 0;
+            dayShift.realEfficiency = dayCount ? Math.round((dayShift.realEfficiency / dayCount) * 10) / 10 : 0;
+            totalNumbers.totalPicks += dayShift.totalPicks;
+            totalNumbers.totalEfficiency += dayShift.efficiency;
+            totalNumbers.totalRealEfficiency += dayShift.realEfficiency;
+            totalNumbers.totalProdMeter += dayShift.prodMeter;
+            totalNumbers.avgCount += 1;
+            totalNumbers.avgPicks = dayShift.avgPicks;
+        }
+        if (finalData[date].nightShift) {
+            const nightShift = finalData[date].nightShift;
+            const nightCount = nightShift.list.length;
+            nightShift.avgPicks = nightCount ? Math.round(nightShift.totalPicks / nightCount) : 0;
+            nightShift.efficiency = nightCount ? Math.round(nightShift.efficiency / nightCount) : 0;
+            nightShift.realEfficiency = nightCount ? Math.round((nightShift.realEfficiency / nightCount) * 10) / 10 : 0;
+            totalNumbers.totalPicks += nightShift.totalPicks;
+            totalNumbers.totalEfficiency += nightShift.efficiency;
+            totalNumbers.totalRealEfficiency += nightShift.realEfficiency;
+            totalNumbers.totalProdMeter += nightShift.prodMeter;
+            totalNumbers.avgCount += 1;
+            totalNumbers.avgPicks = nightShift.avgPicks;
+        }
+        parsedData.push({
+            reportDate: date,
+            reportData: finalData[date]
+        });
+    }
+
+    return {
+        list: parsedData,
+        totalPicks: totalNumbers.totalPicks,
+        totalEfficiency: Math.round((totalNumbers.totalEfficiency / totalNumbers.avgCount) || 0),
+        totalRealEfficiency: Math.round(((totalNumbers.totalRealEfficiency / totalNumbers.avgCount) || 0) * 10) / 10,
+        avgProdMeter: totalNumbers.totalProdMeter,
+        avgPicks: Math.round((totalNumbers.avgPicks / totalNumbers.avgCount) || 0)
+    };
+}
+
+const LOG_PROJECTION = {
+    rawData: false,
+    workspaceId: false,
+    lastStopTime: false,
+    lastStartTime: false,
+    picksTotal: false,
+    setPicks: false,
+    stop: false,
+    alarmsActive: false,
+    loomStateCode: false,
+    isDeleted: false
+};
+
 module.exports = {
     STOP_KEY_LABELS,
     getStopColumnsForTypes,
@@ -155,140 +290,52 @@ module.exports = {
         ]);
 
         const reportData = await machineLogsService.find(condition, {
-            projection: {
-                rawData: false,
-                workspaceId: false,
-                lastStopTime: false,
-                lastStartTime: false,
-                picksTotal: false,
-                setPicks: false,
-                stop: false,
-                alarmsActive: false,
-                loomStateCode: false,
-                isDeleted: false
-            },
+            projection: LOG_PROJECTION,
             sort: { machineId: 1 },
             useLean: true
         });
 
-        const finalData = {};
-        const availableMinutesCache = {};
-        const totalNumbers = {
-            totalPicks: 0,
-            totalEfficiency: 0,
-            totalRealEfficiency: 0,
-            totalProdMeter: 0,
-            avgPicks: 0,
-            avgCount: 0
-        };
+        return buildProductionReportData(reportData, machines, workspace);
+    },
 
-        for (const data of reportData) {
-            const reportDate = moment(data.shiftDate).startOf('day').toISOString();
-            if (!finalData[reportDate]) {
-                finalData[reportDate] = {};
-            }
-
-            const shiftKey = data.shift === global.config.SHIFT_TYPE.DAY ? 'dayShift' : 'nightShift';
-            if (!finalData[reportDate][shiftKey]) {
-                finalData[reportDate][shiftKey] = {
-                    list: [],
-                    totalPicks: 0,
-                    efficiency: 0,
-                    realEfficiency: 0,
-                    prodMeter: 0,
-                    avgPicks: 0
-                };
-            }
-
-            const machine = machines.find(m => m._id.toString() === data.machineId.toString());
-            data.machineCode = machine?.machineCode || '';
-            data.machineType = machine?.machineType || 'rapier';
-            data.quality = machine?.quality || '';
-            data.stopsData = {};
-
-            let totalStopCount = 0;
-            let totalStopDuration = 0;
-            const stopKeys = global.config.MACHINE_TYPE_KEY_MAPPING[data.machineType] || global.config.MACHINE_TYPE_KEY_MAPPING.rapier;
-
-            for (const key of stopKeys) {
-                data.stopsData[key] = {
-                    count: data.stopsCount[key]?.count || 0,
-                    duration: formatDurationSeconds(data.stopsCount[key]?.duration || 0)
-                };
-                totalStopCount += data.stopsData[key].count || 0;
-                totalStopDuration += data.stopsCount[key]?.duration || 0;
-            }
-
-            data.stopsData.total = {
-                count: totalStopCount,
-                duration: formatDurationSeconds(totalStopDuration)
-            };
-            delete data.stopsCount;
-
-            if (data.machineType === 'rapier') {
-                const runTime = data.runTime?.split(':') || [];
-                if (runTime.length > 1) {
-                    let runMins = parseInt(runTime[0]) * 60 + parseInt(runTime[1]);
-                    runMins -= Math.floor(totalStopDuration / 60);
-                    data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
-                }
-            }
-
-            const cacheKey = `${reportDate}|${shiftKey}`;
-            if (!(cacheKey in availableMinutesCache)) {
-                availableMinutesCache[cacheKey] = getAvailableShiftMinutes(data.shiftDate, shiftKey, workspace);
-            }
-            data.realEfficiencyPercent = calculateRealEfficiencyPercent(data.runTime, availableMinutesCache[cacheKey]);
-
-            finalData[reportDate][shiftKey].list.push(data);
-            finalData[reportDate][shiftKey].totalPicks += data.picksCurrentShift || 0;
-            finalData[reportDate][shiftKey].efficiency += data.efficiencyPercent || 0;
-            finalData[reportDate][shiftKey].realEfficiency += data.realEfficiencyPercent || 0;
-            finalData[reportDate][shiftKey].prodMeter += data.pieceLengthM || 0;
+    async generateProductionQualityWiseReport({ workspaceId, quality, startDate, endDate, shift }) {
+        const selectedQuality = String(quality || '').trim();
+        if (!selectedQuality) {
+            throw global.config.message.BAD_REQUEST;
         }
 
-        const parsedData = [];
-        for (const date in finalData) {
-            if (finalData[date].dayShift) {
-                const dayShift = finalData[date].dayShift;
-                const dayCount = dayShift.list.length;
-                dayShift.avgPicks = dayCount ? Math.round(dayShift.totalPicks / dayCount) : 0;
-                dayShift.efficiency = dayCount ? Math.round(dayShift.efficiency / dayCount) : 0;
-                dayShift.realEfficiency = dayCount ? Math.round((dayShift.realEfficiency / dayCount) * 10) / 10 : 0;
-                totalNumbers.totalPicks += dayShift.totalPicks;
-                totalNumbers.totalEfficiency += dayShift.efficiency;
-                totalNumbers.totalRealEfficiency += dayShift.realEfficiency;
-                totalNumbers.totalProdMeter += dayShift.prodMeter;
-                totalNumbers.avgCount += 1;
-                totalNumbers.avgPicks = dayShift.avgPicks;
-            }
-            if (finalData[date].nightShift) {
-                const nightShift = finalData[date].nightShift;
-                const nightCount = nightShift.list.length;
-                nightShift.avgPicks = nightCount ? Math.round(nightShift.totalPicks / nightCount) : 0;
-                nightShift.efficiency = nightCount ? Math.round(nightShift.efficiency / nightCount) : 0;
-                nightShift.realEfficiency = nightCount ? Math.round((nightShift.realEfficiency / nightCount) * 10) / 10 : 0;
-                totalNumbers.totalPicks += nightShift.totalPicks;
-                totalNumbers.totalEfficiency += nightShift.efficiency;
-                totalNumbers.totalRealEfficiency += nightShift.realEfficiency;
-                totalNumbers.totalProdMeter += nightShift.prodMeter;
-                totalNumbers.avgCount += 1;
-                totalNumbers.avgPicks = nightShift.avgPicks;
-            }
-            parsedData.push({
-                reportDate: date,
-                reportData: finalData[date]
-            });
-        }
-
-        return {
-            list: parsedData,
-            totalPicks: totalNumbers.totalPicks,
-            totalEfficiency: Math.round((totalNumbers.totalEfficiency / totalNumbers.avgCount) || 0),
-            totalRealEfficiency: Math.round(((totalNumbers.totalRealEfficiency / totalNumbers.avgCount) || 0) * 10) / 10,
-            avgProdMeter: totalNumbers.totalProdMeter,
-            avgPicks: Math.round((totalNumbers.avgPicks / totalNumbers.avgCount) || 0)
+        const shiftFilter = Array.isArray(shift) ? shift : [shift];
+        const condition = {
+            workspaceId,
+            quality: selectedQuality,
+            shiftDate: {
+                $gte: moment(new Date(startDate).toISOString()).startOf('day'),
+                $lte: moment(new Date(endDate).toISOString()).endOf('day')
+            },
+            shift: { $in: shiftFilter }
         };
+
+        const [reportData, workspace] = await Promise.all([
+            machineLogsService.find(condition, {
+                projection: LOG_PROJECTION,
+                sort: { machineId: 1 },
+                useLean: true
+            }),
+            workspaceService.findOne(
+                { _id: workspaceId },
+                { projection: { dayShift: 1, nightShift: 1 }, useLean: true }
+            )
+        ]);
+
+        const machineIds = [...new Set(reportData.map(log => log.machineId?.toString()).filter(Boolean))];
+        const machines = machineIds.length ? await machineService.find(
+            { _id: { $in: machineIds }, workspaceId },
+            { projection: { machineCode: 1, machineType: 1, quality: 1 }, useLean: true }
+        ) : [];
+
+        const data = buildProductionReportData(reportData, machines, workspace, { isQualityReport: true })
+        data.quality = selectedQuality;
+        return data;
     },
 
     async generateStoppageReport({ workspaceId, machineIds, startDate, endDate, shift, minStopMinutes }) {

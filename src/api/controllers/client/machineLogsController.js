@@ -7,95 +7,6 @@ const { checkRequiredParams, log } = require("../../services/utilService");
 
 
 module.exports = {
-    create: async (req, res, next) => {
-        try {
-            checkRequiredParams(['apiKey', 'machineId', 'workspaceId'], req.body);
-            if (req.body.apiKey !== global.config.API_KEY) {
-                throw global.config.message.UNAUTHORIZED;
-            }
-            let { apiKey, ...body } = req.body;
-
-            const sort = { createdAt: -1 };
-            const machine = await machineService.findOne({ _id: body.machineId, workspaceId: body.workspaceId });
-            if (!machine) {
-                throw global.config.message.RECORD_NOT_FOUND;
-            }
-
-            const machineLog = await machineLogsService.findOne({ machineId: body.machineId, workspaceId: body.workspaceId }, { sort });
-
-            body = machineLogsService.parseBlock(body);
-            if ((!machineLog && body.stop !== 0) || (machineLog && machineLog.stop === 0 && body.stop !== 0)) {
-                machine.lastStopTime = moment();
-            } else if (!machineLog && body.stop === 0) {
-                machine.lastStartTime = moment();
-            } else if (machineLog && machineLog.stop !== 0 && body.stop === 0) {
-                machine.lastStartTime = moment();
-                let stopDuration = 0;
-                if (machine.lastStopTime) {
-                    const stop = moment(machine.lastStopTime);
-                    stopDuration = Math.abs(moment().diff(stop, 'seconds'));
-                    if (stopDuration >= 60) {
-                        machine.stopsCount += 1;
-                    }
-                }
-                // 0 - Running fine || 1 - Warp stop || 2 - weft stop || 7, 15, 16, 17, 18 - Feeder Stop || 4, 6 - Manual stop
-                switch (machineLog.stop) {
-
-                    case 1:
-                        machine.stopsData.wrap.push({
-                            start: machine.lastStopTime,
-                            end: moment(),
-                            duration: stopDuration
-                        });
-                        break;
-                    case 2:
-                        machine.stopsData.weft.push({
-                            start: machine.lastStopTime,
-                            end: moment(),
-                            duration: stopDuration
-                        });
-                        break;
-                    case 7:
-                    case 15:
-                    case 16:
-                    case 17:
-                    case 18:
-                        machine.stopsData.feeder.push({
-                            start: machine.lastStopTime,
-                            end: moment(),
-                            duration: stopDuration
-                        });
-                        break;
-                    case 4:
-                    case 6:
-                        machine.stopsData.manual.push({
-                            start: machine.lastStopTime,
-                            end: moment(),
-                            duration: stopDuration
-                        });
-                        break;
-                    default:
-                        machine.stopsData.other.push({
-                            start: machine.lastStopTime,
-                            end: moment(),
-                            duration: stopDuration,
-                            statusCode: machineLog.stop
-                        });
-                        break;
-                }
-            }
-
-            await machine.save();
-
-            await machineLogsService.create(body);
-
-            return res.created(null, global.config.message.CREATED);
-        } catch (error) {
-            console.log(error)
-            return res.serverError(error)
-        }
-    },
-
     createLog: async (req, res, next) => {
         try {
             checkRequiredParams(['apiKey', 'workspaceId', 'logs'], req.body);
@@ -179,6 +90,16 @@ module.exports = {
         }
 
         return res.ok({ machines, machineData });
+    },
+
+    getQualityList: async (req, res, next) => {
+        try {
+            const qualities = await machineLogsService.getDistinctQualities(req.user.workspaceId);
+            return res.ok(qualities, global.config.message.OK);
+        } catch (error) {
+            log(error);
+            return res.serverError(error);
+        }
     },
 
     getList: async (req, res, next) => {

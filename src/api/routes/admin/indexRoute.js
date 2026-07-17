@@ -19,4 +19,6 @@ router.use('/lead', require('./lead'));
 
 router.use('/manufacturer', require('./manufacturer'));
 
+router.use('/alert-config', require('./alertConfig'));
+
 module.exports = router;

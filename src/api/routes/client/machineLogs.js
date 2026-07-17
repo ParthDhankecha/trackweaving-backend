@@ -8,6 +8,8 @@ router.post('/', machineLogsController.createLog);
 
 router.post('/list', isAuth, machineLogsController.getList);
 
+router.post('/qualities', isAuth, machineLogsController.getQualityList);
+
 router.post('/machine-list', machineLogsController.getMachineList);
 
 module.exports = router;

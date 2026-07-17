@@ -3,6 +3,7 @@ const moment = require('moment');
 
 const machineService = require('./machineService');
 const notificationService = require('./notificationService');
+const alertConfigService = require('./alertConfigService');
 const utilService = require('./utilService');
 
 const BEAM_THRESHOLDS = [1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 50, 25, 0];
@@ -215,10 +216,14 @@ module.exports = {
                     h1: [],
                     h2: []
                 };
-                if(body.displayType == 'biana' && body.beamLeft == 0) {
+                if (body.displayType == 'biana' && body.beamLeft == 0) {
                     console.log(JSON.stringify(body));
                     return;
                 }
+
+                const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
+                body.quality = machine?.quality || null;
+
                 let log = new machineLogsModel(body);
                 await log.save();
             } else {
@@ -236,6 +241,10 @@ module.exports = {
                 h1: [],
                 h2: []
             };
+
+            const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
+            body.quality = machine?.quality || null;
+
             let log = new machineLogsModel(body);
             await log.save();
         }
@@ -355,6 +364,7 @@ module.exports = {
         const needsMachineUsers = isPickChanged || isMaxSpeedAlert || isMinSpeedAlert;
         let machine = null;
         let userIds = [];
+        const alertTypes = global.config.ALERT_TYPES || {};
 
         if (needsMachineUsers) {
             machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { machineCode: 1, machineName: 1, quality: 1 } });
@@ -363,43 +373,66 @@ module.exports = {
         }
 
         if (machine && userIds.length) {
-            if (isPickChanged) {
-                try {
-                    await notificationService.createNotification({
-                        machineId: body.machineId,
-                        workspaceId: body.workspaceId,
-                        title: `Picks changed on ${capitalize(machine.machineName)} (${machine.machineCode})`,
-                        description: `Picks changed from ${machineLog.setPicks} to ${body.setPicks}`
-                    }, userIds);
-                } catch (err) {
-                    utilService.errLog(`Pick alert error: ${err.message}`);
+            const activeTypes = [];
+            const pickKey = alertTypes.PICK_CHANGE || 'pickChange';
+            const maxKey = alertTypes.MAX_SPEED || 'maxSpeed';
+            const lowKey = alertTypes.LOW_SPEED || 'lowSpeed';
+
+            if (isPickChanged) activeTypes.push(pickKey);
+            if (isMaxSpeedAlert) activeTypes.push(maxKey);
+            if (isMinSpeedAlert) activeTypes.push(lowKey);
+
+            try {
+                const recipientsByType = await alertConfigService.filterUserIdsForAlert(body.workspaceId, userIds, activeTypes);
+                if (isPickChanged) {
+                    try {
+                        const recipients = recipientsByType[pickKey] || [];
+                        if (recipients.length) {
+                            await notificationService.createNotification({
+                                machineId: body.machineId,
+                                workspaceId: body.workspaceId,
+                                title: `Picks changed on ${capitalize(machine.machineName)} (${machine.machineCode})`,
+                                description: `Picks changed from ${machineLog.setPicks} to ${body.setPicks}`
+                            }, recipients);
+                        }
+                    } catch (err) {
+                        utilService.errLog(`Pick alert error: ${err.message}`);
+                    }
                 }
-            }
-            if (isMaxSpeedAlert) {
-                try {
-                    await notificationService.createNotification({
-                        machineId: body.machineId,
-                        workspaceId: body.workspaceId,
-                        title: `Max speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
-                        description: `Machine speed ${body.speedRpm} RPM exceeded the limit of ${alertConfig.speedLimit} RPM`
-                    }, userIds);
-                    global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
-                } catch (err) {
-                    utilService.errLog(`Max speed alert error: ${err.message}`);
+                if (isMaxSpeedAlert) {
+                    try {
+                        const recipients = recipientsByType[maxKey] || [];
+                        if (recipients.length) {
+                            await notificationService.createNotification({
+                                machineId: body.machineId,
+                                workspaceId: body.workspaceId,
+                                title: `Max speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
+                                description: `Machine speed ${body.speedRpm} RPM exceeded the limit of ${alertConfig.speedLimit} RPM`
+                            }, recipients);
+                            global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
+                        }
+                    } catch (err) {
+                        utilService.errLog(`Max speed alert error: ${err.message}`);
+                    }
                 }
-            }
-            if (isMinSpeedAlert) {
-                try {
-                    await notificationService.createNotification({
-                        machineId: body.machineId,
-                        workspaceId: body.workspaceId,
-                        title: `Low speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
-                        description: `Machine speed ${body.speedRpm} RPM is below the limit of ${alertConfig.speedLimit} RPM`
-                    }, userIds);
-                    global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
-                } catch (err) {
-                    utilService.errLog(`Min speed alert error: ${err.message}`);
+                if (isMinSpeedAlert) {
+                    try {
+                        const recipients = recipientsByType[lowKey] || [];
+                        if (recipients.length) {
+                            await notificationService.createNotification({
+                                machineId: body.machineId,
+                                workspaceId: body.workspaceId,
+                                title: `Low speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
+                                description: `Machine speed ${body.speedRpm} RPM is below the limit of ${alertConfig.speedLimit} RPM`
+                            }, recipients);
+                            global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
+                        }
+                    } catch (err) {
+                        utilService.errLog(`Min speed alert error: ${err.message}`);
+                    }
                 }
+            } catch (err) {
+                utilService.errLog(`Alert notification error: ${err.message}`);
             }
         }
 
@@ -411,7 +444,7 @@ module.exports = {
         // (until beamLeft increases past it again on replenishment).
         const prevBeam = machineLog.beamLeft;
         const newBeam = body.beamLeft;
-        if (prevBeam != null && newBeam != null) {
+        if (prevBeam != null && newBeam != null && prevBeam > 0 && newBeam > 0) {
             const notified = new Set(machineLog.beamAlertNotifiedThresholds || []);
             let beamStateChanged = false;
 
@@ -456,15 +489,23 @@ module.exports = {
                             userIds = users.map(u => u._id);
                         }
 
-                        // Only mark threshold as notified after a successful send,
-                        // so we can retry if there were no users / notify failed.
+                        // Retry later if workspace has no active users yet.
                         if (userIds.length && machine) {
-                            await notificationService.createNotification({
-                                machineId: body.machineId,
-                                workspaceId: body.workspaceId,
-                                title: `Beam Left Alert — ${machine.machineCode}`,
-                                description: `Beam left has reached ${newBeam} meters (threshold: ${threshold} meters)`
-                            }, userIds);
+                            const recipients = await alertConfigService.filterUserIdsForAlert(
+                                body.workspaceId,
+                                userIds,
+                                alertTypes.BEAM_LEFT || 'beamLeft'
+                            );
+                            if (recipients.length) {
+                                await notificationService.createNotification({
+                                    machineId: body.machineId,
+                                    workspaceId: body.workspaceId,
+                                    title: `Beam Left Alert — ${machine.machineCode}`,
+                                    description: `Beam left has reached ${newBeam} meters`
+                                }, recipients);
+                            }
+                            // Mark notified even when all users opted out of beamLeft,
+                            // to avoid re-checking on every subsequent log.
                             notified.add(threshold);
                             beamStateChanged = true;
                         }
@@ -563,6 +604,18 @@ module.exports = {
 
     async countDocuments(filter = {}) {
         return await machineLogsModel.countDocuments({ ...filter, isDeleted: false });
+    },
+
+    async getDistinctQualities(workspaceId) {
+        const qualities = await machineLogsModel.distinct('quality', {
+            workspaceId,
+            isDeleted: false,
+            quality: { $nin: [null, ''] }
+        });
+        return (qualities || [])
+            .map(q => String(q).trim())
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b));
     },
 
     parseBlock(body, displayType = 'nazon') {

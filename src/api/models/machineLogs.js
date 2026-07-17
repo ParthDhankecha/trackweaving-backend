@@ -42,6 +42,11 @@ const machineLogsSchema = new Schema({
         ref: 'machine',
         required: true
     },
+    quality: {
+        type: String,
+        trim: true,
+        default: null
+    },
     rawData: {
         type: Schema.Types.Mixed,
         default: []
@@ -194,12 +199,14 @@ const machineLogsSchema = new Schema({
         type: Boolean,
         default: false
     }
-},{
+}, {
     versionKey: false,
     timestamps: true
 });
 
-machineLogsSchema.index({ machineId: 1, workspaceId: 1, shift: 1,  shiftDate: -1 });
+machineLogsSchema.index({ machineId: 1, workspaceId: 1, shift: 1, shiftDate: -1 });
+machineLogsSchema.index({ quality: 1, shiftDate: -1 });
+
 
 const machineLogs = mongoose.model('machineLogs', machineLogsSchema, 'machineLogs');
 module.exports = machineLogs;

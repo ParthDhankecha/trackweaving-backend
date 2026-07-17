@@ -68,7 +68,7 @@ WorkspaceSchema.pre('save', async function (next) {
         const lastDoc = await workspaceModel.findOne().sort({ _id: -1 });
         this.uid = lastDoc ? lastDoc.uid + 1 : 1;
         let categories = global.config.MAINTENANCE_CATEGORIES || [];
-        for(let category of categories) {
+        for (let category of categories) {
             category.workspaceId = this._id;
         }
         await maintenanceCategoryModel.insertMany(categories);
@@ -77,6 +77,12 @@ WorkspaceSchema.pre('save', async function (next) {
             workspaceId: this._id,
         });
         await machineGroup.save();
+
+        await alertConfigModel.create({
+            workspaceId: this._id,
+            userId: null,
+            alerts: { ...(global.config.DEFAULT_ALERT_FLAGS || {}) }
+        });
     }
     next();
 });

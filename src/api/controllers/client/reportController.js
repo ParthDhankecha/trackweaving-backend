@@ -5,11 +5,19 @@ const reportService = require('../../services/reportService');
 module.exports = {
     getReport: async (req, res, next) => {
         try {
-            const fields = ['machineIds', 'reportType', 'startDate', 'endDate'];
+            const fields = ['reportType', 'startDate', 'endDate'];
             checkRequiredParams(fields, req.body);
             const body = req.body;
-            if (Array.isArray(body.machineIds) && body.machineIds.length === 0) {
-                throw global.config.message.BAD_REQUEST;
+
+            if (body.reportType === 'productionQualityWise') {
+                if (!body.quality || !String(body.quality).trim()) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+            } else {
+                checkRequiredParams(['machineIds'], req.body);
+                if (Array.isArray(body.machineIds) && body.machineIds.length === 0) {
+                    throw global.config.message.BAD_REQUEST;
+                }
             }
 
             let resObj = {};
@@ -18,6 +26,16 @@ module.exports = {
                     resObj = await reportService.generateProductionShiftWiseReport({
                         workspaceId: req.user.workspaceId,
                         machineIds: body.machineIds,
+                        startDate: body.startDate,
+                        endDate: body.endDate,
+                        shift: body.shift
+                    });
+                    break;
+
+                case 'productionQualityWise':
+                    resObj = await reportService.generateProductionQualityWiseReport({
+                        workspaceId: req.user.workspaceId,
+                        quality: body.quality,
                         startDate: body.startDate,
                         endDate: body.endDate,
                         shift: body.shift

@@ -56,7 +56,10 @@ module.exports = {
             body.workspaceId = req.user.workspaceId;
 
             const partName = { $regex: new RegExp(`^${body.partName}$`, 'i') };
-            const existingLog = await partChangeLogService.findOne({ partName }, { useLean: true });
+            const existingLog = await partChangeLogService.findOne({
+                workspaceId: body.workspaceId,
+                partName
+            }, { useLean: true });
             if (existingLog) {
                 return res.badRequest(null, global.config.message.IS_DUPLICATE);
             }

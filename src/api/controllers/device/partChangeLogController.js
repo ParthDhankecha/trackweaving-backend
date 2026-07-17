@@ -10,16 +10,6 @@ module.exports = {
             checkRequiredParams(fields, body);
 
             body.workspaceId = req.user.workspaceId;
-
-            const partName = { $regex: new RegExp(`^${body.partName}$`, 'i') };
-            const existingLog = await partChangeLogService.findOne({
-                workspaceId: body.workspaceId,
-                partName
-            }, { useLean: true });
-            if (existingLog) {
-                return res.badRequest(null, global.config.message.IS_DUPLICATE);
-            }
-
             const partChangeLog = await partChangeLogService.create(body);
 
             return res.ok(partChangeLog, global.config.message.OK);

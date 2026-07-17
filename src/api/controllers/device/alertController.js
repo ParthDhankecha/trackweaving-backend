@@ -15,10 +15,10 @@ module.exports = {
                 categoriesMap[category._id] = category;
                 return category._id;
             });
-            let maintenanceData = await maintenanceDataService.find({ machineId: { $in: machineIds }, maintenanceCategoryId: { $in: maintenanceCategoryIds }}, { projection: "maintenanceCategoryId machineId nextMaintenanceDate", useLean: true });
+            let maintenanceData = await maintenanceDataService.find({ machineId: { $in: machineIds }, maintenanceCategoryId: { $in: maintenanceCategoryIds } }, { projection: "maintenanceCategoryId machineId nextMaintenanceDate", useLean: true });
 
             let alerts = {};
-            for(let data of maintenanceData) {
+            for (let data of maintenanceData) {
                 let machineId = data.machineId.toString();
                 if (!alerts[machineId]) {
                     alerts[machineId] = {
@@ -35,19 +35,22 @@ module.exports = {
             return res.ok(Object.values(alerts), global.config.message.OK);
         } catch (error) {
             log(error);
-            
+
             return res.serverError(error);
         }
     },
 
     updateAlert: async (req, res, next) => {
         try {
-            await checkRequiredParams(['completedBy', 'nextMaintenanceDate', 'lastMaintenanceDate'], req.body);
-            let maintenanceData = await maintenanceDataService.findOne({ _id: req.params.id, isDeleted: false });
+            const body = req.body;
+            checkRequiredParams(['completedBy', 'nextMaintenanceDate', 'lastMaintenanceDate'], body);
+
+            const maintenanceData = await maintenanceDataService.findOne({ _id: req.params.id, isDeleted: false }, { useLean: true });
             if (!maintenanceData) {
                 return res.badRequest({}, "No maintenance data found for this machine and category.");
             }
-            let historyEntry = {
+
+            const historyEntry = {
                 lastMaintenanceDate: maintenanceData.lastMaintenanceDate,
                 nextMaintenanceDate: maintenanceData.nextMaintenanceDate,
                 remarks: maintenanceData.remarks || '',
@@ -55,22 +58,22 @@ module.exports = {
                 completedBy: maintenanceData.completedBy,
                 completedByMobile: maintenanceData.completedByMobile
             };
-            let updatedData = {
-                lastMaintenanceDate: new Date(req.body.lastMaintenanceDate),
-                nextMaintenanceDate: new Date(req.body.nextMaintenanceDate),
-                remarks: req.body.remarks,
-                completedBy: req.body.completedBy,
+            const updatedData = {
+                lastMaintenanceDate: new Date(body.lastMaintenanceDate),
+                nextMaintenanceDate: new Date(body.nextMaintenanceDate),
+                remarks: body.remarks,
+                completedBy: body.completedBy,
                 $push: { history: historyEntry }
             };
-            if(req.body.completedByMobile) {
-                updatedData.completedByMobile = req.body.completedByMobile;
+            if (body.completedByMobile) {
+                updatedData.completedByMobile = body.completedByMobile;
             }
-            let updatedMaintenanceData = await maintenanceDataService.findByIdAndUpdate(maintenanceData._id, updatedData);
+
+            const updatedMaintenanceData = await maintenanceDataService.findByIdAndUpdate(maintenanceData._id, updatedData);
 
             return res.ok(updatedMaintenanceData, global.config.message.OK);
         } catch (error) {
             log(error);
-
             return res.serverError(error);
         }
     }

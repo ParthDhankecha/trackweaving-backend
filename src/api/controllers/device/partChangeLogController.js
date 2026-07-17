@@ -5,8 +5,9 @@ const { log, checkRequiredParams } = require("../../services/utilService");
 module.exports = {
     create: async (req, res, next) => {
         try {
+            const body = req.body;
             const fields = ['machineId', 'partName', 'changedBy', 'changeDate'];
-            checkRequiredParams(fields, req.body);
+            checkRequiredParams(fields, body);
 
             body.workspaceId = req.user.workspaceId;
 

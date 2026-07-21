@@ -130,7 +130,8 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
         totalRealEfficiency: 0,
         totalProdMeter: 0,
         avgPicks: 0,
-        avgCount: 0
+        avgCount: 0,
+        avgSpeed: 0
     };
 
     const isQualityReport = options.isQualityReport ?? false;
@@ -148,7 +149,8 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
                 efficiency: 0,
                 realEfficiency: 0,
                 prodMeter: 0,
-                avgPicks: 0
+                avgPicks: 0,
+                avgSpeed: 0
             };
         }
 
@@ -197,6 +199,7 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
         finalData[reportDate][shiftKey].efficiency += data.efficiencyPercent || 0;
         finalData[reportDate][shiftKey].realEfficiency += data.realEfficiencyPercent || 0;
         finalData[reportDate][shiftKey].prodMeter += data.pieceLengthM || 0;
+        finalData[reportDate][shiftKey].avgSpeed += data.speedRpm ?? 0;
     }
 
     const parsedData = [];
@@ -207,12 +210,16 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             dayShift.avgPicks = dayCount ? Math.round(dayShift.totalPicks / dayCount) : 0;
             dayShift.efficiency = dayCount ? Math.round(dayShift.efficiency / dayCount) : 0;
             dayShift.realEfficiency = dayCount ? Math.round((dayShift.realEfficiency / dayCount) * 10) / 10 : 0;
+            const speedCount = dayShift.list.filter(({ speedRpm }) => speedRpm > 0).length;
+            dayShift.avgSpeed = speedCount ? Math.round(dayShift.avgSpeed / speedCount) : 0;
+
             totalNumbers.totalPicks += dayShift.totalPicks;
             totalNumbers.totalEfficiency += dayShift.efficiency;
             totalNumbers.totalRealEfficiency += dayShift.realEfficiency;
             totalNumbers.totalProdMeter += dayShift.prodMeter;
             totalNumbers.avgCount += 1;
             totalNumbers.avgPicks = dayShift.avgPicks;
+            totalNumbers.avgSpeed += dayShift.avgSpeed;
         }
         if (finalData[date].nightShift) {
             const nightShift = finalData[date].nightShift;
@@ -220,12 +227,16 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             nightShift.avgPicks = nightCount ? Math.round(nightShift.totalPicks / nightCount) : 0;
             nightShift.efficiency = nightCount ? Math.round(nightShift.efficiency / nightCount) : 0;
             nightShift.realEfficiency = nightCount ? Math.round((nightShift.realEfficiency / nightCount) * 10) / 10 : 0;
+            const speedCount = nightShift.list.filter(({ speedRpm }) => speedRpm > 0).length;
+            nightShift.avgSpeed = speedCount ? Math.round(nightShift.avgSpeed / speedCount) : 0;
+
             totalNumbers.totalPicks += nightShift.totalPicks;
             totalNumbers.totalEfficiency += nightShift.efficiency;
             totalNumbers.totalRealEfficiency += nightShift.realEfficiency;
             totalNumbers.totalProdMeter += nightShift.prodMeter;
             totalNumbers.avgCount += 1;
             totalNumbers.avgPicks = nightShift.avgPicks;
+            totalNumbers.avgSpeed += dayShift.avgSpeed;
         }
         parsedData.push({
             reportDate: date,
@@ -466,7 +477,7 @@ module.exports = {
 
     flattenReportForExport(reportData, shiftType) {
         const shiftKey = shiftType === global.config.SHIFT_TYPE.DAY ? 'dayShift' : 'nightShift';
-        const shiftLabel = shiftType === global.config.SHIFT_TYPE.DAY ? 'Day Shift' : 'Night Shift';
+        const shiftLabel = shiftType === global.config.SHIFT_TYPE.DAY ? 'Day' : 'Night';
         const list = [];
 
         for (const item of reportData.list || []) {

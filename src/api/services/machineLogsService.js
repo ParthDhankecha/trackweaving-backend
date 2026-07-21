@@ -706,13 +706,14 @@ module.exports = {
         let data = await machineLatestLogsModel.find(condition).sort({ machineId: 1 }).lean(); // .skip(skip).limit(limit).sort({ machineId: 1 }).populate('machineId').lean();
         let efficiency = 0;
         let pick = 0;
-        let speed = 0;
+        let speed = 0, runningCount;
         let running = 0;
         let stopped = 0;
         for (let machineLog of data) {
             efficiency += machineLog.efficiencyPercent;
             pick += machineLog.picksCurrentShift;
             speed += machineLog.speedRpm;
+            runningCount += (machineLog.speedRpm > 0 ? 1 : 0);
             if (machineLog.stop === 0) {
                 running++;
             } else {
@@ -725,23 +726,23 @@ module.exports = {
         } else if (status === 'stopped') {
             data = data.filter(d => d.stop !== 0);
         }
+
         let machineLogs = data.slice(skip, skip + limit);
         let machineIds = machineLogs.map(log => log.machineId);
-        let machines = await machineModel.find({ _id: { $in: machineIds } }).lean();
+        const machineMap = Object.fromEntries((await machineModel.find({ _id: { $in: machineIds } }).lean()).map(m => [m._id.toString(), m]));
         for (let log of machineLogs) {
-            let machine = machines.find(m => m._id.toString() === log.machineId.toString());
             log.machineId = {
-                ...machine,
+                ...machineMap[log.machineId.toString()],
                 stopsCount: log.stopsCount,
                 lastStartTime: log.lastStartTime,
                 lastStopTime: log.lastStopTime,
                 stopsData: log.stopsData
-            }
+            };
         }
-        let aggregateReport = {
+        const aggregateReport = {
             efficiency: totalMachines ? Math.round(efficiency / totalMachines) : 0,
             pick: pick,
-            avgSpeed: totalMachines ? Math.round(speed / running) : 0,
+            avgSpeed: totalMachines ? Math.round(speed / runningCount) : 0,
             avgPicks: totalMachines ? Math.round(pick / totalMachines) : 0,
             running: running,
             stopped: stopped,

@@ -37,15 +37,16 @@ const FS_DATA = 6.5;
 // ─── Fixed column definitions (total = FIXED_W) ───────────────────────────────
 const FIXED_COLS = [
     { key: 'date',    label: ['Date'],           w: 50,  align: 'center' },
-    { key: 'shift',   label: ['Shift'],          w: 50,  align: 'center' },
+    { key: 'shift',   label: ['Shift'],          w: 30,  align: 'center' },
     { key: 'machine', label: ['Machine'],        w: 42,  align: 'center' },
-    { key: 'quality', label: ['Quality'],        w: 42,  align: 'center' },
-    { key: 'prod',    label: ['Prod (Mtrs)'],    w: 50,  align: 'right'  },
-    { key: 'picks',   label: ['Picks'],          w: 46,  align: 'right'  },
+    { key: 'quality', label: ['Quality'],        w: 76,  align: 'center' },
+    { key: 'prod',    label: ['Prod', '(Mtrs)'], w: 35,  align: 'right'  },
+    { key: 'picks',   label: ['Picks'],          w: 35,  align: 'right'  },
     { key: 'eff',     label: ['Eff %'],          w: 30,  align: 'right'  },
     { key: 'realEff', label: ['Real', 'Eff %'],  w: 34,  align: 'right'  },
-    { key: 'runtime', label: ['Run Time'],       w: 44,  align: 'center' },
-    { key: 'beam',    label: ['Beam Left'],      w: 44,  align: 'right'  },
+    { key: 'speed',   label: ['Speed'],          w: 34,  align: 'right'  },
+    { key: 'runtime', label: ['Run Time'],       w: 40,  align: 'center' },
+    { key: 'beam',    label: ['Beam', 'Left'],   w: 30,  align: 'right'  },
 ];
 const FIXED_W = FIXED_COLS.reduce((s, c) => s + c.w, 0);  // 312
 

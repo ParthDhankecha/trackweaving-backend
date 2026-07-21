@@ -1,21 +1,28 @@
-const { log, checkRequiredParams } = require('../../services/utilService');
+const moment = require('moment');
+
 const reportService = require('../../services/reportService');
+const utilService = require('../../services/utilService');
 
 
 module.exports = {
     getReport: async (req, res, next) => {
         try {
-            const fields = ['reportType', 'startDate', 'endDate'];
-            checkRequiredParams(fields, req.body);
             const body = req.body;
+            const fields = ['reportType', 'startDate', 'endDate'];
+            utilService.checkRequiredParams(fields, body);
 
-            if (body.reportType === 'productionQualityWise') {
+            const startDate = moment(body.startDate).format('YYYY-MM-DD');
+            const endDate = moment(body.endDate).format('YYYY-MM-DD');
+            if (!startDate?.isValid() || !endDate?.isValid() || startDate.isAfter(endDate)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            if (body.reportType === 'qualityProductionReport') {
                 if (!body.quality || !String(body.quality).trim()) {
                     throw global.config.message.BAD_REQUEST;
                 }
             } else {
-                checkRequiredParams(['machineIds'], req.body);
-                if (Array.isArray(body.machineIds) && body.machineIds.length === 0) {
+                if (!Array.isArray(body.machineIds) || body.machineIds.length === 0) {
                     throw global.config.message.BAD_REQUEST;
                 }
             }
@@ -32,8 +39,8 @@ module.exports = {
                     });
                     break;
 
-                case 'productionQualityWise':
-                    resObj = await reportService.generateProductionQualityWiseReport({
+                case 'qualityProductionReport':
+                    resObj = await reportService.generateQualityProductionReport({
                         workspaceId: req.user.workspaceId,
                         quality: body.quality,
                         startDate: body.startDate,
@@ -74,7 +81,8 @@ module.exports = {
 
             return res.ok(resObj, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
+
             return res.serverError(error);
         }
     }

@@ -109,7 +109,6 @@ const STOP_CATEGORY_CODE = {
     h1: 8,
     h2: 9
 };
-
 const ALL_STOP_DATA_KEYS = ['h1', 'h2', 'warp', 'weft', 'feeder', 'manual', 'other'];
 
 function getStopReasonForEvent(category, stopEvent, displayType) {
@@ -298,7 +297,7 @@ module.exports = {
         return buildProductionReportData(reportData, machines, workspace);
     },
 
-    async generateProductionQualityWiseReport({ workspaceId, quality, startDate, endDate, shift }) {
+    async generateQualityProductionReport({ workspaceId, quality, startDate, endDate, shift }) {
         const selectedQuality = String(quality || '').trim();
         if (!selectedQuality) {
             throw global.config.message.BAD_REQUEST;

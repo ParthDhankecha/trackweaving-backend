@@ -1,0 +1,1 @@
+import{Va as r,Za as t,jb as o,p as e}from"./chunk-5WXDZ2BE.js";var h=(u,a)=>{let i=e(r);if(!e(o).utils.isAuthenticated){let n=a.url.startsWith(`/${t.ADMIN.BASE}`);return i.navigateByUrl(n?t.ADMIN.getFullRoute(t.ADMIN.LOGIN):`/${t.AUTH.BASE}`),!1}return!0};export{h as a};

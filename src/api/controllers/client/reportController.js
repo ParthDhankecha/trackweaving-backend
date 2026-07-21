@@ -11,9 +11,9 @@ module.exports = {
             const fields = ['reportType', 'startDate', 'endDate'];
             utilService.checkRequiredParams(fields, body);
 
-            const startDate = moment(body.startDate).format('YYYY-MM-DD');
-            const endDate = moment(body.endDate).format('YYYY-MM-DD');
-            if (!startDate?.isValid() || !endDate?.isValid() || startDate.isAfter(endDate)) {
+            const startDate = moment(body.startDate);
+            const endDate = moment(body.endDate);
+            if (!startDate.isValid() || !endDate.isValid() || startDate.isAfter(endDate)) {
                 throw global.config.message.BAD_REQUEST;
             }
 

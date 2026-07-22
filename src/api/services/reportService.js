@@ -236,7 +236,7 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             totalNumbers.totalProdMeter += nightShift.prodMeter;
             totalNumbers.avgCount += 1;
             totalNumbers.avgPicks = nightShift.avgPicks;
-            totalNumbers.avgSpeed += dayShift.avgSpeed;
+            totalNumbers.avgSpeed += nightShift.avgSpeed;
         }
         parsedData.push({
             reportDate: date,

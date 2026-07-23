@@ -3,6 +3,7 @@ const { ObjectId } = require('mongoose').Types;
 
 const machineLogsService = require('../../services/machineLogsService');
 const machineGroupService = require('../../services/machineGroupService');
+const reportService = require('../../services/reportService');
 const utilService = require('../../services/utilService');
 
 
@@ -98,13 +99,13 @@ module.exports = {
 
             return res.ok({
                 totalWorkspaces: workspaces.length,
-                totalMachines:   machines.length,
+                totalMachines: machines.length,
                 byMachineType,
-                runningMachines:  running,
-                stoppedMachines:  stopped,
-                avgEfficiency:    effCount ? Math.round(effSum / effCount) : 0,
-                totalPicksToday:  totalPicks,
-                workspaces:       workspaceSummary
+                runningMachines: running,
+                stoppedMachines: stopped,
+                avgEfficiency: effCount ? Math.round(effSum / effCount) : 0,
+                totalPicksToday: totalPicks,
+                workspaces: workspaceSummary
             }, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
@@ -155,6 +156,21 @@ module.exports = {
         }
     },
 
+    getQualities: async (req, res, next) => {
+        try {
+            const { workspaceId } = req.params;
+            if (!utilService.isValidObjectId(workspaceId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const qualities = await machineLogsService.getDistinctQualities(workspaceId);
+            return res.ok(qualities, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
     getMachineLogList: async (req, res, next) => {
         try {
             const manufacturerId = req.mfrUser.manufacturerId;
@@ -173,18 +189,18 @@ module.exports = {
                 const data = {
                     machineCode: logData.machineId.machineCode,
                     machineName: logData.machineId.machineName,
-                    quality:     logData.machineId.quality || '',
+                    quality: logData.machineId.quality || '',
                     machineType: logData.machineId.machineType || 'rapier',
                     machineGroupId: logData.machineId?.machineGroupId || '',
-                    efficiency:  logData.efficiencyPercent,
-                    picks:       logData.picksCurrentShift,
-                    speed:       logData.speedRpm,
+                    efficiency: logData.efficiencyPercent,
+                    picks: logData.picksCurrentShift,
+                    speed: logData.speedRpm,
                     currentStop: logData.stop,
-                    stopReason:  machineLogsService.getStopReason(logData.stop, logData.machineId.displayType),
+                    stopReason: machineLogsService.getStopReason(logData.stop, logData.machineId.displayType),
                     pieceLengthM: logData.pieceLengthM,
-                    beamLeft:    logData.beamLeft,
-                    setPicks:    logData.setPicks,
-                    stopsData:   {},
+                    beamLeft: logData.beamLeft,
+                    setPicks: logData.setPicks,
+                    stopsData: {},
                     totalDuration: moment.utc((moment().diff(moment(
                         new Date(logData.machineId[logData.stop === 0 ? 'lastStartTime' : 'lastStopTime']).toISOString()
                     ), 'seconds')) * 1000).format('HH:mm') || '00:00',
@@ -232,6 +248,91 @@ module.exports = {
         }
     },
 
+    getReport: async (req, res, next) => {
+        try {
+            const body = req.body;
+            const fields = ['reportType', 'startDate', 'endDate'];
+            utilService.checkRequiredParams(fields, body);
+            if (!utilService.isValidObjectId(body.workspaceId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const startDate = moment(body.startDate);
+            const endDate = moment(body.endDate);
+            if (!startDate.isValid() || !endDate.isValid() || startDate.isAfter(endDate)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            if (body.reportType === 'qualityProductionReport') {
+                if (!body.quality || !String(body.quality).trim()) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+            } else {
+                if (!Array.isArray(body.machineIds) || body.machineIds.length === 0) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+            }
+
+            let resObj = {};
+            switch (body.reportType) {
+                case 'productionShiftWise':
+                    resObj = await reportService.generateProductionShiftWiseReport({
+                        workspaceId: body.workspaceId,
+                        machineIds: body.machineIds,
+                        startDate: body.startDate,
+                        endDate: body.endDate,
+                        shift: body.shift
+                    });
+                    break;
+
+                case 'qualityProductionReport':
+                    resObj = await reportService.generateQualityProductionReport({
+                        workspaceId: body.workspaceId,
+                        quality: body.quality,
+                        startDate: body.startDate,
+                        endDate: body.endDate,
+                        shift: body.shift
+                    });
+                    break;
+
+                case 'stoppageReport':
+                    if (!body.minStopMinutes || body.minStopMinutes <= 0) {
+                        throw global.config.message.BAD_REQUEST;
+                    }
+                    resObj = await reportService.generateStoppageReport({
+                        workspaceId: body.workspaceId,
+                        machineIds: body.machineIds,
+                        startDate: body.startDate,
+                        endDate: body.endDate,
+                        shift: body.shift,
+                        minStopMinutes: body.minStopMinutes
+                    });
+                    break;
+
+                case 'beamLeftReport':
+                    resObj = await reportService.generateBeamLeftReport({
+                        workspaceId: body.workspaceId,
+                        machineIds: body.machineIds,
+                        startDate: body.startDate,
+                        endDate: body.endDate,
+                    });
+                    break;
+
+                case 'stopageFilter':
+                    break;
+
+                default:
+                    break;
+            }
+
+            return res.ok(resObj, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+
+            return res.serverError(error);
+        }
+    },
+
 
     /**
      * Machine list with filters
@@ -252,14 +353,14 @@ module.exports = {
                 ];
             }
 
-            const page  = parseInt(body.page)  || 1;
+            const page = parseInt(body.page) || 1;
             const limit = parseInt(body.limit) || 20;
-            const skip  = (page - 1) * limit;
+            const skip = (page - 1) * limit;
 
             const [machines, totalCount] = await Promise.all([
                 machineModel.find(machineFilter, {
                     machineCode: 1, machineName: 1, machineType: 1, serialNumber: 1,
-                    workspaceId: 1, displayType: 1, lastStartTime: 1, lastStopTime: 1
+                    machineGroupId: 1, workspaceId: 1, displayType: 1, lastStartTime: 1, lastStopTime: 1
                 })
                     .populate({ path: 'workspaceId', select: 'firmName' })
                     .skip(skip)
@@ -302,26 +403,27 @@ module.exports = {
                     if (ref) totalDuration = moment.utc(now.diff(moment(ref), 'seconds') * 1000).format('HH:mm');
                 } catch (e) { }
                 return {
-                    _id:              m._id,
-                    machineCode:      m.machineCode,
-                    machineName:      m.machineName,
-                    machineType:      m.machineType,
-                    serialNumber:     m.serialNumber,
-                    workspace:        m.workspaceId,
+                    _id: m._id,
+                    machineCode: m.machineCode,
+                    machineName: m.machineName,
+                    machineGroupId: m.machineGroupId,
+                    machineType: m.machineType,
+                    serialNumber: m.serialNumber,
+                    workspace: m.workspaceId,
                     isRunning,
-                    stop:             l.stop ?? null,
-                    stopReason:       machineLogsService.getStopReason(l.stop ?? 0, m.displayType || 'nazon'),
+                    stop: l.stop ?? null,
+                    stopReason: machineLogsService.getStopReason(l.stop ?? 0, m.displayType || 'nazon'),
                     efficiencyPercent: Math.round(l.efficiencyPercent || 0),
                     picksCurrentShift: l.picksCurrentShift || 0,
-                    picksTotal:       l.picksTotal || 0,
-                    speedRpm:         l.speedRpm || 0,
-                    beamLeft:         l.beamLeft ?? null,
-                    totalStops:       l.stopCount || 0,
-                    runTime:          l.runTime || '00:00:00',
+                    picksTotal: l.picksTotal || 0,
+                    speedRpm: l.speedRpm || 0,
+                    beamLeft: l.beamLeft ?? null,
+                    totalStops: l.stopCount || 0,
+                    runTime: l.runTime || '00:00:00',
                     totalDuration,
-                    pieceLengthM:     l.pieceLengthM || 0,
-                    setPicks:         l.setPicks || 0,
-                    shift:            l.shift ?? null
+                    pieceLengthM: l.pieceLengthM || 0,
+                    setPicks: l.setPicks || 0,
+                    shift: l.shift ?? null
                 };
             });
 
@@ -430,7 +532,7 @@ module.exports = {
                 if (!l || !l.stopsCount) continue;
                 for (const t of stopTypes) {
                     if (l.stopsCount[t]) {
-                        stopAnalysisMap[t].count    += l.stopsCount[t].count    || 0;
+                        stopAnalysisMap[t].count += l.stopsCount[t].count || 0;
                         stopAnalysisMap[t].duration += l.stopsCount[t].duration || 0;
                     }
                 }
@@ -438,7 +540,7 @@ module.exports = {
 
             const stopAnalysis = stopTypes.map(t => ({
                 stopType: t,
-                count:    stopAnalysisMap[t].count,
+                count: stopAnalysisMap[t].count,
                 totalDurationSeconds: stopAnalysisMap[t].duration
             }));
 

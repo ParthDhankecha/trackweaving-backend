@@ -224,8 +224,7 @@ module.exports = {
                 const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
                 body.quality = machine?.quality || null;
 
-                let log = new machineLogsModel(body);
-                await log.save();
+                await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
             } else {
                 await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
             }
@@ -245,8 +244,7 @@ module.exports = {
             const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
             body.quality = machine?.quality || null;
 
-            let log = new machineLogsModel(body);
-            await log.save();
+            await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
         }
     },
 

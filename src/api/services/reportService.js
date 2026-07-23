@@ -249,6 +249,7 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
         totalPicks: totalNumbers.totalPicks,
         totalEfficiency: Math.round((totalNumbers.totalEfficiency / totalNumbers.avgCount) || 0),
         totalRealEfficiency: Math.round(((totalNumbers.totalRealEfficiency / totalNumbers.avgCount) || 0) * 10) / 10,
+        avgSpeed: Math.round((totalNumbers.avgSpeed / totalNumbers.avgCount) || 0),
         avgProdMeter: totalNumbers.totalProdMeter,
         avgPicks: Math.round((totalNumbers.avgPicks / totalNumbers.avgCount) || 0)
     };
@@ -501,6 +502,7 @@ module.exports = {
             totalPicks: reportData.totalPicks,
             totalEfficiency: reportData.totalEfficiency,
             totalRealEfficiency: reportData.totalRealEfficiency,
+            avgSpeed: reportData.avgSpeed,
             avgProdMeter: reportData.avgProdMeter,
             avgPicks: reportData.avgPicks,
             shiftLabel,

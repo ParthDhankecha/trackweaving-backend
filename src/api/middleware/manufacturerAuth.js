@@ -7,8 +7,8 @@ module.exports = async (req, res, next) => {
         if (req.headers && req.headers.authorization) {
             const payload = await jwtService.verifyManufacturerToken(req.headers.authorization);
 
-            if (payload && payload.id) {
-                req.manufacturer = payload;
+            if (payload && payload.manufacturerId) {
+                req.mfrUser = payload;
                 return next();
             }
 

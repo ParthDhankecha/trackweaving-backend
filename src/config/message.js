@@ -268,6 +268,11 @@ module.exports = {
             message: "You do not have enough permission for this operation.",
             status: 422
         },
+        RESOURCE_HAS_ASSOCIATIONS: {
+            code: "UNPROCESSABLE_ENTITY",
+            message: "The requested resource has associations and cannot be deleted.",
+            status: 422
+        },
         USER_UPDATED: {
             code: "OK",
             message: "User updated successfully.",

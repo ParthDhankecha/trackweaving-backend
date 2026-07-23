@@ -52,14 +52,15 @@ module.exports = {
     },
 
     /**
-     * Creates a JWT token for a manufacturer.
+     * Creates a JWT token for a manufacturer portal session.
+     * @param {{ manufacturer: Object, user: Object }} session - Org + logged-in user.
      */
-    createManufacturerToken(manufacturer, expiresIn = JWT_EXPIRES_IN_SECONDS) {
+    createManufacturerToken({ manufacturer, user }, expiresIn = JWT_EXPIRES_IN_SECONDS) {
         const payload = {
-            manufacturer: {
-                id: manufacturer._id,
-                companyName: manufacturer.companyName,
-                email: manufacturer.email
+            mfrUser: {
+                id: user._id,
+                manufacturerId: manufacturer._id,
+                email: user.email
             }
         };
 
@@ -75,8 +76,8 @@ module.exports = {
      */
     verifyManufacturerToken(token) {
         const payload = jwt.verify(token, JWT_SECRET_KEY, { algorithms: [ALGORITHM] });
-        if (!payload.manufacturer) throw new Error('Not a manufacturer token');
-        return payload.manufacturer;
+        if (!payload.mfrUser) throw new Error('Not a manufacturer token');
+        return payload.mfrUser;
     },
 
     /**

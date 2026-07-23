@@ -1,11 +1,12 @@
-const { log } = require('../../services/utilService');
-const mongoose = require('mongoose');
 const moment = require('moment');
+const { ObjectId } = require('mongoose').Types;
+
 const machineLogsService = require('../../services/machineLogsService');
+const machineGroupService = require('../../services/machineGroupService');
+const utilService = require('../../services/utilService');
 
 
 module.exports = {
-
     /**
      * Overview stats for the manufacturer
      * Returns: total workspaces, total machines, breakdown by machineType,
@@ -13,7 +14,7 @@ module.exports = {
      */
     getOverview: async (req, res, next) => {
         try {
-            const manufacturerId = new mongoose.Types.ObjectId(req.manufacturer.id);
+            const manufacturerId = ObjectId(req.mfrUser.manufacturerId);
 
             // All workspaces assigned to this manufacturer
             const workspaces = await workspaceModel.find(
@@ -106,10 +107,131 @@ module.exports = {
                 workspaces:       workspaceSummary
             }, global.config.message.OK);
         } catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
+    /**
+     * Workspace option list for the authenticated manufacturer
+     * Returns only workspaces assigned to this manufacturer (for filter dropdowns)
+     */
+    getWorkspaceOptions: async (req, res, next) => {
+        try {
+            const manufacturerId = ObjectId(req.mfrUser.manufacturerId);
+            if (!utilService.isValidObjectId(manufacturerId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const workspaces = await workspaceModel.find(
+                { manufacturerId, isDeleted: false },
+                { _id: 1, firmName: 1 }
+            ).sort({ firmName: 1 }).lean();
+
+            return res.ok(workspaces, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
+    getMachineGroupOptions: async (req, res, next) => {
+        try {
+            const workspaceId = req.params.workspaceId;
+            if (!utilService.isValidObjectId(workspaceId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const machineGroups = await machineGroupService.find({ workspaceId: workspaceId }, {
+                projection: { _id: 1, groupName: 1 },
+                useLean: true,
+            });
+
+            return res.ok(machineGroups, global.config.message.OK);
+        }
+        catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
+    getMachineLogList: async (req, res, next) => {
+        try {
+            const manufacturerId = req.mfrUser.manufacturerId;
+            const body = req.body;
+            if (!utilService.isValidObjectId(manufacturerId) || !utilService.isValidObjectId(body.workspaceId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const machineLogsData = await machineLogsService.getMachineLogsWithPagination(body);
+
+            const machineData = [];
+            for (let logData of machineLogsData.data) {
+                if (!logData.machineId.lastStartTime) logData.machineId.lastStartTime = new Date();
+                if (!logData.machineId.lastStopTime) logData.machineId.lastStopTime = new Date();
+
+                const data = {
+                    machineCode: logData.machineId.machineCode,
+                    machineName: logData.machineId.machineName,
+                    quality:     logData.machineId.quality || '',
+                    machineType: logData.machineId.machineType || 'rapier',
+                    machineGroupId: logData.machineId?.machineGroupId || '',
+                    efficiency:  logData.efficiencyPercent,
+                    picks:       logData.picksCurrentShift,
+                    speed:       logData.speedRpm,
+                    currentStop: logData.stop,
+                    stopReason:  machineLogsService.getStopReason(logData.stop, logData.machineId.displayType),
+                    pieceLengthM: logData.pieceLengthM,
+                    beamLeft:    logData.beamLeft,
+                    setPicks:    logData.setPicks,
+                    stopsData:   {},
+                    totalDuration: moment.utc((moment().diff(moment(
+                        new Date(logData.machineId[logData.stop === 0 ? 'lastStartTime' : 'lastStopTime']).toISOString()
+                    ), 'seconds')) * 1000).format('HH:mm') || '00:00',
+                };
+
+                let totalStopDuration = 0;
+                let totalStops = 0;
+                const stopKeys = global.config.MACHINE_TYPE_KEY_MAPPING[data.machineType] || global.config.MACHINE_TYPE_KEY_MAPPING.rapier;
+                for (let key of stopKeys) {
+                    data.stopsData[key] = {
+                        count: logData?.machineId?.stopsCount[key]?.count || 0,
+                        duration: moment.utc((logData?.machineId?.stopsCount[key]?.duration || 0) * 1000).format('HH:mm'),
+                    };
+                    totalStops += logData?.machineId?.stopsCount[key]?.count || 0;
+                    totalStopDuration += logData?.machineId?.stopsCount[key]?.duration || 0;
+                }
+                if (data.machineType === 'rapier') {
+                    const runTime = logData.runTime?.split(':') || [];
+                    if (runTime.length > 1) {
+                        let runMins = parseInt(runTime[0]) * 60 + parseInt(runTime[1]);
+                        runMins -= Math.floor(totalStopDuration / 60);
+                        data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
+                    }
+                } else {
+                    data.runTime = logData.runTime || '-';
+                }
+                data.stopsData.total = {
+                    duration: moment.utc(totalStopDuration * 1000).format('HH:mm'),
+                    count: totalStops
+                };
+
+                machineData.push(data);
+            }
+
+            const response = {
+                aggregateReport: machineLogsData.aggregateReport,
+                machineLogs: machineData,
+                totalCount: machineLogsData.aggregateReport.all
+            };
+
+            return res.ok(response, global.config.message.OK);
+        } catch (error) {
             log(error);
             return res.serverError(error);
         }
     },
+
 
     /**
      * Machine list with filters
@@ -117,11 +239,11 @@ module.exports = {
      */
     getMachineList: async (req, res, next) => {
         try {
-            const manufacturerId = new mongoose.Types.ObjectId(req.manufacturer.id);
+            const manufacturerId = ObjectId(req.mfrUser.manufacturerId);
             const body = req.body || {};
 
             const machineFilter = { manufacturerId, isDeleted: false };
-            if (body.workspaceId) machineFilter.workspaceId = new mongoose.Types.ObjectId(body.workspaceId);
+            if (body.workspaceId) machineFilter.workspaceId = ObjectId(body.workspaceId);
             if (body.machineType) machineFilter.machineType = body.machineType;
             if (body.search) {
                 machineFilter.$or = [
@@ -178,7 +300,7 @@ module.exports = {
                 try {
                     const ref = isRunning ? m.lastStartTime : m.lastStopTime;
                     if (ref) totalDuration = moment.utc(now.diff(moment(ref), 'seconds') * 1000).format('HH:mm');
-                } catch (e) {}
+                } catch (e) { }
                 return {
                     _id:              m._id,
                     machineCode:      m.machineCode,
@@ -205,7 +327,7 @@ module.exports = {
 
             return res.ok({ list, totalCount }, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
@@ -221,11 +343,11 @@ module.exports = {
      */
     getAnalytics: async (req, res, next) => {
         try {
-            const manufacturerId = new mongoose.Types.ObjectId(req.manufacturer.id);
+            const manufacturerId = ObjectId(req.mfrUser.manufacturerId);
             const body = req.body || {};
 
             const workspaceFilter = { manufacturerId, isDeleted: false };
-            if (body.workspaceId) workspaceFilter._id = new mongoose.Types.ObjectId(body.workspaceId);
+            if (body.workspaceId) workspaceFilter._id = ObjectId(body.workspaceId);
 
             const workspaces = await workspaceModel.find(workspaceFilter, { _id: 1, firmName: 1 }).lean();
             const workspaceIds = workspaces.map(w => w._id);
@@ -348,27 +470,8 @@ module.exports = {
                 machineTypeEfficiency
             }, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
-
-    /**
-     * Workspace option list for the authenticated manufacturer
-     * Returns only workspaces assigned to this manufacturer (for filter dropdowns)
-     */
-    getWorkspaceOptions: async (req, res, next) => {
-        try {
-            const manufacturerId = new mongoose.Types.ObjectId(req.manufacturer.id);
-            const workspaces = await workspaceModel.find(
-                { manufacturerId, isDeleted: false },
-                { _id: 1, firmName: 1 }
-            ).sort({ firmName: 1 }).lean();
-
-            return res.ok(workspaces, global.config.message.OK);
-        } catch (error) {
-            log(error);
-            return res.serverError(error);
-        }
-    }
 };

@@ -702,7 +702,22 @@ module.exports = {
         const limit = parseInt(options.limit) || 100;
         const skip = (page - 1) * limit;
         const status = options.status || 'all'; // all, running, stopped
+
         let condition = { workspaceId: options.workspaceId, isDeleted: false };
+        const machineMap = {};
+        let machineIds = [];
+        if (options.machineType) {
+            const machines = await machineService.find({
+                workspaceId: options.workspaceId,
+                machineType: options.machineType,
+            }, { useLean: true });
+            Object.assign(machineMap, machines.reduce((acc, m) => {
+                acc[m._id.toString()] = m;
+                machineIds.push(m._id);
+                return acc;
+            }, {}));
+            condition.machineId = { $in: machineIds };
+        }
         let data = await machineLatestLogsModel.find(condition).sort({ machineId: 1 }).lean(); // .skip(skip).limit(limit).sort({ machineId: 1 }).populate('machineId').lean();
         let efficiency = 0;
         let pick = 0;
@@ -728,8 +743,14 @@ module.exports = {
         }
 
         let machineLogs = data.slice(skip, skip + limit);
-        let machineIds = machineLogs.map(log => log.machineId);
-        const machineMap = Object.fromEntries((await machineModel.find({ _id: { $in: machineIds } }).lean()).map(m => [m._id.toString(), m]));
+        if (!options?.machineType) {
+            machineIds = [...new Set(machineLogs.map(log => log.machineId))];
+            const machines = await machineService.find({ _id: { $in: machineIds } }, { useLean: true });
+            Object.assign(machineMap, machines.reduce((acc, m) => {
+                acc[m._id.toString()] = m;
+                return acc;
+            }, {}));
+        }
         for (let log of machineLogs) {
             log.machineId = {
                 ...machineMap[log.machineId.toString()],

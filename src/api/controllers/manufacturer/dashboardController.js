@@ -5,6 +5,7 @@ const machineLogsService = require('../../services/machineLogsService');
 const machineGroupService = require('../../services/machineGroupService');
 const reportService = require('../../services/reportService');
 const utilService = require('../../services/utilService');
+const machineService = require('../../services/machineService');
 
 
 module.exports = {
@@ -151,6 +152,25 @@ module.exports = {
             return res.ok(machineGroups, global.config.message.OK);
         }
         catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
+    getMachines: async (req, res, next) => {
+        try {
+            const { workspaceId } = req.params;
+            if (!utilService.isValidObjectId(workspaceId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const machines = await machineService.find({ workspaceId, isDeleted: false }, {
+                projection: 'machineCode machineName machineGroupId',
+                useLean: true,
+            });
+
+            return res.ok(machines, global.config.message.OK);
+        } catch (error) {
             utilService.log(error);
             return res.serverError(error);
         }

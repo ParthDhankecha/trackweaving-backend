@@ -14,8 +14,6 @@ router.post('/pagination', isAuth, manufacturerController.getList);
 
 router.put('/update/:id', isAuth, manufacturerController.updateById);
 
-router.put('/assign-workspaces/:id', isAuth, manufacturerController.assignWorkspaces);
-
 router.delete('/delete/:id', isAuth, manufacturerController.deleteById);
 
 

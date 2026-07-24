@@ -206,6 +206,7 @@ function drawDataRow(doc, x, y, machine, item, cols, bg) {
         else if (c.key === 'picks')   val = str(machine.picksCurrentShift);
         else if (c.key === 'eff')     val = fmtNum(machine.efficiencyPercent, 1);
         else if (c.key === 'realEff') val = fmtNum(machine.realEfficiencyPercent, 1);
+        else if (c.key === 'speed')   val = fmtNum(machine.speedRpm);
         else if (c.key === 'runtime') val = str(machine.runTime);
         else if (c.key === 'beam')    val = str(machine.beamLeft);
         else if (c.isStop)            val = c.sub === 'count'
@@ -242,6 +243,7 @@ function drawSubtotalRow(doc, x, y, item, cols) {
         else if (c.key === 'picks')   val = str(item.totalPicks);
         else if (c.key === 'eff')     val = fmtNum(item.efficiency, 1);
         else if (c.key === 'realEff') val = fmtNum(item.realEfficiency, 1);
+        else if (c.key === 'speed')   val = fmtNum(item.avgSpeed);
         else                          val = '';
 
         cell(doc, cx, y, c.w, ROW_H, val, { bg: C.subtotalBg, color: C.text, fontSize: FS_DATA, bold: true, align });
@@ -276,6 +278,7 @@ function drawGrandTotalRow(doc, x, y, exportData, cols) {
         else if (c.key === 'picks') val = str(exportData.totalPicks);
         else if (c.key === 'eff')   val = fmtNum(exportData.totalEfficiency, 1);
         else if (c.key === 'realEff') val = fmtNum(exportData.totalRealEfficiency, 1);
+        else if (c.key === 'speed')   val = fmtNum(exportData.avgSpeed);
         else                        val = '';
 
         cell(doc, cx, y, c.w, ROW_H, val, { bg: C.grandBg, color: C.text, fontSize: FS_DATA, bold: true, align });

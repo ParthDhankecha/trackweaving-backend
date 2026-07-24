@@ -4,6 +4,16 @@ const utilService = require("../../services/utilService");
 
 
 module.exports = {
+    getQualityList: async (req, res, next) => {
+        try {
+            const qualities = await machineLogsService.getDistinctQualities(req.user.workspaceId);
+            return res.ok(qualities, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
     getList: async (req, res, next) => {
         try {
             const body = req.body || {};
@@ -11,9 +21,9 @@ module.exports = {
             const machineLogsData = await machineLogsService.getMachineLogsWithPagination(body);
 
             let machineData = [];
-            for(let logData of machineLogsData.data) {
-                if(!logData.machineId.lastStartTime) logData.machineId.lastStartTime = new Date();
-                if(!logData.machineId.lastStopTime) logData.machineId.lastStopTime = new Date();
+            for (let logData of machineLogsData.data) {
+                if (!logData.machineId.lastStartTime) logData.machineId.lastStartTime = new Date();
+                if (!logData.machineId.lastStopTime) logData.machineId.lastStopTime = new Date();
                 let data = {};
                 data.machineCode = logData.machineId.machineCode;
                 data.machineName = logData.machineId.machineName;
@@ -32,7 +42,7 @@ module.exports = {
                 data.totalDuration = logData.stop === 0 ? (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStartTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00') : (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStopTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00');
                 let totalStopDuration = 0;
                 let totalStops = 0;
-                for(let key of (global.config.MACHINE_TYPE_KEY_MAPPING[data.machineType] || global.config.MACHINE_TYPE_KEY_MAPPING.rapier)){
+                for (let key of (global.config.MACHINE_TYPE_KEY_MAPPING[data.machineType] || global.config.MACHINE_TYPE_KEY_MAPPING.rapier)) {
                     data.stopsData[key] = {
                         count: logData?.machineId?.stopsCount[key]?.count || 0,
                         duration: moment.utc((logData?.machineId?.stopsCount[key]?.duration || 0) * 1000).format('HH:mm'),
@@ -40,7 +50,7 @@ module.exports = {
                     totalStops += logData?.machineId?.stopsCount[key]?.count || 0;
                     totalStopDuration += logData?.machineId?.stopsCount[key]?.duration || 0;
                 }
-                if(data.machineType === 'rapier') {
+                if (data.machineType === 'rapier') {
                     const runTime = logData.runTime?.split(':') || [];
                     if (runTime.length > 1) {
                         let runMins = parseInt(runTime[0]) * 60 + parseInt(runTime[1]);
@@ -55,7 +65,7 @@ module.exports = {
                     duration: moment.utc(totalStopDuration * 1000).format('HH:mm'),
                     count: totalStops
                 };
-                
+
                 machineData.push(data);
             }
 

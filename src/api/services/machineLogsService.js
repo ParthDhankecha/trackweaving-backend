@@ -196,6 +196,9 @@ module.exports = {
     async create(body) {
         let machineLog = await machineLatestLogsModel.findOneAndUpdate({ machineId: body.machineId }, body, { upsert: true, returnDocument: 'before' });
         let shiftDate;
+        if(body.displayType == 'biana' && body.speedRpm == 0) {
+            return;
+        }
         if (body.shift == 0) {
             shiftDate = moment(body.updatedTime).startOf('day');
         } else if (body.shift == 1) {
@@ -203,7 +206,7 @@ module.exports = {
         }
         if (machineLog) {
             if (machineLog.shift != body.shift) {
-                if (body.prevData) {
+                if (body.prevData && body.prevData.speedRpm != 0 && body.prevData.efficiencyPercent != 0) {
                     await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createdAt: -1 } });
                 }
                 body.shiftDate = shiftDate;

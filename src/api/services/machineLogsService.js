@@ -7,6 +7,10 @@ const alertConfigService = require('./alertConfigService');
 const utilService = require('./utilService');
 
 const BEAM_THRESHOLDS = [1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 50, 25, 0];
+const STOP_ALERT_THRESHOLDS = [
+    { minutes: 10, alertKey: 'machineStopped1' },
+    { minutes: 20, alertKey: 'machineStopped2' }
+];
 
 /**
  * On beam replenishment (beamLeft increased), close the open beamLeft record
@@ -196,7 +200,7 @@ module.exports = {
     async create(body) {
         let machineLog = await machineLatestLogsModel.findOneAndUpdate({ machineId: body.machineId }, body, { upsert: true, returnDocument: 'before' });
         let shiftDate;
-        if(body.displayType == 'biana' && body.speedRpm == 0) {
+        if (body.displayType == 'biana' && body.speedRpm == 0) {
             return;
         }
         if (body.shift == 0) {
@@ -520,6 +524,86 @@ module.exports = {
                 alertUpdate.beamAlertNotifiedThresholds = [...notified];
             }
         }
+
+        // ── Machine stopped duration alerts (10 min / 20 min) ─────────────────
+        // Each threshold fires at most once per stop cycle. State resets when the
+        // machine starts running again, or when a new stop begins after running.
+        const wasRunning = machineLog.stop === 0;
+        const isRunning = body.stop === 0;
+        const wasStopped = !wasRunning;
+        const isStopped = !isRunning;
+        let stopNotified = new Set(machineLog.stopAlertNotifiedMinutes || []);
+        let stopStateChanged = false;
+
+        if (wasRunning && isStopped) {
+            stopNotified = new Set();
+            alertUpdate.stopAlertNotifiedMinutes = [];
+            stopStateChanged = true;
+        } else if (wasStopped && isRunning) {
+            stopNotified = new Set();
+            alertUpdate.stopAlertNotifiedMinutes = [];
+            stopStateChanged = true;
+        }
+
+        if (isStopped) {
+            const stopSince = body.lastStopTime || machineLog.lastStopTime || body.updatedTime;
+
+            if (stopSince) {
+                const stoppedMinutes = moment().diff(moment(stopSince), 'minutes');
+                const thresholdsToNotify = STOP_ALERT_THRESHOLDS.filter(
+                    ({ minutes }) => stoppedMinutes >= minutes && !stopNotified.has(minutes)
+                );
+
+                if (thresholdsToNotify.length) {
+                    try {
+                        if (!machine) {
+                            machine = await machineService.findOne(
+                                { _id: body.machineId },
+                                { useLean: true, projection: { machineCode: 1, machineName: 1, displayType: 1 } }
+                            );
+                        }
+                        if (!userIds.length) {
+                            const users = await userModel.find(
+                                { workspaceId: body.workspaceId, isActive: true, isDeleted: false },
+                                { _id: 1 }
+                            ).lean() || [];
+                            userIds = users.map(u => u._id);
+                        }
+
+                        if (userIds.length && machine) {
+                            const stopAlertTypes = thresholdsToNotify.map(t => t.alertKey);
+                            const recipientsByType = await alertConfigService.filterUserIdsForAlert(
+                                body.workspaceId,
+                                userIds,
+                                stopAlertTypes
+                            );
+                            const stopReason = this.getStopReason(body.stop, body.displayType || machine.displayType);
+
+                            for (const { minutes, alertKey } of thresholdsToNotify) {
+                                const recipients = recipientsByType[alertKey] || [];
+                                if (recipients.length) {
+                                    await notificationService.createNotification({
+                                        machineId: body.machineId,
+                                        workspaceId: body.workspaceId,
+                                        title: `Machine stopped for ${minutes}+ minutes — ${capitalize(machine.machineName)} (${machine.machineCode})`,
+                                        description: `${capitalize(machine.machineName)} (${machine.machineCode}) has been stopped for ${stoppedMinutes} minutes. Reason: ${stopReason}`
+                                    }, recipients);
+                                }
+                                stopNotified.add(minutes);
+                                stopStateChanged = true;
+                            }
+                        }
+                    } catch (err) {
+                        utilService.errLog(`Stop duration alert error: ${err.message}`);
+                    }
+                }
+            }
+        }
+
+        if (stopStateChanged) {
+            alertUpdate.stopAlertNotifiedMinutes = [...stopNotified];
+        }
+
 
         if (Object.keys(alertUpdate).length) {
             await machineLatestLogsModel.findOneAndUpdate(

@@ -812,7 +812,7 @@ module.exports = {
         let data = await machineLatestLogsModel.find(condition).sort({ machineId: 1 }).lean(); // .skip(skip).limit(limit).sort({ machineId: 1 }).populate('machineId').lean();
         let efficiency = 0;
         let pick = 0;
-        let speed = 0, runningCount;
+        let speed = 0, runningCount = 0;
         let running = 0;
         let stopped = 0;
         for (let machineLog of data) {
@@ -851,7 +851,7 @@ module.exports = {
                 stopsData: log.stopsData
             };
         }
-        console.log(speed, runningCount);
+
         const aggregateReport = {
             efficiency: totalMachines ? Math.round(efficiency / totalMachines) : 0,
             pick: pick,

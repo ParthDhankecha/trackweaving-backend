@@ -8,6 +8,8 @@ router.get('/qualities', isAuth, machineLogsController.getQualityList);
 
 router.post('/', machineLogsController.createLog);
 
+router.post('/inovance', machineLogsController.createInovanceLog);
+
 router.post('/list', isAuth, machineLogsController.getList);
 
 router.post('/machine-list', machineLogsController.getMachineList);

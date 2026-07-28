@@ -7,6 +7,20 @@ const { checkRequiredParams, log } = require("../../services/utilService");
 
 
 module.exports = {
+    createInovanceLog: async (req, res, next) => {
+        try {
+            checkRequiredParams(['apiKey', 'logs'], req.body);
+            if (req.body.apiKey !== global.config.API_KEY) {
+                throw global.config.message.UNAUTHORIZED;
+            }
+            const records = await inovanceModel.insertMany(req.body.logs);
+            return res.ok(records);
+        } catch (error) {
+            log(error);
+            return res.serverError(error);
+        }
+    },
+
     createLog: async (req, res, next) => {
         try {
             checkRequiredParams(['apiKey', 'workspaceId', 'logs'], req.body);

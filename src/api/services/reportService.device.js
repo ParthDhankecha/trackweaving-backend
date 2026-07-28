@@ -407,7 +407,7 @@ module.exports = {
         };
     },
 
-    async generateBeamLeftReport({ workspaceId, machineIds, startDate, endDate }) {
+    async generateBeamProductionReport({ workspaceId, machineIds, startDate, endDate }) {
         if (!Array.isArray(machineIds) || machineIds.length === 0) {
             throw global.config.message.BAD_REQUEST;
         }

@@ -1,7 +1,7 @@
 const alertConfigService = require('../../services/alertConfigService');
 const { log, checkRequiredParams } = require('../../services/utilService');
 
-const ALERT_KEYS = ['pickChange', 'maxSpeed', 'lowSpeed', 'beamLeft'];
+const ALERT_KEYS = ['pickChange', 'maxSpeed', 'lowSpeed', 'beamLeft', 'machineStopped1', 'machineStopped2'];
 
 function pickAlertBody(body = {}) {
     const alerts = body.alerts && typeof body.alerts === 'object' ? body.alerts : body;

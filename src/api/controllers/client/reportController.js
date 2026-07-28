@@ -63,8 +63,8 @@ module.exports = {
                     });
                     break;
 
-                case 'beamLeftReport':
-                    resObj = await reportService.generateBeamLeftReport({
+                case 'beamProductionReport':
+                    resObj = await reportService.generateBeamProductionReport({
                         workspaceId: req.user.workspaceId,
                         machineIds: body.machineIds,
                         startDate: body.startDate,

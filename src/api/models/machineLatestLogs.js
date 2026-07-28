@@ -198,6 +198,10 @@ const machineLatestLogsSchema = new Schema({
         type: [Number],
         default: []
     },
+    stopAlertNotifiedMinutes: {
+        type: [Number],
+        default: []
+    },
     isDeleted: {
         type: Boolean,
         default: false

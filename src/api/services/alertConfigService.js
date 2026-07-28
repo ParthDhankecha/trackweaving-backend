@@ -10,7 +10,9 @@ module.exports = {
             pickChange: typeof alerts.pickChange === 'boolean' ? alerts.pickChange : defaults.pickChange,
             maxSpeed: typeof alerts.maxSpeed === 'boolean' ? alerts.maxSpeed : defaults.maxSpeed,
             lowSpeed: typeof alerts.lowSpeed === 'boolean' ? alerts.lowSpeed : defaults.lowSpeed,
-            beamLeft: typeof alerts.beamLeft === 'boolean' ? alerts.beamLeft : defaults.beamLeft
+            beamLeft: typeof alerts.beamLeft === 'boolean' ? alerts.beamLeft : defaults.beamLeft,
+            machineStopped1: typeof alerts.machineStopped1 === 'boolean' ? alerts.machineStopped1 : defaults.machineStopped1,
+            machineStopped2: typeof alerts.machineStopped2 === 'boolean' ? alerts.machineStopped2 : defaults.machineStopped2
         };
     },
 
@@ -187,7 +189,9 @@ module.exports = {
             pickChange: base.pickChange && userConfig.pickChange,
             maxSpeed: base.maxSpeed && userConfig.maxSpeed,
             lowSpeed: base.lowSpeed && userConfig.lowSpeed,
-            beamLeft: base.beamLeft && userConfig.beamLeft
+            beamLeft: base.beamLeft && userConfig.beamLeft,
+            machineStopped1: base.machineStopped1 && userConfig.machineStopped1,
+            machineStopped2: base.machineStopped2 && userConfig.machineStopped2
         };
     }
 };

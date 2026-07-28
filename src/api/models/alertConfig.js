@@ -21,6 +21,14 @@ const alertFlagsSubSchema = getSubSchema({
     beamLeft: {
         type: Boolean,
         default: true
+    },
+    machineStopped1: {
+        type: Boolean,
+        default: true
+    },
+    machineStopped2: {
+        type: Boolean,
+        default: true
     }
 });
 

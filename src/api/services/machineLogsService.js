@@ -727,7 +727,7 @@ module.exports = {
 
             let shiftWeftCount = register[displayType].shiftWeftCountHi && register[displayType].shiftWeftCountLo ? toUint32(at(register[displayType].shiftWeftCountHi), at(register[displayType].shiftWeftCountLo)) : 0;
             if(displayType == "pickwell") {
-                shiftWeftCount = shiftWeftCount * 1000;
+                shiftWeftCount = shiftWeftCount * 10;
             }
             const totalWeftHundreds = register[displayType].totalWeftHundredsHi && register[displayType].totalWeftHundredsLo ? toUint32(at(register[displayType].totalWeftHundredsHi), at(register[displayType].totalWeftHundredsLo)) : 0;
             const totalWeftCount = totalWeftHundreds * 100;

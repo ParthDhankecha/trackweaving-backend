@@ -851,6 +851,7 @@ module.exports = {
                 stopsData: log.stopsData
             };
         }
+        console.log(speed, runningCount);
         const aggregateReport = {
             efficiency: totalMachines ? Math.round(efficiency / totalMachines) : 0,
             pick: pick,

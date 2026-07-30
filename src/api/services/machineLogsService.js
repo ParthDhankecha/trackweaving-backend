@@ -1021,6 +1021,7 @@ module.exports = {
             };
         } else if (displayType == "haiwell") {
             STOP_REASON = {
+                0: "--",
                 1: "Manual stop",
                 2: "Leno-Left stop",
                 3: "Leno-Right stop",

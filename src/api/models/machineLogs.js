@@ -195,6 +195,10 @@ const machineLogsSchema = new Schema({
         }),
         default: {}
     },
+    beamCompletionDate: {
+        type: Date,
+        default: null
+    },
     isDeleted: {
         type: Boolean,
         default: false

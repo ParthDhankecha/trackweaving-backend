@@ -202,6 +202,10 @@ const machineLatestLogsSchema = new Schema({
         type: [Number],
         default: []
     },
+    beamCompletionDate: {
+        type: Date,
+        default: null
+    },
     isDeleted: {
         type: Boolean,
         default: false

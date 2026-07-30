@@ -121,7 +121,7 @@ const machineSchema = new Schema({
     displayType: {
         type: String,
         default: 'nazon',
-        enum: ['nazon', 'chitic', 'pickwell', 'biana']
+        enum: ['nazon', 'chitic', 'pickwell', 'biana', 'haiwell']
     },
     machineType: {
         type: String,

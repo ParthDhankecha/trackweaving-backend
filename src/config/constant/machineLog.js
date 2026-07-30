@@ -11,4 +11,5 @@ module.exports = {
     },
     RAPIER_DISPLAYS: ["nazon", "chitic", "pickwell"],
     AIRJET_DISPLAYS: ["biana"],
+    HAIWELL_DISPLAYS: ["haiwell"],
 };

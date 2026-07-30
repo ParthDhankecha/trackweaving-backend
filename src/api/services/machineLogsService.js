@@ -193,6 +193,25 @@ const register = {
             },
             runTime: 75,
         }
+    },
+    haiwell: {
+        shift: 1,
+        stopCode: 2,
+        stopReason: 3,
+        speedRpm: 4,
+        currentDensity: 5,
+        beamLeft: 6,
+        beamCompletionDate: 7,
+        pieceLengthM: 8,
+        picksCurrentShift: 9,
+        efficiencyPercent: 10,
+        runTime: 11,
+        stopsCount: {
+            warp: { count: 12, duration: 13 },
+            h1: { count: 14, duration: 15 },
+            h2: { count: 16, duration: 17 },
+            other: { count: 18, duration: 19 }
+        }
     }
 };
 
@@ -785,6 +804,30 @@ module.exports = {
                 stopsCount: stopsCount,
                 runTime: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
             };
+        } else if (global.config.HAIWELL_DISPLAYS.includes(displayType)) {
+            let stopsCount = {};
+            for (const [key, value] of Object.entries(register[displayType].stopsCount)) {
+                const count = value.count ? get16(body, value.count) : 0;
+                const duration = (value.duration ? get16(body, value.duration) : 0) * 60;
+                stopsCount[key] = { count, duration };
+            }
+            return {
+                speedRpm: get16(body, register[displayType].speedRpm),
+                efficiencyPercent: get16(body, register[displayType].efficiencyPercent),
+                stop: get16(body, register[displayType].stopCode),
+                stopReason: get16(body, register[displayType].stopReason),
+                picksCurrentShift: get16(body, register[displayType].picksCurrentShift),
+                pieceLengthM: get16(body, register[displayType].pieceLengthM),
+                beamLeft: get16(body, register[displayType].beamLeft),
+                beamCompletionDate: get16(body, register[displayType].beamCompletionDate) ?moment(
+                    `${get16(body, register[displayType].beamCompletionDate)} +05:30`,
+                    'YYYY-MM-DD HH:mm Z'
+                  ).utc() : null,
+                setPicks: get16(body, register[displayType].currentDensity),
+                shift: get16(body, register[displayType].shift),
+                stopsCount: stopsCount,
+                runTime: get16(body, register[displayType].runTime) ? `${Math.floor(get16(body, register[displayType].runTime) / 60).toString().padStart(2, '0')}:${(get16(body, register[displayType].runTime) % 60).toString().padStart(2, '0')}` : ''
+            }
         }
     },
 
@@ -971,6 +1014,12 @@ module.exports = {
                 16: "Jacquard quantitative parking"
             };
         } else if (displayType == "biana") {
+            STOP_REASON = {
+                0: "--", 1: "Manual stop", 2: "Warp stop", 6: "Storer break stop", 7: "Lack weft stop", 8: "Color 1 short weft stop",
+                9: "Color 2 short weft stop", 10: "Color 3 short weft stop", 11: "Color 4 short weft stop", 12: "Color 1 long weft stop",
+                13: "Color 2 long weft stop", 14: "Color 3 long weft stop", 15: "Color 4 long weft stop"
+            };
+        } else if (displayType == "haiwell") {
             STOP_REASON = {
                 0: "--", 1: "Manual stop", 2: "Warp stop", 6: "Storer break stop", 7: "Lack weft stop", 8: "Color 1 short weft stop",
                 9: "Color 2 short weft stop", 10: "Color 3 short weft stop", 11: "Color 4 short weft stop", 12: "Color 1 long weft stop",

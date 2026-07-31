@@ -476,6 +476,106 @@ module.exports = {
         };
     },
 
+    async generateBeamCompletionDateReport({ workspaceId, machineIds }) {
+        if (!Array.isArray(machineIds) || machineIds.length === 0) {
+            throw global.config.message.BAD_REQUEST;
+        }
+
+        const productionWindowStart = moment().subtract(3, 'days').startOf('day').toDate();
+        const productionWindowEnd = moment().endOf('day').toDate();
+        const productionWindowDays = 3;
+
+        const [machines, latestLogs, recentLogs] = await Promise.all([
+            machineService.find(
+                { _id: { $in: machineIds }, workspaceId },
+                { projection: { machineCode: 1, machineName: 1 }, useLean: true }
+            ),
+            machineLogsService.findLatestLogs(
+                { machineId: { $in: machineIds }, workspaceId },
+                {
+                    projection: { machineId: 1, beamLeft: 1, beamCompletionDate: 1 },
+                    sort: { machineId: 1 },
+                    useLean: true
+                }
+            ),
+            machineLogsService.find(
+                {
+                    machineId: { $in: machineIds },
+                    workspaceId,
+                    shiftDate: { $gte: productionWindowStart, $lte: productionWindowEnd }
+                },
+                {
+                    projection: { machineId: 1, shiftDate: 1, pieceLengthM: 1 },
+                    sort: { machineId: 1, shiftDate: 1 },
+                    useLean: true
+                }
+            )
+        ]);
+
+        const machineMap = {};
+        machines.forEach(m => {
+            machineMap[m._id.toString()] = m;
+        });
+
+        const latestLogMap = {};
+        latestLogs.forEach(log => {
+            latestLogMap[log.machineId.toString()] = log;
+        });
+
+        const productionByMachine = {};
+        recentLogs.forEach(log => {
+            const machineId = log.machineId.toString();
+            if (!productionByMachine[machineId]) {
+                productionByMachine[machineId] = 0;
+            }
+            productionByMachine[machineId] += log.pieceLengthM || 0;
+        });
+
+        const list = machineIds.map(machineId => {
+            const machineIdStr = machineId.toString();
+            const machine = machineMap[machineIdStr] || {};
+            const latestLog = latestLogMap[machineIdStr] || {};
+            const beamLeft = latestLog.beamLeft ?? 0;
+            const deviceCompletionDate = latestLog.beamCompletionDate || null;
+
+            let beamCompletionDate = deviceCompletionDate;
+            let completionSource = deviceCompletionDate ? 'device' : null;
+            let avgDailyProduction = null;
+            let estimatedDaysRemaining = null;
+
+            if (!deviceCompletionDate) {
+                const totalProduction = productionByMachine[machineIdStr] || 0;
+                avgDailyProduction = Math.round((totalProduction / productionWindowDays) * 100) / 100;
+
+                if (beamLeft <= 0) {
+                    beamCompletionDate = moment().startOf('day').toDate();
+                    completionSource = 'completed';
+                } else if (avgDailyProduction > 0) {
+                    estimatedDaysRemaining = Math.ceil(beamLeft / avgDailyProduction);
+                    beamCompletionDate = moment().startOf('day').add(estimatedDaysRemaining, 'days').toDate();
+                    completionSource = 'estimated';
+                }
+            }
+
+            return {
+                machineCode: machine.machineCode || '',
+                machineName: machine.machineName || '',
+                beamLeft,
+                beamCompletionDate,
+                completionSource,
+                avgDailyProduction,
+                estimatedDaysRemaining
+            };
+        });
+
+        list.sort((a, b) => (a.machineCode || '').localeCompare(b.machineCode || ''));
+
+        return {
+            list,
+            totalRecords: list.length
+        };
+    },
+
     flattenReportForExport(reportData, shiftType) {
         const shiftKey = shiftType === global.config.SHIFT_TYPE.DAY ? 'dayShift' : 'nightShift';
         const shiftLabel = shiftType === global.config.SHIFT_TYPE.DAY ? 'Day' : 'Night';

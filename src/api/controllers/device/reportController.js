@@ -8,13 +8,18 @@ module.exports = {
     getReport: async (req, res, next) => {
         try {
             const body = req.body;
-            const fields = ['reportType', 'startDate', 'endDate'];
+            const fields = ['reportType'];
+            if (body.reportType !== 'beamCompletionDateReport') {
+                fields.push('startDate', 'endDate');
+            }
             utilService.checkRequiredParams(fields, body);
 
-            const startDate = moment(body.startDate);
-            const endDate = moment(body.endDate);
-            if (!startDate.isValid() || !endDate.isValid() || startDate.isAfter(endDate)) {
-                throw global.config.message.BAD_REQUEST;
+            if (body.reportType !== 'beamCompletionDateReport') {
+                const startDate = moment(body.startDate);
+                const endDate = moment(body.endDate);
+                if (!startDate.isValid() || !endDate.isValid() || startDate.isAfter(endDate)) {
+                    throw global.config.message.BAD_REQUEST;
+                }
             }
 
             if (body.reportType !== 'qualityProductionReport') {
@@ -68,6 +73,13 @@ module.exports = {
                         machineIds: body.machineIds,
                         startDate: body.startDate,
                         endDate: body.endDate,
+                    });
+                    break;
+
+                case 'beamCompletionDateReport':
+                    resObj = await reportService.generateBeamCompletionDateReport({
+                        workspaceId: req.user.workspaceId,
+                        machineIds: body.machineIds,
                     });
                     break;
 

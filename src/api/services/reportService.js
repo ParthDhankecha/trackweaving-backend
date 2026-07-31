@@ -567,7 +567,6 @@ module.exports = {
             };
         });
 
-        list.sort((a, b) => (a.machineCode || '').localeCompare(b.machineCode || ''));
 
         return {
             list,

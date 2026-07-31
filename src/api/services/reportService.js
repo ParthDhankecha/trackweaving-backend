@@ -488,13 +488,12 @@ module.exports = {
         const [machines, latestLogs, recentLogs] = await Promise.all([
             machineService.find(
                 { _id: { $in: machineIds }, workspaceId },
-                { projection: { machineCode: 1, machineName: 1 }, useLean: true }
+                { projection: { machineCode: 1, machineName: 1 }, useLean: true, sort: { _id: 1 }, }
             ),
             machineLogsService.findLatestLogs(
                 { machineId: { $in: machineIds }, workspaceId },
                 {
                     projection: { machineId: 1, beamLeft: 1, beamCompletionDate: 1 },
-                    sort: { machineId: 1 },
                     useLean: true
                 }
             ),

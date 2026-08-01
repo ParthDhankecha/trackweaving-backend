@@ -129,6 +129,7 @@ module.exports = {
                 let data = {};
                 data.machineCode = logData.machineId.machineCode;
                 data.machineName = logData.machineId.machineName;
+                data.reed = logData.machineId.reed || '';
                 data.quality = logData.machineId.quality || '';
                 data.machineType = logData.machineId.machineType || 'rapier';
                 data.machineGroupId = logData.machineId?.machineGroupId || '';

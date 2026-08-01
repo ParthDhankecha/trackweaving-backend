@@ -136,6 +136,11 @@ const machineSchema = new Schema({
         trim: true,
         default: ''
     },
+    reed: {
+        type: String,
+        trim: true,
+        default: ''
+    },
     manufacturerId: {
         type: Schema.Types.ObjectId,
         ref: 'manufacturer',

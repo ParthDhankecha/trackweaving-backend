@@ -20,7 +20,7 @@ module.exports = {
     getMachineList: async (req, res, next) => {
         try {
             const workspaceId = req.user.workspaceId;
-            const projection = 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality';
+            const projection = 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality reed';
             const machines = await machineService.find({ workspaceId, isDeleted: false }, { populate: 'machineGroupId', projection: projection });
 
             return res.ok(machines, global.config.message.OK);
@@ -79,7 +79,7 @@ module.exports = {
                 updateData.machineGroupId = updateData.machineGroupId || null;
             }
 
-            const projection = 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality';
+            const projection = 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality reed';
             const updatedMachine = await machineService.findByIdAndUpdate(machineId, updateData, { populate: 'machineGroupId', projection });
             if (!updatedMachine) {
                 throw global.config.message.NOT_UPDATED;

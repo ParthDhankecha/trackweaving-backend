@@ -5,6 +5,8 @@ const isAuth = require('../../middleware/auth');
 
 router.get('/', isAuth, alertController.getAlertList);
 
+router.get('/history', isAuth, alertController.getMaintenanceHistory);
+
 router.put('/:id', isAuth, alertController.updateAlert);
 
 

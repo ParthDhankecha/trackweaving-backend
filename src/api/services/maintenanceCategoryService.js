@@ -1,5 +1,10 @@
 module.exports = {
-    async find(options = {}, queryOptions = {}){
+    async create(body) {
+        const category = new maintenanceCategoryModel(body);
+        return await category.save();
+    },
+
+    async find(options = {}, queryOptions = {}) {
         queryOptions = {
             sort: undefined,
             skip: undefined,
@@ -50,8 +55,4 @@ module.exports = {
     async countDocuments(filter = {}) {
         return await maintenanceCategoryModel.countDocuments({ ...filter, isDeleted: false });
     },
-
-    async findByIdAndUpdate(_id, data) {
-        return await maintenanceCategoryModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
-    },
-}
+};

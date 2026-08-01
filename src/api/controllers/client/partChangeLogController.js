@@ -51,7 +51,7 @@ module.exports = {
     create: async (req, res, next) => {
         try {
             const body = req.body;
-            const fields = ['machineId', 'partName', 'changedBy', 'changeDate'];
+            const fields = ['machineId', 'partName', 'changeDate'];
             checkRequiredParams(fields, body);
 
             body.workspaceId = req.user.workspaceId;

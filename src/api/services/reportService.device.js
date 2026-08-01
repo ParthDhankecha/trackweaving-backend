@@ -139,6 +139,7 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
         data.machineCode = machine?.machineCode || '';
         data.machineType = machine?.machineType || 'rapier';
         if (!isQualityReport) data.quality = data?.quality || machine?.quality || '';
+        data.reed = machine?.reed || '';
         data.stopsData = {};
 
         let totalStopCount = 0;
@@ -270,7 +271,7 @@ module.exports = {
         const [machines, workspace] = await Promise.all([
             machineService.find(
                 { _id: { $in: machineIds }, workspaceId },
-                { projection: { machineCode: 1, machineType: 1, quality: 1 }, useLean: true }
+                { projection: { machineCode: 1, machineType: 1, quality: 1, reed: 1 }, useLean: true }
             ),
             workspaceService.findOne(
                 { _id: workspaceId },
@@ -319,7 +320,7 @@ module.exports = {
         const machineIds = [...new Set(reportData.map(log => log.machineId?.toString()).filter(Boolean))];
         const machines = machineIds.length ? await machineService.find(
             { _id: { $in: machineIds }, workspaceId },
-            { projection: { machineCode: 1, machineType: 1, quality: 1 }, useLean: true }
+            { projection: { machineCode: 1, machineType: 1, quality: 1, reed: 1 }, useLean: true }
         ) : [];
 
         const data = buildProductionReportData(reportData, machines, workspace, { isQualityReport: true })
@@ -442,6 +443,7 @@ module.exports = {
                 shift: shiftVal === global.config.SHIFT_TYPE.NIGHT ? 'Night Shift' : 'Day Shift',
                 endDate: record.endDate || null,
                 quality: record.quality || '',
+                reed: machine.reed || '',
                 beamLength: record.beamLength ?? null,
                 productionMtr: record.productionMtr ?? null
             };

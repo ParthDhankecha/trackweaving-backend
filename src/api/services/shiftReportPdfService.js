@@ -34,23 +34,89 @@ const ROW_H   = 15;
 const FS_HDR  = 6.5;
 const FS_DATA = 6.5;
 
-// ─── Fixed column definitions (total = FIXED_W) ───────────────────────────────
-const FIXED_COLS = [
-    { key: 'date',    label: ['Date'],           w: 50,  align: 'center' },
-    { key: 'shift',   label: ['Shift'],          w: 30,  align: 'center' },
-    { key: 'machine', label: ['Machine'],        w: 42,  align: 'center' },
-    { key: 'quality', label: ['Quality'],        w: 76,  align: 'center' },
-    { key: 'prod',    label: ['Prod', '(Mtrs)'], w: 35,  align: 'right'  },
-    { key: 'picks',   label: ['Picks'],          w: 35,  align: 'right'  },
-    { key: 'eff',     label: ['Eff %'],          w: 30,  align: 'right'  },
-    { key: 'realEff', label: ['Real', 'Eff %'],  w: 34,  align: 'right'  },
-    { key: 'speed',   label: ['Speed'],          w: 34,  align: 'right'  },
-    { key: 'runtime', label: ['Run Time'],       w: 40,  align: 'center' },
-    { key: 'beam',    label: ['Beam', 'Left'],   w: 30,  align: 'right'  },
-];
-const FIXED_W = FIXED_COLS.reduce((s, c) => s + c.w, 0);  // 312
+// ─── Fixed column definitions ─────────────────────────────────────────────────
+const BEAM_COMPLETION_COL = { key: 'beamCompletion', label: ['Beam', 'Completion'], w: 50, align: 'center' };
+
+function getFixedCols(showBeamCompletionDate = false) {
+    const cols = [
+        { key: 'date',    label: ['Date'],           w: 50,  align: 'center' },
+        { key: 'shift',   label: ['Shift'],          w: 30,  align: 'center' },
+        { key: 'machine', label: ['Machine'],        w: 42,  align: 'center' },
+        { key: 'quality', label: ['Quality'],        w: 76,  align: 'center' },
+        { key: 'prod',    label: ['Prod', '(Mtrs)'], w: 35,  align: 'right'  },
+        { key: 'picks',   label: ['Picks'],          w: 35,  align: 'right'  },
+        { key: 'eff',     label: ['Eff %'],          w: 30,  align: 'right'  },
+        { key: 'realEff', label: ['Real', 'Eff %'],  w: 34,  align: 'right'  },
+        { key: 'speed',   label: ['Speed'],          w: 34,  align: 'right'  },
+        { key: 'runtime', label: ['Run Time'],       w: 40,  align: 'center' },
+        { key: 'beam',    label: ['Beam', 'Left'],   w: 30,  align: 'right'  },
+    ];
+    if (showBeamCompletionDate) {
+        cols.push(BEAM_COMPLETION_COL);
+    }
+    return cols;
+}
+
+function hasBeamCompletionDate(reportData) {
+    for (const item of reportData.list || []) {
+        for (const machine of item.list || []) {
+            if (machine.beamCompletionDate) return true;
+        }
+    }
+    return false;
+}
+
+const BEAM_LOW_BG = '#f89595';
+const SUMMARY_GAP = 14;
+const SUMMARY_HDR_H = 18;
+const SUMMARY_ROW_H = 14;
+const SUMMARY_FS = 7;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function normalizeQuality(quality) {
+    const value = String(quality ?? '').trim();
+    return value || 'Other';
+}
+
+function buildQualitySummaries(reportData) {
+    const productionMap = new Map();
+    const beamLeftMap = new Map();
+
+    for (const item of reportData.list || []) {
+        for (const machine of item.list || []) {
+            const quality = normalizeQuality(machine.quality);
+            const prod = Number(machine.pieceLengthM) || 0;
+            const beam = Number(machine.beamLeft) || 0;
+
+            productionMap.set(quality, (productionMap.get(quality) || 0) + prod);
+            beamLeftMap.set(quality, (beamLeftMap.get(quality) || 0) + beam);
+        }
+    }
+
+    const toSortedRows = (map) => {
+        const rows = [...map.entries()].map(([quality, total]) => ({ quality, total }));
+        rows.sort((a, b) => {
+            if (a.quality === 'Other') return 1;
+            if (b.quality === 'Other') return -1;
+            return a.quality.localeCompare(b.quality, undefined, { sensitivity: 'base' });
+        });
+        return rows;
+    };
+
+    return {
+        production: toSortedRows(productionMap),
+        beamLeft: toSortedRows(beamLeftMap)
+    };
+}
+
+function formatQualityReed(quality, reed) {
+    const q = String(quality ?? '').trim();
+    const r = String(reed ?? '').trim();
+    if (!q && !r) return '-';
+    if (!r) return q || '-';
+    return q ? `${q} (${r})` : `(${r})`;
+}
 
 function ensureReportsDir() {
     if (!fs.existsSync(REPORTS_DIR)) fs.mkdirSync(REPORTS_DIR, { recursive: true });
@@ -112,8 +178,9 @@ function cell(doc, x, y, w, h, text, {
  *
  * Returns: { cols, stopPairW, totCntW, totDurW }
  */
-function buildCols(stopCols) {
-    const remaining = CONTENT_W - FIXED_W;
+function buildCols(stopCols, fixedCols) {
+    const fixedW = fixedCols.reduce((s, c) => s + c.w, 0);
+    const remaining = CONTENT_W - fixedW;
     const numStops  = stopCols.length;
 
     // Total pair is 1.2× a regular stop pair
@@ -129,7 +196,7 @@ function buildCols(stopCols) {
     const totCntW = Math.floor(totPairW * 0.38);
     const totDurW = Math.round(totPairW - totCntW);
 
-    const cols = FIXED_COLS.map(c => ({ ...c }));
+    const cols = fixedCols.map(c => ({ ...c }));
 
     for (const sc of stopCols) {
         cols.push({
@@ -152,13 +219,13 @@ function buildCols(stopCols) {
 /**
  * Draw the 2-row table header. Returns Y after header.
  */
-function drawHeader(doc, x, y, colLayout, stopCols) {
+function drawHeader(doc, x, y, colLayout, stopCols, fixedCols) {
     const { cols, stopPairW, totPairW, cntW, durW, totCntW, totDurW } = colLayout;
     const r1y = y, r2y = y + HDR1_H;
     let cx = x;
 
     // Row 1: fixed cols span both header rows
-    for (const c of FIXED_COLS) {
+    for (const c of fixedCols) {
         cell(doc, cx, r1y, c.w, HDR1_H + HDR2_H, c.label.join('\n'), {
             bg: C.headerBg, color: C.headerText, fontSize: FS_HDR, bold: true, align: 'center',
         });
@@ -179,7 +246,8 @@ function drawHeader(doc, x, y, colLayout, stopCols) {
     });
 
     // Row 2: Count / Duration sub-labels
-    cx = x + FIXED_W;
+    const fixedW = fixedCols.reduce((s, c) => s + c.w, 0);
+    cx = x + fixedW;
     for (const sc of stopCols) {
         cell(doc, cx,        r2y, cntW, HDR2_H, 'Count',    { bg: C.subHeadBg, color: C.headerText, fontSize: FS_HDR - 0.5, align: 'center' });
         cell(doc, cx + cntW, r2y, durW, HDR2_H, 'Duration', { bg: C.subHeadBg, color: C.headerText, fontSize: FS_HDR - 0.5, align: 'center' });
@@ -201,14 +269,22 @@ function drawDataRow(doc, x, y, machine, item, cols, bg) {
         if      (c.key === 'date')    val = fmtDate(item.reportDate);
         else if (c.key === 'shift')   val = str(item.shiftLabel);
         else if (c.key === 'machine') val = str(machine.machineCode);
-        else if (c.key === 'quality') val = str(machine.quality);
+        else if (c.key === 'quality') val = formatQualityReed(machine.quality, machine.reed);
         else if (c.key === 'prod')    val = fmtNum(machine.pieceLengthM);
         else if (c.key === 'picks')   val = str(machine.picksCurrentShift);
         else if (c.key === 'eff')     val = fmtNum(machine.efficiencyPercent, 1);
         else if (c.key === 'realEff') val = fmtNum(machine.realEfficiencyPercent, 1);
         else if (c.key === 'speed')   val = fmtNum(machine.speedRpm);
         else if (c.key === 'runtime') val = str(machine.runTime);
-        else if (c.key === 'beam')    val = str(machine.beamLeft);
+        else if (c.key === 'beam') {
+            val = str(machine.beamLeft);
+            const beamValue = Number(machine.beamLeft);
+            const rowBg = Number.isFinite(beamValue) && beamValue < 1000 ? BEAM_LOW_BG : bg;
+            cell(doc, cx, y, c.w, ROW_H, val, { bg: rowBg, color: C.text, fontSize: FS_DATA, align: c.align });
+            cx += c.w;
+            continue;
+        }
+        else if (c.key === 'beamCompletion') val = fmtDate(machine.beamCompletionDate);
         else if (c.isStop)            val = c.sub === 'count'
             ? str(machine.stopsData?.[c.stopKey]?.count)
             : str(machine.stopsData?.[c.stopKey]?.duration);
@@ -233,7 +309,7 @@ function drawSubtotalRow(doc, x, y, item, cols) {
 
     for (const c of cols) {
         if (c.key === 'runtime') { rtX = cx; mergedW += c.w; cx += c.w; continue; }
-        if (c.key === 'beam')    { mergedW += c.w; cx += c.w; continue; }
+        if (c.key === 'beam' || c.key === 'beamCompletion') { mergedW += c.w; cx += c.w; continue; }
 
         let val = '', align = c.align || 'center';
         if      (c.key === 'date')    val = fmtDate(item.reportDate);
@@ -260,6 +336,119 @@ function drawSubtotalRow(doc, x, y, item, cols) {
 }
 
 /**
+ * Draw one compact quality summary table. Returns next Y.
+ */
+function drawQualitySummaryTable(doc, x, y, width, title, valueLabel, rows) {
+    const qualityW = Math.round(width * 0.58);
+    const valueW = width - qualityW;
+    let cy = y;
+
+    cell(doc, x, cy, width, SUMMARY_HDR_H, title, {
+        bg: C.headerBg,
+        color: C.headerText,
+        fontSize: SUMMARY_FS,
+        bold: true,
+        align: 'center'
+    });
+    cy += SUMMARY_HDR_H;
+
+    cell(doc, x, cy, qualityW, SUMMARY_ROW_H, 'Quality', {
+        bg: C.subHeadBg,
+        color: C.headerText,
+        fontSize: SUMMARY_FS,
+        bold: true,
+        align: 'center'
+    });
+    cell(doc, x + qualityW, cy, valueW, SUMMARY_ROW_H, valueLabel, {
+        bg: C.subHeadBg,
+        color: C.headerText,
+        fontSize: SUMMARY_FS,
+        bold: true,
+        align: 'center'
+    });
+    cy += SUMMARY_ROW_H;
+
+    if (!rows.length) {
+        cell(doc, x, cy, width, SUMMARY_ROW_H, 'No data', {
+            bg: C.altBg,
+            color: C.muted,
+            fontSize: SUMMARY_FS,
+            align: 'center'
+        });
+        return cy + SUMMARY_ROW_H;
+    }
+
+    rows.forEach((row, index) => {
+        const rowBg = index % 2 === 0 ? C.altBg : C.rowBg;
+        cell(doc, x, cy, qualityW, SUMMARY_ROW_H, row.quality, {
+            bg: rowBg,
+            color: C.text,
+            fontSize: SUMMARY_FS,
+            align: 'left',
+            padding: 4
+        });
+        cell(doc, x + qualityW, cy, valueW, SUMMARY_ROW_H, fmtNum(row.total), {
+            bg: rowBg,
+            color: C.text,
+            fontSize: SUMMARY_FS,
+            align: 'right',
+            padding: 4
+        });
+        cy += SUMMARY_ROW_H;
+    });
+
+    const total = rows.reduce((sum, row) => sum + (Number(row.total) || 0), 0);
+    cell(doc, x, cy, qualityW, SUMMARY_ROW_H, 'Total', {
+        bg: C.grandBg,
+        color: C.text,
+        fontSize: SUMMARY_FS,
+        bold: true,
+        align: 'left',
+        padding: 4
+    });
+    cell(doc, x + qualityW, cy, valueW, SUMMARY_ROW_H, fmtNum(total), {
+        bg: C.grandBg,
+        color: C.text,
+        fontSize: SUMMARY_FS,
+        bold: true,
+        align: 'right',
+        padding: 4
+    });
+
+    return cy + SUMMARY_ROW_H;
+}
+
+/**
+ * Draw quality-wise production and beam-left tables side by side.
+ */
+function drawQualitySummarySection(doc, x, y, summaries) {
+    const tableW = (CONTENT_W - SUMMARY_GAP) / 2;
+    const leftX = x;
+    const rightX = x + tableW + SUMMARY_GAP;
+
+    const leftEndY = drawQualitySummaryTable(
+        doc,
+        leftX,
+        y,
+        tableW,
+        'Quality-wise Production',
+        'Prod (Mtrs)',
+        summaries.production
+    );
+    const rightEndY = drawQualitySummaryTable(
+        doc,
+        rightX,
+        y,
+        tableW,
+        'Quality-wise Beam Left',
+        'Beam Left',
+        summaries.beamLeft
+    );
+
+    return Math.max(leftEndY, rightEndY);
+}
+
+/**
  * Draw the grand total row.
  * Run Time + Beam Left are merged → "Avg Picks: X".
  * Returns next Y.
@@ -270,7 +459,7 @@ function drawGrandTotalRow(doc, x, y, exportData, cols) {
 
     for (const c of cols) {
         if (c.key === 'runtime') { rtX = cx; mergedW += c.w; cx += c.w; continue; }
-        if (c.key === 'beam')    { mergedW += c.w; cx += c.w; continue; }
+        if (c.key === 'beam' || c.key === 'beamCompletion') { mergedW += c.w; cx += c.w; continue; }
 
         let val = '', align = c.align || 'center';
         if      (c.key === 'date')  { val = 'TOTAL'; align = 'center'; }
@@ -305,7 +494,9 @@ module.exports = {
         const filePath  = path.join(REPORTS_DIR, fileName);
 
         const stopCols  = reportData.stopColumns || [];
-        const colLayout = buildCols(stopCols);   // widths computed to fill CONTENT_W exactly
+        const showBeamCompletionDate = hasBeamCompletionDate(reportData);
+        const fixedCols = getFixedCols(showBeamCompletionDate);
+        const colLayout = buildCols(stopCols, fixedCols);   // widths computed to fill CONTENT_W exactly
         const { cols }  = colLayout;
         const tableX    = MARGIN;                // always flush to left margin
 
@@ -355,7 +546,7 @@ module.exports = {
 
             // ── Header helpers ────────────────────────────────────────────
             function printHeader() {
-                curY = drawHeader(doc, tableX, curY, colLayout, stopCols);
+                curY = drawHeader(doc, tableX, curY, colLayout, stopCols, fixedCols);
             }
 
             function checkBreak(neededH) {
@@ -403,6 +594,19 @@ module.exports = {
             checkBreak(ROW_H + 6);
             curY += 6;
             drawGrandTotalRow(doc, tableX, curY, reportData, cols);
+            curY += ROW_H + 10;
+
+            const summaries = buildQualitySummaries(reportData);
+            const summaryHeight = SUMMARY_HDR_H + SUMMARY_ROW_H
+                + Math.max(summaries.production.length, summaries.beamLeft.length, 1) * SUMMARY_ROW_H
+                + SUMMARY_ROW_H;
+
+            if (curY + summaryHeight > PAGE_H - MARGIN) {
+                doc.addPage();
+                curY = MARGIN;
+            }
+
+            curY = drawQualitySummarySection(doc, tableX, curY, summaries);
 
             doc.end();
             stream.on('finish', () => resolve({ filePath, fileName }));

@@ -43,7 +43,7 @@ module.exports = {
     updateAlert: async (req, res, next) => {
         try {
             const body = req.body;
-            checkRequiredParams(['completedBy', 'nextMaintenanceDate', 'lastMaintenanceDate'], body);
+            checkRequiredParams(['nextMaintenanceDate', 'lastMaintenanceDate'], body);
 
             const maintenanceData = await maintenanceDataService.findOne({ _id: req.params.id, isDeleted: false }, { useLean: true });
             if (!maintenanceData) {
@@ -62,7 +62,7 @@ module.exports = {
                 lastMaintenanceDate: new Date(body.lastMaintenanceDate),
                 nextMaintenanceDate: new Date(body.nextMaintenanceDate),
                 remarks: body.remarks,
-                completedBy: body.completedBy,
+                completedBy: body.completedBy || '',
                 $push: { history: historyEntry }
             };
             if (body.completedByMobile) {

@@ -552,7 +552,7 @@ module.exports = {
                     beamCompletionDate = moment().startOf('day').toDate();
                     completionSource = 'completed';
                 } else if (avgDailyProduction > 0) {
-                    estimatedDaysRemaining = Math.ceil((beamLeft - latestLog.pieceLengthM) / avgDailyProduction);
+                    estimatedDaysRemaining = Math.ceil(beamLeft / avgDailyProduction);
                     beamCompletionDate = moment().startOf('day').add(estimatedDaysRemaining, 'days').toDate();
                     completionSource = 'estimated';
                 }

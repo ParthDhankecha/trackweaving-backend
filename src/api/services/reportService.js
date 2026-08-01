@@ -512,6 +512,7 @@ module.exports = {
                 }
             )
         ]);
+        console.log(recentLogs.length);
 
         const machineMap = {};
         machines.forEach(m => {

@@ -230,6 +230,9 @@ module.exports = {
         if (machineLog) {
             if (machineLog.shift != body.shift) {
                 if (body.prevData && body.prevData.speedRpm != 0 && body.prevData.efficiencyPercent != 0) {
+                    if(!body.prevData.speedRpm || body.prevData.speedRpm == 0) {
+                        delete body.prevData.speedRpm;
+                    }
                     await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createdAt: -1 } });
                 }
                 body.shiftDate = shiftDate;
@@ -249,9 +252,14 @@ module.exports = {
 
                 const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
                 body.quality = machine?.quality || null;
-
+                if(!body.speedRpm || body.speedRpm == 0) {
+                    delete body.speedRpm;
+                }
                 await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
             } else {
+                if(!body.speedRpm || body.speedRpm == 0) {
+                    delete body.speedRpm;
+                }
                 await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
             }
             await this.checkAlertNotification(machineLog, body);
@@ -269,7 +277,9 @@ module.exports = {
 
             const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
             body.quality = machine?.quality || null;
-
+            if(!body.speedRpm || body.speedRpm == 0) {
+                delete body.speedRpm;
+            }
             await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
         }
     },

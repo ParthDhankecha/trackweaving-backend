@@ -484,7 +484,7 @@ module.exports = {
         }
 
         const productionWindowStart = moment().subtract(3, 'days').startOf('day').toDate();
-        const productionWindowEnd = moment().endOf('day').toDate();
+        const productionWindowEnd = moment().subtract(1, 'days').endOf('day').toDate();
         const productionWindowDays = 3;
 
         const [machines, latestLogs, recentLogs] = await Promise.all([
@@ -552,7 +552,7 @@ module.exports = {
                     beamCompletionDate = moment().startOf('day').toDate();
                     completionSource = 'completed';
                 } else if (avgDailyProduction > 0) {
-                    estimatedDaysRemaining = Math.ceil(beamLeft / avgDailyProduction);
+                    estimatedDaysRemaining = Math.ceil((beamLeft - latestLog.pieceLengthM) / avgDailyProduction);
                     beamCompletionDate = moment().startOf('day').add(estimatedDaysRemaining, 'days').toDate();
                     completionSource = 'estimated';
                 }

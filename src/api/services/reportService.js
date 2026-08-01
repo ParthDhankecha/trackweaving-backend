@@ -495,7 +495,7 @@ module.exports = {
             machineLogsService.findLatestLogs(
                 { machineId: { $in: machineIds }, workspaceId },
                 {
-                    projection: { machineId: 1, beamLeft: 1, beamCompletionDate: 1 },
+                    projection: { machineId: 1, beamLeft: 1, beamCompletionDate: 1, pieceLengthM: 1 },
                     useLean: true
                 }
             ),

@@ -512,7 +512,6 @@ module.exports = {
                 }
             )
         ]);
-        console.log(recentLogs.length);
 
         const machineMap = {};
         machines.forEach(m => {
@@ -525,12 +524,15 @@ module.exports = {
         });
 
         const productionByMachine = {};
+        const productionByMachineShiftCount = {};
         recentLogs.forEach(log => {
             const machineId = log.machineId.toString();
             if (!productionByMachine[machineId]) {
                 productionByMachine[machineId] = 0;
+                productionByMachineShiftCount[machineId] = 0;
             }
             productionByMachine[machineId] += log.pieceLengthM || 0;
+            productionByMachineShiftCount[machineId] += 1;
         });
 
         const list = machineIds.map(machineId => {
@@ -547,7 +549,7 @@ module.exports = {
 
             if (!deviceCompletionDate) {
                 const totalProduction = productionByMachine[machineIdStr] || 0;
-                avgDailyProduction = Math.round((totalProduction / productionWindowDays) * 100) / 100;
+                avgDailyProduction = Math.round((totalProduction / (productionByMachineShiftCount[machineIdStr]/2)) * 100) / 100;
 
                 if (beamLeft <= 0) {
                     beamCompletionDate = moment().startOf('day').toDate();

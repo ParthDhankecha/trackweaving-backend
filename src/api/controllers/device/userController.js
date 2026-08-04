@@ -1,14 +1,12 @@
-
-
-const appVersionService = require('../../services/appVersionService');
 const usersService = require('../../services/usersService');
-const { log, checkRequiredParams } = require('../../services/utilService');
+const appVersionService = require('../../services/appVersionService');
+const utilService = require('../../services/utilService');
 
 
 module.exports = {
     getById: async (req, res, next) => {
         try {
-            checkRequiredParams(['id'], req.params);
+            utilService.checkRequiredParams(['id'], req.params);
 
             const user = await usersService.findById(req.params.id);
             if (!user) {
@@ -17,7 +15,26 @@ module.exports = {
 
             return res.ok(user, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
+    getProfile: async (req, res, next) => {
+        try {
+            if (!utilService.isValidObjectId(req.user.id)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const user = await usersService.findOneV2({ _id: req.user.id }, {
+                projection: { fullname: 1, userName: 1, mobile: 1, email: 1, userType: 1 },
+                useLean: true
+            });
+            if (!user) throw global.config.message.USER_NOT_FOUND;
+
+            return res.ok(user, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
             return res.serverError(error);
         }
     },
@@ -40,20 +57,20 @@ module.exports = {
 
             return res.ok(syncData, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
 
     updateFcmToken: async (req, res, next) => {
         try {
-            checkRequiredParams(['fcmToken'], req.body);
+            utilService.checkRequiredParams(['fcmToken'], req.body);
 
             await usersService.updateOne({ _id: req.user.id }, { fcmToken: req.body.fcmToken });
 
             return res.ok({}, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }
@@ -65,7 +82,7 @@ module.exports = {
 
             return res.ok({}, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }
@@ -74,7 +91,7 @@ module.exports = {
     create: async (req, res, next) => {
         try {
             const body = req.body;
-            checkRequiredParams(['fullname', 'userName', 'password'], body);
+            utilService.checkRequiredParams(['fullname', 'userName', 'password'], body);
 
             if (req.user.type !== global.config.USERS.TYPE.ADMIN) {
                 throw global.config.message.BAD_REQUEST;
@@ -90,7 +107,7 @@ module.exports = {
                 throw global.config.message.USER_EXISTS;
             }
             let shift = body.shift;
-            if(shift !== global.config.SHIFT_TYPE.DAY && shift !== global.config.SHIFT_TYPE.NIGHT) {
+            if (shift !== global.config.SHIFT_TYPE.DAY && shift !== global.config.SHIFT_TYPE.NIGHT) {
                 shift = global.config.SHIFT_TYPE.DAY;
             }
 
@@ -107,7 +124,7 @@ module.exports = {
 
             return res.ok(null, global.config.message.CREATED);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }
@@ -122,11 +139,11 @@ module.exports = {
                 conditions._id = req.user.id;
             }
 
-            const users = await usersService.findV2(conditions, { useLean: true, projection: { password: 0, fcmToken: 0} });
+            const users = await usersService.findV2(conditions, { useLean: true, projection: { password: 0, fcmToken: 0 } });
 
             return res.ok(users, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }
@@ -148,7 +165,7 @@ module.exports = {
             delete reqBody.plan;
             delete reqBody.isDeleted;
             delete reqBody.receiveWhatsappReport;
-            if(req.user.type !== global.config.USERS.TYPE.ADMIN) {
+            if (req.user.type !== global.config.USERS.TYPE.ADMIN) {
                 delete reqBody.userType;
             }
 
@@ -172,7 +189,7 @@ module.exports = {
 
             return res.ok({}, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }

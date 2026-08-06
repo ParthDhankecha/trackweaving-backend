@@ -1,7 +1,7 @@
 const projectSetupConfigService = require('./config/projectSetupConfigService');
 const cronService = require('./cronService');
 const machineService = require('./machineService');
-const alertConfigService = require('./alertConfigService');
+// const alertConfigService = require('./alertConfigService');
 const utilService = require('./utilService');
 
 
@@ -30,8 +30,8 @@ module.exports = {
             }
         }
 
-        utilService.infoLog('syncWorkspaceAlerts');
-        await alertConfigService.syncWorkspaceAlerts();
+        // utilService.infoLog('syncWorkspaceAlerts');
+        // await alertConfigService.syncWorkspaceAlerts();
 
 
         utilService.infoLog('Initialize App Done!');

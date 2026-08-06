@@ -143,7 +143,6 @@ module.exports = {
                 }
             }
 
-            delete body.fcmToken;
             delete body.workspaceId;
             delete body.userType;
             delete body.isDeleted;

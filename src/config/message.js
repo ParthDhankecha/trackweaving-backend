@@ -331,6 +331,11 @@ module.exports = {
             message: "Machine group with this name already exist.",
             status: 409
         },
+        APP_VERSION_ALREADY_EXIST: {
+            code: "E_DUPLICATE",
+            message: "App version config already exists. Update the existing entry instead.",
+            status: 409
+        },
         INVALID_SHIFT: {
             code: "E_BAD_REQUEST",
             message: "Shift value is invalid, it should be either 'day' or 'night'.",

@@ -5,31 +5,44 @@ const getSubSchema = (subSchema, schemaOptions = {}) => {
     return new Schema(subSchema, { _id: false, ...schemaOptions });
 };
 
+const alertChannelSubSchemaObj = {
+    notification: {
+        type: Boolean,
+        default: true
+    },
+    whatsapp: {
+        type: Boolean,
+        default: false
+    }
+};
+
 const alertFlagsSubSchema = getSubSchema({
     pickChange: {
-        type: Boolean,
-        default: true
+        type: getSubSchema(alertChannelSubSchemaObj),
+        default: () => ({})
     },
     maxSpeed: {
-        type: Boolean,
-        default: true
+        type: getSubSchema(alertChannelSubSchemaObj),
+        default: () => ({})
     },
     lowSpeed: {
-        type: Boolean,
-        default: true
+        type: getSubSchema(alertChannelSubSchemaObj),
+        default: () => ({})
     },
-    beamLeft: {
-        type: Boolean,
-        default: true
-    },
-    machineStopped1: {
-        type: Boolean,
-        default: true
-    },
-    machineStopped2: {
-        type: Boolean,
-        default: true
-    }
+    beamLeft: getSubSchema({
+        ...alertChannelSubSchemaObj,
+        thresholds: {
+            type: String,
+            default: '1000,900,800,700,600,500,400,300,200,100,50,25,0'
+        }
+    }),
+    machineStopped: getSubSchema({
+        ...alertChannelSubSchemaObj,
+        minutes: {
+            type: String,
+            default: '10,20'
+        }
+    })
 });
 
 /**

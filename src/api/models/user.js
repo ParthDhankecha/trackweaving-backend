@@ -75,11 +75,6 @@ const UserSchema = new Schema({
         type: Boolean,
         default: false
     },
-    fcmToken: {
-        type: String,
-        default: '',
-        trim: true
-    },
     isDeleted: {
         type: Boolean,
         default: false,

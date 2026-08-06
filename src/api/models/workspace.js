@@ -63,6 +63,7 @@ const WorkspaceSchema = new Schema({
     timestamps: true
 });
 
+const { DEFAULT_ALERT_FLAGS } = require('../../config/constant/alert');
 WorkspaceSchema.pre('save', async function (next) {
     if (this.isNew) {
         const lastDoc = await workspaceModel.findOne().sort({ _id: -1 });
@@ -81,7 +82,7 @@ WorkspaceSchema.pre('save', async function (next) {
         await alertConfigModel.create({
             workspaceId: this._id,
             userId: null,
-            alerts: { ...(global.config.DEFAULT_ALERT_FLAGS || {}) }
+            alerts: JSON.parse(JSON.stringify(DEFAULT_ALERT_FLAGS || {}))
         });
     }
     next();

@@ -26,13 +26,19 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const user = await usersService.findOneV2({ _id: req.user.id }, {
-                projection: { fullname: 1, userName: 1, mobile: 1, email: 1, userType: 1 },
+            const userdata = await usersService.findOneV2({ _id: req.user.id }, {
+                projection: { fullname: 1, userName: 1, mobile: 1, email: 1, userType: 1, workspaceId: 1 },
                 useLean: true
             });
-            if (!user) throw global.config.message.USER_NOT_FOUND;
+            if (!userdata) throw global.config.message.USER_NOT_FOUND;
 
-            return res.ok(user, global.config.message.OK);
+            const workspace = await usersService.validatePlanForSignIn(userdata.workspaceId);
+            if (!workspace) throw global.config.message.BAD_REQUEST;
+
+            userdata.userId = workspace.uid;
+            delete userdata.workspaceId;
+
+            return res.ok(userdata, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
             return res.serverError(error);
@@ -41,49 +47,25 @@ module.exports = {
 
     syncData: async (req, res, next) => {
         try {
-            let iosVersionData = await appVersionService.findOne({ appType: 'ios' }, { sort: { createdAt: -1 }, useLean: true });
-            let androidVersionData = await appVersionService.findOne({ appType: 'android' }, { sort: { createdAt: -1 }, useLean: true });
-            let syncData = {
+            const forceVersion = await appVersionService.getForceVersion();
+            const syncData = {
                 refreshInterval: global.config.REFRESH_INTERVAL,
                 efficiencyAveragePer: global.config.EFFICIENCY_AVERAGE_PER,
                 efficiencyGoodPer: global.config.EFFICIENCY_GOOD_PER,
-                androidVersion: androidVersionData?.version || '',
-                androidShowPopup: androidVersionData?.showPopup || false,
-                androidForceUpdate: androidVersionData?.hardUpdate || false,
-                iosVersion: iosVersionData?.version || '',
-                iosShowPopup: iosVersionData?.showPopup || false,
-                iosForceUpdate: iosVersionData?.hardUpdate || false
+                forceVersion: forceVersion,
+
+                // TODO: Remove this after app update in all devices
+                iosVersion: '1.0.2',
+                iosShowPopup: false,
+                iosForceUpdate: false,
+                androidVersion: '1.0.2',
+                androidShowPopup: false,
+                androidForceUpdate: false
             };
 
             return res.ok(syncData, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
-            return res.serverError(error);
-        }
-    },
-
-    updateFcmToken: async (req, res, next) => {
-        try {
-            utilService.checkRequiredParams(['fcmToken'], req.body);
-
-            await usersService.updateOne({ _id: req.user.id }, { fcmToken: req.body.fcmToken });
-
-            return res.ok({}, global.config.message.OK);
-        } catch (error) {
-            utilService.log(error);
-
-            return res.serverError(error);
-        }
-    },
-
-    removeFcmToken: async (req, res, next) => {
-        try {
-            await usersService.updateOne({ _id: req.user.id }, { fcmToken: '' });
-
-            return res.ok({}, global.config.message.OK);
-        } catch (error) {
-            utilService.log(error);
-
             return res.serverError(error);
         }
     },
@@ -99,13 +81,12 @@ module.exports = {
 
             await usersService.getUserPlan(req.user.workspaceId, true);
 
-            const existingUser = await usersService.findOneV2({ userName: { $regex: new RegExp(`^${body.userName?.trim()}$`, 'i') } }, {
+            const duplicate = await usersService.findOneV2({ userName: { $regex: new RegExp(`^${body.userName?.trim()}$`, 'i') } }, {
                 useLean: true,
                 projection: '_id'
             });
-            if (existingUser) {
-                throw global.config.message.USER_EXISTS;
-            }
+            if (duplicate) throw global.config.message.USER_EXISTS;
+
             let shift = body.shift;
             if (shift !== global.config.SHIFT_TYPE.DAY && shift !== global.config.SHIFT_TYPE.NIGHT) {
                 shift = global.config.SHIFT_TYPE.DAY;
@@ -132,14 +113,18 @@ module.exports = {
 
     list: async (req, res, next) => {
         try {
+            const user = req.user;
             const conditions = {
-                workspaceId: req.user.workspaceId
+                workspaceId: user.workspaceId
             };
-            if (req.user.type !== global.config.USERS.TYPE.ADMIN) {
-                conditions._id = req.user.id;
+            if (user.type !== global.config.USERS.TYPE.ADMIN) {
+                conditions._id = user.id;
             }
 
-            const users = await usersService.findV2(conditions, { useLean: true, projection: { password: 0, fcmToken: 0 } });
+            const users = await usersService.findV2(conditions, {
+                projection: { password: 0 },
+                useLean: true,
+            });
 
             return res.ok(users, global.config.message.OK);
         } catch (error) {
@@ -160,7 +145,6 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            delete reqBody.fcmToken;
             delete reqBody.workspaceId;
             delete reqBody.plan;
             delete reqBody.isDeleted;
@@ -182,7 +166,7 @@ module.exports = {
                 }
             }
 
-            const updatedUser = await usersService.findByIdAndUpdate(userId, reqBody, { projection: { password: 0, fcmToken: 0, userType: 0, plan: 0, updatedAt: 0, createdAt: 0 } });
+            const updatedUser = await usersService.findByIdAndUpdate(userId, reqBody, { projection: { password: 0, userType: 0, plan: 0, updatedAt: 0, createdAt: 0 } });
             if (!updatedUser) {
                 throw global.config.message.NOT_UPDATED;
             }

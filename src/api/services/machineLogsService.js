@@ -1,16 +1,8 @@
-const { capitalize } = require('lodash');
 const moment = require('moment');
 
 const machineService = require('./machineService');
-const notificationService = require('./notificationService');
 const alertConfigService = require('./alertConfigService');
 const utilService = require('./utilService');
-
-const BEAM_THRESHOLDS = [1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 50, 25, 0];
-const STOP_ALERT_THRESHOLDS = [
-    { minutes: 10, alertKey: 'machineStopped1' },
-    { minutes: 20, alertKey: 'machineStopped2' }
-];
 
 /**
  * On beam replenishment (beamLeft increased), close the open beamLeft record
@@ -230,7 +222,7 @@ module.exports = {
         if (machineLog) {
             if (machineLog.shift != body.shift) {
                 if (body.prevData && body.prevData.speedRpm != 0 && body.prevData.efficiencyPercent != 0) {
-                    if(!body.prevData.speedRpm || body.prevData.speedRpm == 0) {
+                    if (!body.prevData.speedRpm || body.prevData.speedRpm == 0) {
                         delete body.prevData.speedRpm;
                     }
                     await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createdAt: -1 } });
@@ -252,12 +244,12 @@ module.exports = {
 
                 const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
                 body.quality = machine?.quality || null;
-                if(!body.speedRpm || body.speedRpm == 0) {
+                if (!body.speedRpm || body.speedRpm == 0) {
                     delete body.speedRpm;
                 }
                 await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
             } else {
-                if(!body.speedRpm || body.speedRpm == 0) {
+                if (!body.speedRpm || body.speedRpm == 0) {
                     delete body.speedRpm;
                 }
                 await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
@@ -277,7 +269,7 @@ module.exports = {
 
             const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
             body.quality = machine?.quality || null;
-            if(!body.speedRpm || body.speedRpm == 0) {
+            if (!body.speedRpm || body.speedRpm == 0) {
                 delete body.speedRpm;
             }
             await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
@@ -396,17 +388,20 @@ module.exports = {
         }
 
         const needsMachineUsers = isPickChanged || isMaxSpeedAlert || isMinSpeedAlert;
-        let machine = null;
-        let userIds = [];
+        let machine = null, users = [];
         const alertTypes = global.config.ALERT_TYPES || {};
 
         if (needsMachineUsers) {
-            machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { machineCode: 1, machineName: 1, quality: 1 } });
-            const users = await userModel.find({ workspaceId: body.workspaceId, isActive: true, isDeleted: false }, { _id: 1 }).lean() || [];
-            userIds = users.map(u => u._id);
+            machine = await machineService.findOne({ _id: body.machineId }, {
+                projection: { machineCode: 1, machineName: 1, quality: 1 },
+                useLean: true,
+            });
+            users = await alertConfigService.getUsersForAlert({
+                workspaceId: body.workspaceId
+            });
         }
 
-        if (machine && userIds.length) {
+        if (machine && users.length) {
             const activeTypes = [];
             const pickKey = alertTypes.PICK_CHANGE || 'pickChange';
             const maxKey = alertTypes.MAX_SPEED || 'maxSpeed';
@@ -417,17 +412,18 @@ module.exports = {
             if (isMinSpeedAlert) activeTypes.push(lowKey);
 
             try {
-                const recipientsByType = await alertConfigService.filterUserIdsForAlert(body.workspaceId, userIds, activeTypes);
+                const recipientsByType = await alertConfigService.filterUsersForAlert(body.workspaceId, users, activeTypes);
                 if (isPickChanged) {
                     try {
-                        const recipients = recipientsByType[pickKey] || [];
-                        if (recipients.length) {
-                            await notificationService.createNotification({
+                        const recipients = recipientsByType[pickKey];
+                        if (recipients && (recipients.notification.length || recipients.whatsapp.length)) {
+                            await alertConfigService.dispatchAlert({
                                 machineId: body.machineId,
                                 workspaceId: body.workspaceId,
-                                title: `Picks changed on ${capitalize(machine.machineName)} (${machine.machineCode})`,
-                                description: `Picks changed from ${machineLog.setPicks} to ${body.setPicks}`
-                            }, recipients);
+                                title: `Picks changed on ${machine.machineCode}`,
+                                description: `Picks changed from ${machineLog.setPicks} to ${body.setPicks}`,
+                                recipients
+                            });
                         }
                     } catch (err) {
                         utilService.errLog(`Pick alert error: ${err.message}`);
@@ -435,14 +431,15 @@ module.exports = {
                 }
                 if (isMaxSpeedAlert) {
                     try {
-                        const recipients = recipientsByType[maxKey] || [];
-                        if (recipients.length) {
-                            await notificationService.createNotification({
+                        const recipients = recipientsByType[maxKey];
+                        if (recipients && (recipients.notification.length || recipients.whatsapp.length)) {
+                            await alertConfigService.dispatchAlert({
                                 machineId: body.machineId,
                                 workspaceId: body.workspaceId,
-                                title: `Max speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
-                                description: `Machine speed ${body.speedRpm} RPM exceeded the limit of ${alertConfig.speedLimit} RPM`
-                            }, recipients);
+                                title: `Max speed alert on ${machine.machineCode}`,
+                                description: `Machine speed ${body.speedRpm} RPM exceeded the limit of ${alertConfig.speedLimit} RPM`,
+                                recipients
+                            });
                             global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
                         }
                     } catch (err) {
@@ -451,14 +448,15 @@ module.exports = {
                 }
                 if (isMinSpeedAlert) {
                     try {
-                        const recipients = recipientsByType[lowKey] || [];
-                        if (recipients.length) {
-                            await notificationService.createNotification({
+                        const recipients = recipientsByType[lowKey];
+                        if (recipients && (recipients.notification.length || recipients.whatsapp.length)) {
+                            await alertConfigService.dispatchAlert({
                                 machineId: body.machineId,
                                 workspaceId: body.workspaceId,
-                                title: `Low speed alert on ${capitalize(machine.machineName)} (${machine.machineCode})`,
-                                description: `Machine speed ${body.speedRpm} RPM is below the limit of ${alertConfig.speedLimit} RPM`
-                            }, recipients);
+                                title: `Low speed alert on ${machine.machineCode}`,
+                                description: `Machine speed ${body.speedRpm} RPM is below the limit of ${alertConfig.speedLimit} RPM`,
+                                recipients
+                            });
                             global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
                         }
                     } catch (err) {
@@ -479,6 +477,7 @@ module.exports = {
         const prevBeam = machineLog.beamLeft;
         const newBeam = body.beamLeft;
         if (prevBeam != null && newBeam != null && prevBeam > 0 && newBeam > 0) {
+            const beamThresholds = await alertConfigService.getUnionBeamThresholds(body.workspaceId);
             const notified = new Set(machineLog.beamAlertNotifiedThresholds || []);
             let beamStateChanged = false;
 
@@ -504,7 +503,7 @@ module.exports = {
                 }
             }
 
-            const crossed = BEAM_THRESHOLDS.filter(t => prevBeam > t && newBeam <= t);
+            const crossed = beamThresholds.filter(t => prevBeam > t && newBeam <= t);
             if (crossed.length) {
                 const threshold = Math.min(...crossed);
                 if (!notified.has(threshold)) {
@@ -515,28 +514,27 @@ module.exports = {
                                 { useLean: true, projection: { machineCode: 1, machineName: 1 } }
                             );
                         }
-                        if (!userIds.length) {
-                            const users = await userModel.find(
-                                { workspaceId: body.workspaceId, isActive: true, isDeleted: false },
-                                { _id: 1 }
-                            ).lean() || [];
-                            userIds = users.map(u => u._id);
+                        if (!users.length) {
+                            users = await alertConfigService.getUsersForAlert({
+                                workspaceId: body.workspaceId
+                            });
                         }
 
                         // Retry later if workspace has no active users yet.
-                        if (userIds.length && machine) {
-                            const recipients = await alertConfigService.filterUserIdsForAlert(
+                        if (users.length && machine) {
+                            const recipients = await alertConfigService.filterUsersForBeamThreshold(
                                 body.workspaceId,
-                                userIds,
-                                alertTypes.BEAM_LEFT || 'beamLeft'
+                                users,
+                                threshold
                             );
-                            if (recipients.length) {
-                                await notificationService.createNotification({
+                            if (recipients.notification.length || recipients.whatsapp.length) {
+                                await alertConfigService.dispatchAlert({
                                     machineId: body.machineId,
                                     workspaceId: body.workspaceId,
                                     title: `Beam Left Alert — ${machine.machineCode}`,
-                                    description: `Beam left has reached ${newBeam} meters`
-                                }, recipients);
+                                    description: `Beam left has reached ${newBeam} meters`,
+                                    recipients
+                                });
                             }
                             // Mark notified even when all users opted out of beamLeft,
                             // to avoid re-checking on every subsequent log.
@@ -578,12 +576,13 @@ module.exports = {
             const stopSince = body.lastStopTime || machineLog.lastStopTime || body.updatedTime;
 
             if (stopSince) {
+                const stopMinutes = await alertConfigService.getUnionStopMinutes(body.workspaceId);
                 const stoppedMinutes = moment().diff(moment(stopSince), 'minutes');
-                const thresholdsToNotify = STOP_ALERT_THRESHOLDS.filter(
-                    ({ minutes }) => stoppedMinutes >= minutes && !stopNotified.has(minutes)
+                const minutesToNotify = stopMinutes.filter(
+                    minutes => stoppedMinutes >= minutes && !stopNotified.has(minutes)
                 );
 
-                if (thresholdsToNotify.length) {
+                if (minutesToNotify.length) {
                     try {
                         if (!machine) {
                             machine = await machineService.findOne(
@@ -591,32 +590,30 @@ module.exports = {
                                 { useLean: true, projection: { machineCode: 1, machineName: 1, displayType: 1 } }
                             );
                         }
-                        if (!userIds.length) {
-                            const users = await userModel.find(
-                                { workspaceId: body.workspaceId, isActive: true, isDeleted: false },
-                                { _id: 1 }
-                            ).lean() || [];
-                            userIds = users.map(u => u._id);
+                        if (!users.length) {
+                            users = await alertConfigService.getUsersForAlert({
+                                workspaceId: body.workspaceId
+                            });
                         }
 
-                        if (userIds.length && machine) {
-                            const stopAlertTypes = thresholdsToNotify.map(t => t.alertKey);
-                            const recipientsByType = await alertConfigService.filterUserIdsForAlert(
-                                body.workspaceId,
-                                userIds,
-                                stopAlertTypes
-                            );
+                        if (users.length && machine) {
                             const stopReason = this.getStopReason(body.stop, body.displayType || machine.displayType);
 
-                            for (const { minutes, alertKey } of thresholdsToNotify) {
-                                const recipients = recipientsByType[alertKey] || [];
-                                if (recipients.length) {
-                                    await notificationService.createNotification({
+                            for (const minutes of minutesToNotify) {
+                                const recipients = await alertConfigService.filterUsersForStopMinute(
+                                    body.workspaceId,
+                                    users,
+                                    minutes,
+                                    stoppedMinutes
+                                );
+                                if (recipients.notification.length || recipients.whatsapp.length) {
+                                    await alertConfigService.dispatchAlert({
                                         machineId: body.machineId,
                                         workspaceId: body.workspaceId,
-                                        title: `Machine stopped for ${minutes}+ minutes — ${capitalize(machine.machineName)} (${machine.machineCode})`,
-                                        description: `${capitalize(machine.machineName)} (${machine.machineCode}) has been stopped for ${stoppedMinutes} minutes. Reason: ${stopReason}`
-                                    }, recipients);
+                                        title: `Machine stopped for ${minutes}+ minutes — ${machine.machineCode}`,
+                                        description: `${machine.machineCode} has been stopped for ${stoppedMinutes} minutes. Reason: ${stopReason}`,
+                                        recipients
+                                    });
                                 }
                                 stopNotified.add(minutes);
                                 stopStateChanged = true;
@@ -755,7 +752,7 @@ module.exports = {
             }
 
             let shiftWeftCount = register[displayType].shiftWeftCountHi && register[displayType].shiftWeftCountLo ? toUint32(at(register[displayType].shiftWeftCountHi), at(register[displayType].shiftWeftCountLo)) : 0;
-            if(displayType == "pickwell") {
+            if (displayType == "pickwell") {
                 shiftWeftCount = shiftWeftCount * 10;
             }
             const totalWeftHundreds = register[displayType].totalWeftHundredsHi && register[displayType].totalWeftHundredsLo ? toUint32(at(register[displayType].totalWeftHundredsHi), at(register[displayType].totalWeftHundredsLo)) : 0;
@@ -769,7 +766,7 @@ module.exports = {
             for (const [key, value] of Object.entries(register[displayType].stopsCount)) {
                 const count = value.count ? at(value.count) : 0;
                 let duration = value.duration ? at(value.duration) : 0;
-                if(displayType == "pickwell") {
+                if (displayType == "pickwell") {
                     duration = duration * 60;
                 }
                 stopsCount[key] = { count, duration };
@@ -829,10 +826,10 @@ module.exports = {
                 picksCurrentShift: get16(body, register[displayType].picksCurrentShift),
                 pieceLengthM: get16(body, register[displayType].pieceLengthM),
                 beamLeft: get16(body, register[displayType].beamLeft),
-                beamCompletionDate: get16(body, register[displayType].beamCompletionDate) ?moment(
+                beamCompletionDate: get16(body, register[displayType].beamCompletionDate) ? moment(
                     `${get16(body, register[displayType].beamCompletionDate)} +05:30`,
                     'YYYY-MM-DD HH:mm Z'
-                  ).utc() : null,
+                ).utc() : null,
                 setPicks: get16(body, register[displayType].currentDensity),
                 shift: get16(body, register[displayType].shift),
                 stopsCount: stopsCount,

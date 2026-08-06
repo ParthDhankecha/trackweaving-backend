@@ -1,26 +1,28 @@
-const projectSetupConfigService = require("./config/projectSetupConfigService");
-const machineService = require("./machineService");
-const cronService = require("./cronService");
-const { infoLog, errLog } = require("./utilService");
+const projectSetupConfigService = require('./config/projectSetupConfigService');
+const cronService = require('./cronService');
+const machineService = require('./machineService');
+const alertConfigService = require('./alertConfigService');
+const utilService = require('./utilService');
+
 
 module.exports = {
     async initializeApp() {
-        infoLog('buildProjectConfig');
+        utilService.infoLog('buildProjectConfig');
         const ProjectConfig = await projectSetupConfigService.buildProjectConfig();
-        if (ProjectConfig) errLog(ProjectConfig);
+        if (ProjectConfig) utilService.errLog(ProjectConfig);
 
-        infoLog('buildSetupConfig');
+        utilService.infoLog('buildSetupConfig');
         const SetupConfig = await projectSetupConfigService.buildSetupConfig();
-        if (SetupConfig) errLog(SetupConfig);
+        if (SetupConfig) utilService.errLog(SetupConfig);
 
-        infoLog('CronStarted');
+        utilService.infoLog('CronStarted');
         await cronService.startCronJob();
 
-        infoLog('buildMachineAlertConfig');
+        utilService.infoLog('buildMachineAlertConfig');
         let machines = await machineService.find({ isDeleted: false }, { useLean: true, projection: { _id: 1, maxSpeedLimit: 1, isAlertActive: 1 } });
         global.config.MACHINE_ALERT_CONFIG = {};
         for (let machine of machines) {
-            if(machine.maxSpeedLimit) {
+            if (machine.maxSpeedLimit) {
                 global.config.MACHINE_ALERT_CONFIG[String(machine._id)] = {
                     speedLimit: machine.maxSpeedLimit,
                     sendAlert: machine.isAlertActive || false,
@@ -28,6 +30,10 @@ module.exports = {
             }
         }
 
-        infoLog('Initialize App Done!');
+        utilService.infoLog('syncWorkspaceAlerts');
+        await alertConfigService.syncWorkspaceAlerts();
+
+
+        utilService.infoLog('Initialize App Done!');
     }
 }

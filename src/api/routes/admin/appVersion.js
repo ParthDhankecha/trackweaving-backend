@@ -1,16 +1,13 @@
 const router = require('express').Router();
 
-const appVersionController = require('../../controllers/admin/appVersionController');
+const controller = require('../../controllers/admin/appVersionController');
 
-router.get('/:id', appVersionController.getById);
 
-router.post('/list', appVersionController.list);
+router.get('/', controller.get);
 
-router.post('/', appVersionController.create);
+router.post('/', controller.create);
 
-router.put('/:id', appVersionController.update);
-
-router.delete('/:id', appVersionController.delete);
+router.put('/', controller.update);
 
 
 module.exports = router;

@@ -1,16 +1,38 @@
 const alertConfigService = require('../../services/alertConfigService');
-const { log, checkRequiredParams } = require('../../services/utilService');
+const utilService = require('../../services/utilService');
 
-const ALERT_KEYS = ['pickChange', 'maxSpeed', 'lowSpeed', 'beamLeft', 'machineStopped1', 'machineStopped2'];
+const { ALERT_KEYS, CHANNEL_KEYS } = alertConfigService;
+const CONFIG_FIELDS = {
+    beamLeft: ['thresholds'],
+    machineStopped: ['minutes']
+};
 
 function pickAlertBody(body = {}) {
     const alerts = body.alerts && typeof body.alerts === 'object' ? body.alerts : body;
     const picked = {};
+
     for (const key of ALERT_KEYS) {
-        if (typeof alerts[key] === 'boolean') {
-            picked[key] = alerts[key];
+        const entry = alerts[key];
+        if (entry == null || typeof entry !== 'object') continue;
+
+        const normalized = {};
+        for (const channel of CHANNEL_KEYS) {
+            if (typeof entry[channel] === 'boolean') {
+                normalized[channel] = entry[channel];
+            }
+        }
+
+        for (const field of CONFIG_FIELDS[key] || []) {
+            if (typeof entry[field] === 'string') {
+                normalized[field] = entry[field];
+            }
+        }
+
+        if (Object.keys(normalized).length) {
+            picked[key] = normalized;
         }
     }
+
     return picked;
 }
 
@@ -22,24 +44,19 @@ module.exports = {
      */
     getByWorkspace: async (req, res) => {
         try {
-            checkRequiredParams(['workspaceId'], req.params);
             const { workspaceId } = req.params;
+            if (!utilService.isValidObjectId(workspaceId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
 
             const workspace = await workspaceModel.findOne(
                 { _id: workspaceId, isDeleted: false },
                 { firmName: 1, isActive: 1 }
             ).lean();
-            if (!workspace) {
-                throw global.config.message.RECORD_NOT_FOUND;
-            }
+            if (!workspace) throw global.config.message.RECORD_NOT_FOUND;
 
-            let workspaceConfig = await alertConfigService.findOne(
-                { workspaceId, userId: null },
-                { useLean: true }
-            );
-            if (!workspaceConfig) {
-                workspaceConfig = await alertConfigService.ensureWorkspaceDefault(workspaceId);
-            }
+            let workspaceConfig = await alertConfigService.ensureWorkspaceDefault(workspaceId);
+            if (workspaceConfig?.toObject) workspaceConfig = workspaceConfig.toObject();
 
             const [userOverrides, users] = await Promise.all([
                 alertConfigService.find(
@@ -52,10 +69,9 @@ module.exports = {
                 ).lean()
             ]);
 
-            const overrideMap = new Map(
+            const readOnly = false, overrideMap = new Map(
                 userOverrides.map(o => [String(o.userId), o])
             );
-
             const userConfigs = users.map(user => {
                 const override = overrideMap.get(String(user._id));
                 return {
@@ -63,7 +79,8 @@ module.exports = {
                     hasOverride: !!override,
                     alerts: alertConfigService.resolveEffectiveAlerts(
                         workspaceConfig.alerts,
-                        override?.alerts
+                        override?.alerts,
+                        { readOnly }
                     ),
                     overrideAlerts: override?.alerts || null,
                     configId: override?._id || null
@@ -74,27 +91,32 @@ module.exports = {
                 workspace,
                 workspaceConfig: {
                     _id: workspaceConfig._id,
-                    alerts: alertConfigService.normalizeAlerts(workspaceConfig.alerts)
+                    alerts: alertConfigService.normalizeAlerts(workspaceConfig.alerts, { readOnly })
                 },
+                defaultAlerts: alertConfigService.defaultAlerts({ readOnly }),
                 alertTypes: global.config.ALERT_TYPES,
+                alertKeys: ALERT_KEYS,
+                channelKeys: CHANNEL_KEYS,
                 userConfigs
             }, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
 
     /**
      * PUT /workspace/:workspaceId
-     * Body: { alerts: { pickChange, maxSpeed, lowSpeed, beamLeft } }
+     * Body: { alerts: { pickChange: { notification, whatsapp }, beamLeft: { thresholds }, ... } }
      */
     upsertWorkspace: async (req, res) => {
         try {
-            checkRequiredParams(['workspaceId'], req.params);
             const { workspaceId } = req.params;
-            const alerts = pickAlertBody(req.body);
+            if (!utilService.isValidObjectId(workspaceId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
 
+            const alerts = pickAlertBody(req.body);
             if (!Object.keys(alerts).length) {
                 throw global.config.message.BAD_REQUEST;
             }
@@ -103,37 +125,38 @@ module.exports = {
                 { _id: workspaceId, isDeleted: false },
                 { _id: 1 }
             ).lean();
-            if (!workspace) {
-                throw global.config.message.RECORD_NOT_FOUND;
-            }
+            if (!workspace) throw global.config.message.RECORD_NOT_FOUND;
 
             const existing = await alertConfigService.findOne(
                 { workspaceId, userId: null },
                 { useLean: true }
             );
-            const merged = alertConfigService.normalizeAlerts({
-                ...(existing?.alerts || alertConfigService.defaultAlerts()),
-                ...alerts
-            });
+            const merged = alertConfigService.mergeAlertUpdates(
+                existing?.alerts || alertConfigService.defaultAlerts({ readOnly: false }),
+                alerts,
+                { returnNormalized: false }
+            );
 
             const updated = await alertConfigService.upsertWorkspaceConfig(workspaceId, merged);
             return res.ok(updated, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
 
     /**
      * PUT /user/:userId
-     * Body: { alerts: { pickChange, maxSpeed, lowSpeed, beamLeft } }
+     * Body: { alerts: { pickChange: { notification, whatsapp }, ... } }
      */
     upsertUser: async (req, res) => {
         try {
-            checkRequiredParams(['userId'], req.params);
             const { userId } = req.params;
-            const alerts = pickAlertBody(req.body);
+            if (!utilService.isValidObjectId(userId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
 
+            const alerts = pickAlertBody(req.body);
             if (!Object.keys(alerts).length) {
                 throw global.config.message.BAD_REQUEST;
             }
@@ -142,22 +165,19 @@ module.exports = {
                 { _id: userId, isDeleted: false },
                 { workspaceId: 1 }
             ).lean();
-            if (!user?.workspaceId) {
-                throw global.config.message.RECORD_NOT_FOUND;
-            }
+            if (!user?.workspaceId) throw global.config.message.RECORD_NOT_FOUND;
 
-            const existing = await alertConfigService.findOne(
-                { workspaceId: user.workspaceId, userId },
-                { useLean: true }
+            const [alertConfig, userAlertConfig] = await Promise.all([
+                alertConfigService.findOne({ workspaceId: user.workspaceId, userId: null }, { useLean: true }),
+                alertConfigService.findOne({ workspaceId: user.workspaceId, userId }, { useLean: true }),
+            ]);
+            if (!alertConfig?.alerts) throw global.config.message.BAD_REQUEST;
+
+            const merged = alertConfigService.mergeAlertUpdates(
+                userAlertConfig?.alerts || alertConfig.alerts,
+                alerts,
+                { returnNormalized: false }
             );
-            const workspaceConfig = await alertConfigService.findOne(
-                { workspaceId: user.workspaceId, userId: null },
-                { useLean: true }
-            );
-
-            const base = existing?.alerts || alertConfigService.resolveEffectiveAlerts(workspaceConfig?.alerts, null);
-
-            const merged = alertConfigService.normalizeAlerts({ ...base, ...alerts });
             const updated = await alertConfigService.upsertUserConfig(
                 user.workspaceId,
                 userId,
@@ -166,7 +186,7 @@ module.exports = {
 
             return res.ok(updated, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
@@ -177,29 +197,27 @@ module.exports = {
      */
     deleteUserOverride: async (req, res) => {
         try {
-            checkRequiredParams(['userId'], req.params);
             const { userId } = req.params;
+            if (!utilService.isValidObjectId(userId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
 
             const user = await userModel.findOne(
                 { _id: userId, isDeleted: false },
                 { workspaceId: 1 }
             ).lean();
-            if (!user?.workspaceId) {
-                throw global.config.message.RECORD_NOT_FOUND;
-            }
+            if (!user?.workspaceId) throw global.config.message.RECORD_NOT_FOUND;
 
-            const deleted = await alertConfigService.softDeleteUserConfig(
+            const entry = await alertConfigService.softDeleteUserConfig(
                 user.workspaceId,
                 userId
             );
-            if (!deleted) {
-                throw global.config.message.RECORD_NOT_FOUND;
-            }
+            if (!entry) throw global.config.message.RECORD_NOT_FOUND;
 
             return res.ok(null, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
-    }
+    },
 };

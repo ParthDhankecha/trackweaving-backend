@@ -1,48 +1,346 @@
-module.exports = {
+const notificationService = require('./notificationService');
+const whatsappService = require('./whatsappService');
+const utilService = require('./utilService');
 
-    defaultAlerts() {
-        return { ...global.config.DEFAULT_ALERT_FLAGS };
-    },
+const ALERT_KEYS = ['pickChange', 'maxSpeed', 'lowSpeed', 'beamLeft', 'machineStopped'];
+const CHANNEL_KEYS = ['notification', 'whatsapp'];
+const CONFIG_FIELDS = {
+    beamLeft: ['thresholds'],
+    machineStopped: ['minutes']
+};
 
-    normalizeAlerts(alerts = {}) {
-        const defaults = this.defaultAlerts();
+/** workspaceId -> { workspaceAlerts, userAlerts: Map<userId, alerts> } */
+const workspaceAlertCache = new Map();
+
+function normalizeChannelValue(value, defaultValue = true) {
+    return typeof value === 'boolean' ? value : defaultValue;
+}
+
+function normalizeCommaSeparated(value, fallback, { readOnly = true } = {}) {
+    if (readOnly) {
+        if (Array.isArray(value || fallback)) {
+            return [...(value || fallback)];
+        }
+
+        return [...(new Set(String(value || fallback)
+            .split(',')
+            .map(part => Number(part.trim()))
+            .filter(num => Number.isFinite(num))
+        ))].sort((a, b) => b - a);
+    }
+
+    const source = typeof value === 'string' && value.trim() ? value : fallback;
+    return [...new Set(String(source)
+        .split(',')
+        .map(part => part.trim())
+        .filter(Boolean))
+    ].join(',');
+}
+
+function normalizeAlertEntry(key, alerts = {}, defaults = {}, { readOnly = true } = {}) {
+    const defEntry = defaults[key] || {};
+    const entry = alerts[key];
+
+    if (!entry || typeof entry !== 'object') {
         return {
-            pickChange: typeof alerts.pickChange === 'boolean' ? alerts.pickChange : defaults.pickChange,
-            maxSpeed: typeof alerts.maxSpeed === 'boolean' ? alerts.maxSpeed : defaults.maxSpeed,
-            lowSpeed: typeof alerts.lowSpeed === 'boolean' ? alerts.lowSpeed : defaults.lowSpeed,
-            beamLeft: typeof alerts.beamLeft === 'boolean' ? alerts.beamLeft : defaults.beamLeft,
-            machineStopped1: typeof alerts.machineStopped1 === 'boolean' ? alerts.machineStopped1 : defaults.machineStopped1,
-            machineStopped2: typeof alerts.machineStopped2 === 'boolean' ? alerts.machineStopped2 : defaults.machineStopped2
+            notification: defEntry.notification ?? true,
+            whatsapp: defEntry.whatsapp ?? false,
+            // ...(CONFIG_FIELDS[key] || []).reduce((acc, field) => {
+            //     acc[field] = defEntry[field];
+            //     return acc;
+            // }, {})
         };
+    }
+
+    const normalized = {
+        notification: normalizeChannelValue(entry.notification, defEntry.notification ?? true),
+        whatsapp: normalizeChannelValue(entry.whatsapp, defEntry.whatsapp ?? false)
+    };
+
+    for (const field of CONFIG_FIELDS[key] || []) {
+        normalized[field] = normalizeCommaSeparated(entry[field], defEntry[field], { readOnly });
+    }
+
+    return normalized;
+}
+
+module.exports = {
+    ALERT_KEYS,
+    CHANNEL_KEYS,
+
+    /**
+     * Sync workspace alerts to ensure all workspaces have a default alert config.
+     * This function deletes any alert configs where pickChange is not a boolean,
+     * then ensures each workspace has a default alert config.
+     * @returns {Promise<void>}
+     */
+    async syncWorkspaceAlerts() {
+        try {
+            const del = await alertConfigModel.deleteMany({ 'alerts.pickChange': { $type: 'bool' } });
+            console.log('Deleted old alert configs', del);
+
+            const workspaceIds = await workspaceModel.distinct('_id', { isDeleted: false });
+            for (const workspaceId of workspaceIds) {
+                await this.ensureWorkspaceDefault(workspaceId);
+            }
+        } catch (error) {
+            console.error(error);
+            return null;
+        }
     },
 
-    isAlertEnabled(alerts, alertType) {
-        if (!alerts || typeof alerts[alertType] !== 'boolean') {
+    defaultAlerts({ readOnly = true } = {}) {
+        const alerts = JSON.parse(JSON.stringify(global.config.DEFAULT_ALERT_FLAGS || {}));
+        if (!readOnly) {
+            return alerts;
+        }
+
+        const normalized = {};
+        for (const key of ALERT_KEYS) {
+            normalized[key] = normalizeAlertEntry(key, alerts, undefined, { readOnly });
+        }
+        return normalized;
+    },
+
+    normalizeAlerts(alerts = {}, { readOnly = true } = {}) {
+        const defaults = this.defaultAlerts({ readOnly });
+        const normalized = {};
+        for (const key of ALERT_KEYS) {
+            normalized[key] = normalizeAlertEntry(key, alerts, defaults, { readOnly });
+        }
+        return normalized;
+    },
+
+    mergeAlertUpdates(baseAlerts = {}, updates = {}, { returnNormalized = true } = {}) {
+        const merged = JSON.parse(JSON.stringify(
+            this.normalizeAlerts(baseAlerts, { readOnly: false })
+        ));
+
+        for (const key of ALERT_KEYS) {
+            const update = updates[key];
+            if (!update || typeof update !== 'object') continue;
+
+            merged[key] = {
+                ...merged[key],
+                ...update
+            };
+        }
+
+        if (returnNormalized) {
+            return this.normalizeAlerts(merged, { readOnly: false });
+        }
+        return merged;
+    },
+
+    parseCommaSeparatedNumbers(value, fallback = []) {
+        const source = typeof value === 'string' && value.trim() ? value : fallback.map(Number).join(',');
+
+        return [...new Set(String(source).split(',')
+            .map(part => Number(part.trim()))
+            .filter(num => Number.isFinite(num))
+        )].sort((a, b) => b - a);
+    },
+
+    /**
+     * Match an actual reading against comma-separated config tiers (not exact equality).
+     * beamLeft: value 12 with tiers [1,10,20] matches users who configured 20 (below 20, not yet 10).
+     */
+    matchesConfigValue(configuredValues, value, alertType) {
+        if (!configuredValues?.length) return false;
+
+        if (alertType === 'beamLeft') {
+            return configuredValues.some(t => {
+                return value <= t && value > t - 5;// 5 meters threshold: 12 <= 20 && 12 > 15
+            });
+        }
+
+        return configuredValues.includes(value);
+    },
+
+    /**
+     * Stop alerts: logs arrive at imprecise intervals, so match elapsed time to a tier bucket.
+     * tierMinute — checkpoint being fired (from union minutes loop, e.g. 10 or 20)
+     * stoppedMinutes — actual elapsed stop duration (e.g. 12 when the log arrives late)
+     *
+     * User must have tierMinute configured AND stoppedMinutes must fall in that tier's window.
+     * Descending tiers [20,10]: 12 min → 10-tier; 25 min → 20-tier (not 10-tier).
+     */
+    matchesStopTier(configuredValues, tierMinute, stoppedMinutes) {
+        if (!configuredValues?.length) return false;
+
+        return configuredValues.includes(tierMinute) && stoppedMinutes >= tierMinute;
+        // if (!configuredValues?.length || !configuredValues.includes(tierMinute)) {
+        //     return false;
+        // }
+
+        // const sorted = [...configuredValues].sort((a, b) => b - a);
+        // for (let i = 0; i < sorted.length; i++) {
+        //     if (stoppedMinutes >= sorted[i] && sorted[i] === tierMinute) {
+        //         return true;
+        //     }
+        // }
+
+        // // Delayed log: elapsed time skipped past this tier's window but checkpoint not yet sent
+        // return stoppedMinutes >= tierMinute;
+    },
+
+    isChannelEnabled(alerts, alertType, channel = 'notification') {
+        const entry = alerts?.[alertType];
+        if (!entry || typeof entry !== 'object') {
             return true;
         }
-        return alerts[alertType];
+        if (typeof entry[channel] !== 'boolean') {
+            return true;
+        }
+        return entry[channel];
+    },
+
+
+    async getUsersForAlert(filter = {}, options = {}) {
+        const query = userModel.find({
+            ...filter,
+            isDeleted: false,
+            isActive: true,
+        }, options);
+
+        const {
+            projection = { _id: 1, mobile: 1 },
+            useLean = true,
+        } = options;
+        if (projection) query.select(projection);
+        if (useLean) query.lean();
+
+        return await query;
+    },
+
+    async getUnionBeamThresholds(workspaceId) {
+        const cache = await this.ensureWorkspaceCache(workspaceId);
+        const workspaceAlerts = cache?.workspaceAlerts || this.defaultAlerts();
+        const thresholds = new Set(workspaceAlerts?.beamLeft?.thresholds);
+
+        for (const userAlerts of (cache?.userAlerts || new Map()).values()) {
+            const effectiveAlerts = this.resolveEffectiveAlerts(workspaceAlerts, userAlerts);
+            effectiveAlerts?.beamLeft?.thresholds?.forEach(
+                value => thresholds.add(value)
+            );
+        }
+
+        return [...thresholds].sort((a, b) => b - a);// descending order: 20, 10, 1
+    },
+
+    async getUnionStopMinutes(workspaceId) {
+        const cache = await this.ensureWorkspaceCache(workspaceId);
+        const workspaceAlerts = cache?.workspaceAlerts || this.defaultAlerts();
+        const minutes = new Set(workspaceAlerts?.machineStopped?.minutes);
+
+        for (const userAlerts of (cache?.userAlerts || new Map()).values()) {
+            const effectiveAlerts = this.resolveEffectiveAlerts(workspaceAlerts, userAlerts);
+            effectiveAlerts?.machineStopped?.minutes?.forEach(
+                value => minutes.add(value)
+            );
+        }
+
+        return [...minutes].sort((a, b) => b - a);// descending order: 20, 10, 1
+    },
+
+    async filterUsersForBeamThreshold(workspaceId, users, threshold) {
+        return this.filterUsersForConfigMatch({
+            workspaceId: workspaceId,
+            users: users,
+            alertType: 'beamLeft',
+            field: 'thresholds',
+        }, {
+            thresholdValue: threshold
+        });
+    },
+
+    async filterUsersForStopMinute(workspaceId, users, tierMinute, stoppedMinutes) {
+        return this.filterUsersForConfigMatch({
+            workspaceId: workspaceId,
+            users: users,
+            alertType: 'machineStopped',
+            field: 'minutes',
+        }, {
+            thresholdValue: stoppedMinutes,
+            tierMinute: tierMinute,
+        });
+    },
+
+    async filterUsersForConfigMatch({ workspaceId, users, alertType, field }, data = {}) {
+        const recipients = { notification: [], whatsapp: [] };
+        if (!users?.length) return recipients;
+        if (!['beamLeft', 'machineStopped'].includes(alertType)) return recipients;
+
+        const cache = await this.ensureWorkspaceCache(workspaceId);
+        const workspaceAlerts = cache?.workspaceAlerts || this.defaultAlerts();
+        const userAlerts = cache?.userAlerts || new Map();
+
+        const { thresholdValue } = data;
+        for (const user of users) {
+            const key = String(user._id);
+            const effectiveAlerts = this.resolveEffectiveAlerts(workspaceAlerts, userAlerts.get(key) ?? null);
+            const values = effectiveAlerts?.[alertType]?.[field] ?? [];
+
+            let shouldNotify = false;
+            switch (alertType) {
+                case 'beamLeft': shouldNotify = this.matchesConfigValue(values, thresholdValue, alertType);
+                    break;
+                case 'machineStopped': shouldNotify = this.matchesStopTier(values, data.tierMinute, thresholdValue);
+                    break;
+            }
+            if (!shouldNotify) continue;
+
+            if (this.isChannelEnabled(effectiveAlerts, alertType, 'notification')) {
+                recipients.notification.push(user);
+            }
+            if (this.isChannelEnabled(effectiveAlerts, alertType, 'whatsapp')) {
+                recipients.whatsapp.push(user);
+            }
+        }
+
+        return recipients;
+    },
+
+    resolveEffectiveAlerts(workspaceAlerts, userAlerts, { readOnly = true } = {}) {
+        const base = this.normalizeAlerts(workspaceAlerts || this.defaultAlerts({ readOnly }), { readOnly });
+        if (!userAlerts) {
+            return base;
+        }
+
+        const userConfig = this.normalizeAlerts(userAlerts, { readOnly });
+        const resolved = {};
+        for (const key of ALERT_KEYS) {
+            resolved[key] = {
+                notification: base[key].notification && userConfig[key].notification,
+                whatsapp: base[key].whatsapp && userConfig[key].whatsapp
+            };
+
+            for (const field of CONFIG_FIELDS[key] || []) {
+                resolved[key][field] = userConfig[key][field] ?? base[key][field];
+            }
+        }
+
+        return resolved;
     },
 
     async create(body) {
         const doc = new alertConfigModel({
-            ...body,
-            alerts: this.normalizeAlerts(body.alerts)
+            ...body
         });
         return await doc.save();
     },
 
     async ensureWorkspaceDefault(workspaceId) {
-        const existing = await this.findOne({ workspaceId, userId: null }, { useLean: true });
-        if (existing) return existing;
+        const alertConfig = await this.findOne({ workspaceId, userId: null }, { useLean: true });
+        if (alertConfig) return alertConfig;
 
         try {
             return await this.create({
                 workspaceId,
                 userId: null,
-                alerts: this.defaultAlerts()
+                alerts: this.defaultAlerts({ readOnly: false })
             });
         } catch (err) {
-            // Race: another request may have created it
             if (err?.code === 11000) {
                 return await this.findOne({ workspaceId, userId: null }, { useLean: true });
             }
@@ -91,107 +389,157 @@ module.exports = {
     },
 
     async upsertWorkspaceConfig(workspaceId, alerts) {
-        const normalized = this.normalizeAlerts(alerts);
+        const normalized = this.normalizeAlerts(alerts, { readOnly: false });
 
-        return await alertConfigModel.findOneAndUpdate(
+        const updated = await alertConfigModel.findOneAndUpdate(
             { workspaceId, userId: null, isDeleted: false },
             { $set: { alerts: normalized }, $setOnInsert: { workspaceId, userId: null, isDeleted: false } },
             { new: true, upsert: true }
         ).lean();
+
+        await this.refreshWorkspaceCache(workspaceId);
+        return updated;
     },
 
     async upsertUserConfig(workspaceId, userId, alerts) {
-        const normalized = this.normalizeAlerts(alerts);
+        const normalized = this.normalizeAlerts(alerts, { readOnly: false });
 
-        return await alertConfigModel.findOneAndUpdate(
+        const updated = await alertConfigModel.findOneAndUpdate(
             { workspaceId, userId, isDeleted: false },
             { $set: { alerts: normalized }, $setOnInsert: { workspaceId, userId, isDeleted: false } },
             { new: true, upsert: true }
         ).lean();
+
+        await this.refreshWorkspaceCache(workspaceId);
+        return updated;
     },
 
     async softDeleteUserConfig(workspaceId, userId) {
-        return await alertConfigModel.findOneAndUpdate(
+        const deleted = await alertConfigModel.findOneAndUpdate(
             { workspaceId, userId, isDeleted: false },
             { $set: { isDeleted: true } },
             { new: true }
         );
+
+        if (deleted) {
+            await this.refreshWorkspaceCache(workspaceId);
+        }
+        return deleted;
+    },
+
+    async refreshWorkspaceCache(workspaceId) {
+        if (!workspaceId) return null;
+
+        const configs = await this.find({ workspaceId }, {
+            projection: { userId: 1, alerts: 1 },
+            useLean: true,
+        });
+        if (configs.length === 0) return null;
+
+        const workspaceConfig = configs.find(c => !c.userId);
+        const userAlerts = new Map(configs.filter(c => !!c.userId).map(
+            c => [String(c.userId), this.normalizeAlerts(c.alerts, { readOnly: true })])
+        );
+
+        // // no user alerts, delete the cache for this workspace
+        // if (userAlerts.size === 0) {
+        //     workspaceAlertCache.delete(String(workspaceId));
+        //     return null;
+        // }
+
+        workspaceAlertCache.set(String(workspaceId), {
+            workspaceAlerts: this.normalizeAlerts(workspaceConfig?.alerts, { readOnly: true }),
+            userAlerts
+        });
+        return workspaceAlertCache.has(String(workspaceId));
+    },
+
+    async ensureWorkspaceCache(workspaceId) {
+        const key = String(workspaceId);
+        if (!workspaceAlertCache.has(key)) {
+            await this.refreshWorkspaceCache(workspaceId);
+        }
+        return workspaceAlertCache.get(key) || null;
     },
 
     /**
-     * Load workspace default + user overrides, then return recipients for alert type(s).
+     * Load workspace default + user overrides from cache, then return recipients per channel.
      * Resolution: workspace master gate → then user override (can only further disable)
      *
-     * @param {string|string[]} alertType - one type string, or array of types
-     * @returns {Promise<ObjectId[]|{[key: string]: ObjectId[]}>}
-     *   - single type  → userId[]
-     *   - multiple types → { pickChange: [], maxSpeed: [], ... }
+     * @param {string} workspaceId
+     * @param {Object[]} users
+     * @param {string|string[]} alertTypes
+     * @returns {Promise<{notification: ObjectId[], whatsapp: ObjectId[]}|{[key: string]: {notification: ObjectId[], whatsapp: ObjectId[]}}>}
      */
-    async filterUserIdsForAlert(workspaceId, userIds, alertType) {
-        const alertTypes = Array.isArray(alertType) ? alertType.filter(Boolean) : [alertType].filter(Boolean);
-        const returnMap = Array.isArray(alertType);
+    async filterUsersForAlert(workspaceId, users, alertTypes) {
+        const _alertTypes = Array.isArray(alertTypes) ? alertTypes.filter(Boolean) : [alertTypes].filter(Boolean);
+        const returnMap = Array.isArray(alertTypes);
+        const emptyRecipients = () => ({ notification: [], whatsapp: [] });
 
-        if (!userIds?.length || !alertTypes.length) {
-            return returnMap ? Object.fromEntries(alertTypes.map(t => [t, []])) : [];
+        if (!users?.length || !_alertTypes.length) {
+            return returnMap ? Object.fromEntries(_alertTypes.map(t => [t, emptyRecipients()])) : emptyRecipients();
         }
 
-        const configs = await this.find({
-            workspaceId,
-            $or: [
-                { userId: null },
-                { userId: { $in: userIds } }
-            ]
-        }, {
-            useLean: true,
-            projection: { userId: 1, alerts: 1 }
-        });
+        const cache = await this.ensureWorkspaceCache(workspaceId);
+        const workspaceAlerts = cache?.workspaceAlerts || this.defaultAlerts();
+        const userAlerts = cache?.userAlerts || new Map();
 
-        const workspaceConfig = configs.find(c => !c.userId);
-        const userConfigMap = new Map(configs
-            .filter(c => !!c.userId)
-            .map(c => [String(c.userId), c.alerts])
-        );
+        const resolveForType = (type) => {
+            const recipients = emptyRecipients();
 
-        const resolveForType = (type) => userIds.filter(uid => {
-            // Workspace is master: if disabled there, nobody receives this alert.
-            if (workspaceConfig && !this.isAlertEnabled(workspaceConfig.alerts, type)) {
-                return false;
+            for (const user of users) {
+                const key = String(user._id);
+                const effectiveAlerts = this.resolveEffectiveAlerts(workspaceAlerts, userAlerts.get(key) ?? null);
+
+                if (this.isChannelEnabled(effectiveAlerts, type, 'notification')) {
+                    recipients.notification.push(user);
+                }
+                if (this.isChannelEnabled(effectiveAlerts, type, 'whatsapp')) {
+                    recipients.whatsapp.push(user);
+                }
             }
 
-            const key = String(uid);
-            if (userConfigMap.has(key)) {
-                return this.isAlertEnabled(userConfigMap.get(key), type);
-            }
-            return true;
-        });
+            return recipients;
+        };
 
         if (!returnMap) {
-            return resolveForType(alertTypes[0]);
+            return resolveForType(_alertTypes[0]);
         }
 
         const recipientsByType = {};
-        for (const type of alertTypes) {
+        for (const type of _alertTypes) {
             recipientsByType[type] = resolveForType(type);
         }
         return recipientsByType;
     },
 
-    /**
-     * Effective alerts for one user.
-     * Workspace is master — user override can only further disable, not re-enable.
-     */
-    resolveEffectiveAlerts(workspaceAlerts, userAlerts) {
-        const base = this.normalizeAlerts(workspaceAlerts || this.defaultAlerts());
-        if (!userAlerts) return base;
+    async dispatchAlert({ title, description, machineId, workspaceId, recipients }) {
+        try {
+            await notificationService.createNotification({
+                machineId,
+                workspaceId,
+                title,
+                description
+            }, recipients.notification);
+        } catch (error) {
+            utilService.log(error);
+        }
 
-        const userConfig = this.normalizeAlerts(userAlerts);
-        return {
-            pickChange: base.pickChange && userConfig.pickChange,
-            maxSpeed: base.maxSpeed && userConfig.maxSpeed,
-            lowSpeed: base.lowSpeed && userConfig.lowSpeed,
-            beamLeft: base.beamLeft && userConfig.beamLeft,
-            machineStopped1: base.machineStopped1 && userConfig.machineStopped1,
-            machineStopped2: base.machineStopped2 && userConfig.machineStopped2
-        };
+        if (!recipients.whatsapp.length || !whatsappService.isEnabled()) {
+            return;
+        }
+        const users = recipients.whatsapp.filter(user => user.mobile && user.mobile.trim());
+        if (!users.length) {
+            console.log('No whatsapp recipients with mobile number');
+            return;
+        }
+
+        await Promise.allSettled(
+            users.map(user => whatsappService.sendNotification({
+                mobile: user.mobile,
+                title: title,
+                description: description
+            }))
+        );
     }
 };

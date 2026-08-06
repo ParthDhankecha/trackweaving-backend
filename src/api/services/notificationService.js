@@ -2,30 +2,30 @@ var admin = require("firebase-admin");
 var serviceAccount = require("../../../trackweaving-b0390-firebase-adminsdk-fbsvc-cb80dbd099.json");
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount)
 });
 
 module.exports = {
-    async createNotification(body, userIds = []) {
-        if(!userIds.length) return;
+    async createNotification(body, users = []) {
+        if (!users.length) return;
 
-        for(let userId of userIds) {
-            body.userId = userId;
+        for (const user of users) {
+            body.userId = user?._id || user;
             const notification = new notificationModel(body);
             await notification.save();
         }
 
         let chunks = [];
-        for(let i=0; i<userIds.length; i += 5) {
-            chunks.push(userIds.slice(i, i+5));
+        for (let i = 0; i < users.length; i += 5) {
+            chunks.push(users.slice(i, i + 5));
         }
-        
-        var messages = chunks.map(chunk => ({
+
+        const messages = chunks.map(chunk => ({
             notification: {
                 title: body.title,
                 body: body.description
             },
-            condition: chunk.map(t => `'${t}' in topics`).join(' || '),
+            condition: chunk.map(user => `'${user?._id || user}' in topics`).join(' || '),
             android: {
                 notification: {
                     channelId: "general_notifications",
@@ -41,26 +41,26 @@ module.exports = {
                 },
             },
         }));
-        
+
         const results = await Promise.all(messages.map(message => admin.messaging().send(message)));
-        
+
         return results;
     },
 
     async createAlertNotification(body, userIds = []) {
-        if(!userIds.length) return;
+        if (!userIds.length) return;
 
-        for(let userId of userIds) {
+        for (let userId of userIds) {
             body.userId = userId;
             const notification = new notificationModel(body);
             await notification.save();
         }
 
         let chunks = [];
-        for(let i=0; i<userIds.length; i += 5) {
-            chunks.push(userIds.slice(i, i+5));
+        for (let i = 0; i < userIds.length; i += 5) {
+            chunks.push(userIds.slice(i, i + 5));
         }
-        
+
         var messages = chunks.map(chunk => ({
             notification: {
                 title: body.title,
@@ -86,9 +86,9 @@ module.exports = {
                 },
             },
         }));
-        
+
         const results = await Promise.all(messages.map(message => admin.messaging().send(message)));
-        
+
         return results;
     },
 
@@ -116,7 +116,7 @@ module.exports = {
     },
 
     async sendTestNotification(payload, title, description, token) {
-        this.createNotification({title, description}, [token]);
+        this.createNotification({ title, description }, [token]);
     },
 
     async markAsRead(queryFilter) {

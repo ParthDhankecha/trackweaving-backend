@@ -1,25 +1,40 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
+
+const platformVersionSchema = new Schema({
+    min: {
+        type: Number,
+        required: true,
+        default: 1
+    },
+    latest: {
+        type: Number,
+        required: true,
+        default: 1
+    },
+    updateNote: {
+        type: String,
+        trim: true,
+        default: ''
+    }
+}, { _id: false });
+
 const appVersionSchema = new Schema({
-    appType: {
-        type: String,
-        enum: ['android', 'ios'],
-        trim: true,
-        required: true
+    android: {
+        type: platformVersionSchema,
+        required: true,
+        default: () => ({ min: 1, latest: 1, updateNote: '' })
     },
-    version: {
-        type: String,
-        trim: true,
-        required: true
+    ios: {
+        type: platformVersionSchema,
+        required: true,
+        default: () => ({ min: 1, latest: 1, updateNote: '' })
     },
-    showPopup: {
-        type: Boolean,
-        default: false
-    },
-    hardUpdate: {
-        type: Boolean,
-        default: false
+    // snapshot of previous android/ios values whenever config is updated
+    history: {
+        type: [Schema.Types.Mixed],
+        default: []
     },
     isDeleted: {
         type: Boolean,
@@ -29,6 +44,7 @@ const appVersionSchema = new Schema({
     timestamps: true,
     versionKey: false
 });
+
 
 const AppVersion = mongoose.model('appVersion', appVersionSchema, 'appVersions');
 module.exports = AppVersion;

@@ -12,7 +12,7 @@ module.exports = {
             if (req.user.type !== global.config.USERS.TYPE.ADMIN) {
                 conditions._id = req.user.id;
             }
-            const users = await usersService.findV2(conditions, { useLean: true, projection: { password: 0, fcmToken: 0, userType: 0, plan: 0, updatedAt: 0, createdAt: 0 } });
+            const users = await usersService.findV2(conditions, { useLean: true, projection: { password: 0, userType: 0, plan: 0, updatedAt: 0, createdAt: 0 } });
 
             return res.ok(users, global.config.message.OK);
         } catch (error) {
@@ -88,7 +88,6 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            delete reqBody.fcmToken;
             delete reqBody.workspaceId;
             delete reqBody.userType;
             delete reqBody.plan;
@@ -108,7 +107,7 @@ module.exports = {
                 }
             }
 
-            const updatedUser = await usersService.findByIdAndUpdate(userId, reqBody, { projection: { password: 0, fcmToken: 0, userType: 0, plan: 0, updatedAt: 0, createdAt: 0 } });
+            const updatedUser = await usersService.findByIdAndUpdate(userId, reqBody, { projection: { password: 0, userType: 0, plan: 0, updatedAt: 0, createdAt: 0 } });
             if (!updatedUser) {
                 throw global.config.message.NOT_UPDATED;
             }

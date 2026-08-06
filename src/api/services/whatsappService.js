@@ -143,6 +143,52 @@ module.exports = {
         return result;
     },
 
+    async sendNotification({ mobile, title, description }) {
+        if (!isEnabled()) {
+            errLog('WhatsApp is not configured. Skipping text message.');
+            return null;
+        }
+
+        const to = formatMobileNumber(mobile);
+        if (!to) {
+            errLog(`Invalid WhatsApp mobile number: ${mobile}`);
+            return null;
+        }
+
+        const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+        const payload = JSON.stringify({
+            messaging_product: 'whatsapp',
+            to,
+            type: 'template',
+            template: {
+                name: 'notification',
+                language: {
+                    code: 'en'
+                },
+                components: [{
+                    type: 'header',
+                    parameters: [{ type: 'text', text: title }]
+                }, {
+                    type: 'body',
+                    parameters: [{ type: 'text', text: description }]
+                }]
+            }
+        });
+
+        const result = await apiRequest({
+            method: 'POST',
+            apiPath: `${phoneNumberId}/messages`,
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(payload)
+            },
+            body: payload
+        });
+
+        log(`WhatsApp text sent to ${to}`);
+        return result;
+    },
+
     async sendDocumentMessage({ mobile, filePath, fileName, workspaceName, shiftLabel, shiftDate, productionMeter, efficiency, realEfficiency, picks, mediaId = null }) {
         if (!isEnabled()) {
             errLog('WhatsApp is not configured. Skipping document message.');

@@ -20,29 +20,32 @@ module.exports = {
             body.workspaceId = req.user.workspaceId;
             const machineLogsData = await machineLogsService.getMachineLogsWithPagination(body);
 
-            let machineData = [];
+            const machineData = [];
             for (let logData of machineLogsData.data) {
                 if (!logData.machineId.lastStartTime) logData.machineId.lastStartTime = new Date();
                 if (!logData.machineId.lastStopTime) logData.machineId.lastStopTime = new Date();
                 let data = {};
                 data.machineCode = logData.machineId.machineCode;
                 data.machineName = logData.machineId.machineName;
+                data.reed = logData.machineId.reed || '';
                 data.quality = logData.machineId.quality || '';
                 data.machineType = logData.machineId.machineType || 'rapier';
-                data.efficiency = Math.round(logData.efficiencyPercent || 0);
+                data.machineGroupId = logData.machineId?.machineGroupId || '';
+                data.efficiency = logData.efficiencyPercent;
                 data.picks = logData.picksCurrentShift;
                 data.speed = logData.speedRpm;
                 data.currentStop = logData.stop;
                 data.stopReason = machineLogsService.getStopReason(logData.stop, logData.machineId.displayType);
                 data.pieceLengthM = logData.pieceLengthM;
-                data.stops = logData?.stopCount || 0;
                 data.beamLeft = logData.beamLeft;
                 data.setPicks = logData.setPicks;
                 data.stopsData = {};
                 data.totalDuration = logData.stop === 0 ? (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStartTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00') : (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStopTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00');
+
                 let totalStopDuration = 0;
                 let totalStops = 0;
-                for (let key of (global.config.MACHINE_TYPE_KEY_MAPPING[data.machineType] || global.config.MACHINE_TYPE_KEY_MAPPING.rapier)) {
+                const stopKeys = global.config.MACHINE_TYPE_KEY_MAPPING[data.machineType] || global.config.MACHINE_TYPE_KEY_MAPPING.rapier;
+                for (let key of stopKeys) {
                     data.stopsData[key] = {
                         count: logData?.machineId?.stopsCount[key]?.count || 0,
                         duration: moment.utc((logData?.machineId?.stopsCount[key]?.duration || 0) * 1000).format('HH:mm'),
@@ -60,7 +63,6 @@ module.exports = {
                 } else {
                     data.runTime = logData.runTime;
                 }
-
                 data.stopsData.total = {
                     duration: moment.utc(totalStopDuration * 1000).format('HH:mm'),
                     count: totalStops
@@ -69,7 +71,7 @@ module.exports = {
                 machineData.push(data);
             }
 
-            let response = {
+            const response = {
                 aggregateReport: machineLogsData.aggregateReport,
                 machineLogs: machineData,
                 totalCount: machineLogsData.aggregateReport.all

@@ -23,4 +23,7 @@ router.use('/part-change-logs', require('./partChangeLog'));
 
 router.use('/notifications', require('./notification'));
 
+router.use('*', (req, res) => res.notFound());
+
+
 module.exports = router;

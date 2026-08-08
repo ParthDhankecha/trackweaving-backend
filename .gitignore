@@ -24,3 +24,8 @@ yarn-debug.log*
 yarn-error.log*
 
 .history
+
+# it must apply after targeted directory
+/src/api/**/*.devonly.js
+/z-*.txt
+/z-*.js

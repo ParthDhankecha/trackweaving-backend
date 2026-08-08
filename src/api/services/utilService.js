@@ -3,6 +3,8 @@ const moment = require('moment');
 const { ObjectId } = require('mongoose').Types;
 
 const { serverResponseRecordLimit } = require('../../config/env-vars');
+const _emailRegExp = /^[-!#$%&'*+\/0-9=?A-Z^_a-z`{|}~](\.?[-!#$%&'*+\/0-9=?A-Z^_a-z`{|}~])*@[a-zA-Z0-9](-*\.?[a-zA-Z0-9])*\.[a-zA-Z](-?[a-zA-Z0-9])+$/;
+const _mobileRegExp = /^[0-9]{10,15}$/;
 
 
 module.exports = {
@@ -202,6 +204,59 @@ module.exports = {
             if (value !== exact) return false;
         }
 
+        return true;
+    },
+
+    /**
+     * Escapes special characters in a string to be used in a regular expression.
+     * @param {string} str - The string to escape.
+     * @param {object} [options={}] - Optional options object.
+     * @param {boolean} [options.throwError=true] - Whether to throw an error if the string is not a valid string.
+     * @returns {string} The escaped string.
+     */
+    escapeRegex(str, options = {}) {
+        const { throwError = false } = options;
+        if (!str || typeof str !== 'string' || !str.trim()) {
+            if (throwError) throw global.config.message.BAD_REQUEST;
+            return str;
+        }
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim();
+    },
+
+    /**
+     * Validates if a given email is valid.
+     * @param {string} email - The email to validate.
+     * @returns {boolean} `true` if the email is valid, otherwise `false`.
+     */
+    validateEmail(email) {
+        if (!email || typeof email !== 'string') return false;
+
+        email = email.trim();
+        if (email.length > 254) return false;// RFC practical limit
+
+        if (!_emailRegExp.test(email)) return false;
+
+        // Further checking of some things regex can't handle
+        const [account, address] = email.split('@');
+        if (!account || !address || account.length > 64) return false;
+
+        const domainParts = address.split('.');
+        if (domainParts.some((part) => part.length < 1 || part.length > 63)) {
+            return false;
+        }
+
+        return true;
+    },
+
+    /**
+     * Validates if a given mobile number is valid.
+     * @param {string} mobile - The mobile number to validate.
+     * @returns {boolean} `true` if the mobile number is valid, otherwise `false`.
+     */
+    validateMobile(mobile) {
+        if (!mobile || typeof mobile !== 'string') return false;
+        mobile = mobile.trim();
+        if (!_mobileRegExp.test(mobile)) return false;
         return true;
     },
 

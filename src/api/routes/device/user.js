@@ -8,8 +8,6 @@ router.get('/list', auth, usersController.list);
 
 router.get('/profile', auth, usersController.getProfile);
 
-router.get('/:id', auth, usersController.getById);
-
 router.get('/sync/data', usersController.syncData);
 
 router.post('/', auth, usersController.create);

@@ -1,20 +1,22 @@
 const router = require('express').Router();
 
-const machineController = require('../../controllers/admin/machineController');
-const isAuth = require('../../middleware/auth');
+const controller = require('../../controllers/admin/machineController');
+const auth = require('../../middleware/auth');
 
 
-router.get('/code/:workspaceId', isAuth, machineController.getMachineCode);
+router.get('/code/:workspaceId', auth, controller.getMachineCode);
 
-router.get('/:id', isAuth, machineController.getById);
+router.get('/option-list/:workspaceId', auth, controller.optionList);
 
-router.post('/create', isAuth, machineController.create);
+router.get('/:id', auth, controller.getById);
 
-router.post('/', isAuth, machineController.getList);
+router.post('/create', auth, controller.create);
 
-router.put('/update/:id', isAuth, machineController.update);
+router.post('/', auth, controller.getList);
 
-router.delete('/delete/:id', isAuth, machineController.delete);
+router.put('/update/:id', auth, controller.update);
+
+router.delete('/delete/:id', auth, controller.delete);
 
 
 module.exports = router;

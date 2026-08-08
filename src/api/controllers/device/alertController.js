@@ -1,8 +1,10 @@
+const moment = require("moment");
+
 const machineService = require("../../services/machineService");
 const maintenanceCategoryService = require("../../services/maintenanceCategoryService");
 const maintenanceDataService = require("../../services/maintenanceDataService");
-const { log, checkRequiredParams } = require("../../services/utilService");
-const moment = require("moment");
+const utilService = require("../../services/utilService");
+
 
 module.exports = {
     getAlertList: async (req, res, next) => {
@@ -34,7 +36,7 @@ module.exports = {
 
             return res.ok(Object.values(alerts), global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }
@@ -43,7 +45,7 @@ module.exports = {
     updateAlert: async (req, res, next) => {
         try {
             const body = req.body;
-            checkRequiredParams(['nextMaintenanceDate', 'lastMaintenanceDate'], body);
+            utilService.checkRequiredParams(['nextMaintenanceDate', 'lastMaintenanceDate'], body);
 
             const maintenanceData = await maintenanceDataService.findOne({ _id: req.params.id, isDeleted: false }, { useLean: true });
             if (!maintenanceData) {
@@ -73,7 +75,7 @@ module.exports = {
 
             return res.ok(updatedMaintenanceData, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     }

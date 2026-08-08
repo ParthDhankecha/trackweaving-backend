@@ -1,25 +1,30 @@
-const authService = require("../../services/authService");
-const usersService = require("../../services/usersService");
-const utilService = require("../../services/utilService");
-const { log, checkRequiredParams } = require("../../services/utilService");
-const workspaceService = require("../../services/workspaceService");
-const manufacturerService = require("../../services/manufacturerService");
-
+const authService = require('../../services/authService');
+const usersService = require('../../services/usersService');
+const workspaceService = require('../../services/workspaceService');
+const manufacturerService = require('../../services/manufacturerService');
+const utilService = require('../../services/utilService');
 
 
 module.exports = {
     create: async (req, res, next) => {
         try {
-            checkRequiredParams(['data', 'date'], req.body);
+            utilService.checkRequiredParams(['data', 'date'], req.body);
             const reqBody = await authService.decryptData(req.body);
-            checkRequiredParams(['name', 'workspaceName', 'userName', 'password'], reqBody);
+            utilService.checkRequiredParams(['name', 'workspaceName', 'userName', 'password'], reqBody);
 
             const { workspaceName, GSTNo, isActive, shiftType, startTime, endTime, ...rest } = reqBody;
 
-            const user = await usersService.findOneV2({ userName: { $regex: new RegExp(`^${rest.userName?.trim()}$`, 'i') } }, { useLean: true, projection: { _id: 1 } });
-            if (user) {
-                throw global.config.message.IS_DUPLICATE;
-            }
+            rest.userName = rest.userName?.trim();
+            const duplicate = await usersService.findOneV2({
+                userName: {
+                    $regex: `^${utilService.escapeRegex(rest.userName)}$`,
+                    $options: 'i'
+                }
+            }, {
+                useLean: true,
+                projection: { _id: 1 }
+            });
+            if (duplicate) throw global.config.message.IS_DUPLICATE;
 
             const newUser = await authService.createUser(rest);
             const workspaceObj = {
@@ -46,7 +51,7 @@ module.exports = {
 
             return res.created(null, global.config.message.CREATED);
         } catch (error) {
-            log(error)
+            utilService.log(error)
             return res.serverError(error);
         }
     },
@@ -81,7 +86,7 @@ module.exports = {
 
             return res.ok(response, global.config.message.OK);
         } catch (error) {
-            log(error)
+            utilService.log(error)
             return res.serverError(error);
         }
     },
@@ -93,14 +98,17 @@ module.exports = {
 
             return res.ok(result, global.config.message.OK);
         } catch (error) {
-            log(error)
+            utilService.log(error)
             return res.serverError(error);
         }
     },
 
     getById: async (req, res, next) => {
         try {
-            checkRequiredParams(['id'], req.params);
+            const { id } = req.params;
+            if (!utilService.isValidObjectId(id)) {
+                throw global.config.message.BAD_REQUEST;
+            }
 
             const populate = { path: 'userId', select: 'fullname userName' };
             const workspace = await workspaceService.findOne({ _id: req.params.id }, { populate, useLean: true });
@@ -110,16 +118,19 @@ module.exports = {
 
             return res.ok(workspace, global.config.message.OK);
         } catch (error) {
-            log(error)
+            utilService.log(error)
             return res.serverError(error);
         }
     },
 
     updateById: async (req, res, next) => {
         try {
-            checkRequiredParams(['id'], req.params);
-            const body = req.body;
+            const { id } = req.params;
+            if (!utilService.isValidObjectId(id)) {
+                throw global.config.message.BAD_REQUEST;
+            }
 
+            const body = req.body;
             if (Object.keys(body).length === 0) {
                 throw global.config.message.BAD_REQUEST;
             }
@@ -178,7 +189,7 @@ module.exports = {
 
             return res.ok(updatedWorkspace, global.config.message.OK);
         } catch (error) {
-            log(error)
+            utilService.log(error)
             return res.serverError(error)
         }
     }

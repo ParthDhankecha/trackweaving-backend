@@ -1,22 +1,30 @@
 const usersService = require('../../services/usersService');
 const authService = require('../../services/authService');
-const { log, checkRequiredParams } = require('../../services/utilService');
+const machineService = require('../../services/machineService');
+const utilService = require('../../services/utilService');
+
+const _commonProjection = { _id: 1, fullname: 1, userName: 1, email: 1, mobile: 1, userType: 1, isActive: 1, shift: 1, machineIds: 1 };
 
 
 module.exports = {
     getList: async (req, res, next) => {
         try {
+            const user = req.user;
             const conditions = {
-                workspaceId: req.user.workspaceId
+                workspaceId: user.workspaceId
             };
-            if (req.user.type !== global.config.USERS.TYPE.ADMIN) {
-                conditions._id = req.user.id;
+            if (user.type !== global.config.USERS.TYPE.ADMIN) {
+                conditions._id = user.id;
             }
-            const users = await usersService.findV2(conditions, { useLean: true, projection: { password: 0, userType: 0, plan: 0, updatedAt: 0, createdAt: 0 } });
 
-            return res.ok(users, global.config.message.OK);
+            const list = await usersService.findV2(conditions, {
+                projection: { ..._commonProjection },
+                useLean: true,
+            });
+
+            return res.ok(list, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }
@@ -24,13 +32,20 @@ module.exports = {
 
     getById: async (req, res, next) => {
         try {
-            checkRequiredParams(['id'], req.params);
+            const { id } = req.params;
+            if (!utilService.isValidObjectId(id)) {
+                throw global.config.message.BAD_REQUEST;
+            }
 
-            const users = await usersService.findById(req.params.id, { password: false, verification: false, isDeleted: false });
+            const { workspaceId } = req.user;
+            const userdata = await usersService.findOneV2({ _id: id, workspaceId: workspaceId }, {
+                projection: { ..._commonProjection },
+            });
+            if (!userdata) throw global.config.message.NOT_FOUND;
 
-            return res.ok(users, global.config.message.OK);
+            return res.ok(userdata, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }
@@ -38,38 +53,77 @@ module.exports = {
 
     create: async (req, res, next) => {
         try {
-            checkRequiredParams(['data', 'date'], req.body);
-            const reqBody = await authService.decryptData(req.body);
-            checkRequiredParams(['fullname', 'userName', 'password'], reqBody);
-
-            const reqUser = req.user;
-            if (reqUser.type !== global.config.USERS.TYPE.ADMIN) {
+            const user = req.user;
+            if (user.type !== global.config.USERS.TYPE.ADMIN) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            await usersService.getUserPlan(reqUser.workspaceId, true);
+            utilService.checkRequiredParams(['data', 'date'], req.body);
+            const body = await authService.decryptData(req.body);
 
-            const existingUser = await usersService.findOneV2({ userName: { $regex: new RegExp(`^${reqBody.userName?.trim()}$`, 'i') } }, {
+            const createObj = {
+                fullname: body.fullname?.trim?.(),
+                userName: body.userName?.trim?.(),
+                password: body.password?.trim?.(),
+            };
+            utilService.checkRequiredParams(['fullname', 'userName', 'password'], createObj);
+
+            if (typeof body.email === 'string' && body.email.trim()) {
+                if (!utilService.validateEmail(body.email)) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                createObj.email = body.email.trim().toLowerCase();
+            }
+            if (typeof body.mobile === 'string' && body.mobile.trim()) {
+                if (!utilService.validateMobile(body.mobile)) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                createObj.mobile = body.mobile.trim();
+            }
+            if (typeof body.isActive === 'boolean') {
+                createObj.isActive = body.isActive;
+            }
+
+            createObj.shift = usersService.validateShift(body.shift);
+
+            if (!Array.isArray(body.machineIds)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            const machineIds = [...new Set(
+                body.machineIds.filter((id) => typeof id === 'string' && utilService.isValidObjectId(id))
+            )];
+            if (!machineIds.length) throw global.config.message.MASTER_MACHINES_REQUIRED;
+            if (machineIds.length !== body.machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
+
+            await usersService.getUserPlan(user.workspaceId, true);
+
+            const duplicate = await usersService.findOneV2({
+                userName: {
+                    $regex: `^${utilService.escapeRegex(createObj.userName, { throwError: true })}$`,
+                    $options: 'i',
+                }
+            }, {
                 useLean: true,
                 projection: '_id'
             });
-            if (existingUser) {
-                throw global.config.message.USER_EXISTS;
-            }
+            if (duplicate) throw global.config.message.USER_EXISTS;
+
+            const machineCount = await machineService.countDocuments({
+                _id: { $in: machineIds },
+                workspaceId: user.workspaceId
+            });
+            if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
             await usersService.create({
-                fullname: reqBody.fullname,
-                userName: reqBody.userName,
-                password: reqBody.password,
-                email: reqBody.email || '',
-                mobile: reqBody.mobile || '',
+                ...createObj,
+                machineIds: machineIds,
                 userType: global.config.USERS.TYPE.MASTER,
-                workspaceId: reqUser.workspaceId
+                workspaceId: user.workspaceId
             });
 
             return res.ok(null, global.config.message.CREATED);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }
@@ -77,44 +131,118 @@ module.exports = {
 
     update: async (req, res, next) => {
         try {
-            const userId = req.params.id;
-            if (req.user.type !== global.config.USERS.TYPE.ADMIN && req.user.id != userId) {
+            const { id: userId } = req.params;
+            if (!utilService.isValidObjectId(userId)) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            checkRequiredParams(['data', 'date'], req.body);
-            const reqBody = await authService.decryptData(req.body);
-            if (Object.keys(reqBody).length === 0) {
+            utilService.checkRequiredParams(['data', 'date'], req.body);
+            const body = await authService.decryptData(req.body);
+            if (Object.keys(body).length === 0) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            delete reqBody.workspaceId;
-            delete reqBody.userType;
-            delete reqBody.plan;
-            delete reqBody.isDeleted;
-            delete reqBody.receiveWhatsappReport;
+            const user = req.user;
+            const USERS_TYPE = global.config.USERS.TYPE;
+            const isAdmin = user.type === USERS_TYPE.ADMIN;
+            const isSelf = user.id === userId;
 
-            if (req.user.id == userId) {
-                delete reqBody.isActive;
+            // Non-admin can only update their own profile
+            if (!isAdmin && !isSelf) {
+                throw global.config.message.UNAUTHORIZED;
             }
-            if (reqBody?.userName) {
-                const existingUser = await usersService.findOneV2({ _id: { $ne: userId }, userName: { $regex: new RegExp(`^${reqBody.userName?.trim()}$`, 'i') } }, {
-                    useLean: true,
-                    projection: '_id'
-                });
-                if (existingUser) {
-                    throw global.config.message.USER_EXISTS;
+
+            const targetUser = await usersService.findOneV2({ _id: userId, workspaceId: user.workspaceId }, {
+                useLean: true,
+                projection: 'userType'
+            });
+            if (!targetUser) throw global.config.message.NOT_FOUND;
+
+            const updateObj = {};
+            if (typeof body.fullname === 'string' && body.fullname.trim()) {
+                updateObj.fullname = body.fullname.trim();
+            }
+            if (typeof body.userName === 'string' && body.userName.trim()) {
+                updateObj.userName = body.userName.trim();
+            }
+            if (typeof body.password === 'string' && body.password.trim()) {
+                updateObj.password = body.password.trim();
+            }
+            if (typeof body.email === 'string') {
+                const email = body.email.trim();
+                if (!email) {
+                    updateObj.email = '';
+                } else if (!utilService.validateEmail(email)) {
+                    throw global.config.message.BAD_REQUEST;
+                } else {
+                    updateObj.email = email.toLowerCase();
+                }
+            }
+            if (typeof body.mobile === 'string') {
+                const mobile = body.mobile.trim();
+                if (!mobile) {
+                    updateObj.mobile = '';
+                } else if (!utilService.validateMobile(mobile)) {
+                    throw global.config.message.BAD_REQUEST;
+                } else {
+                    updateObj.mobile = mobile;
                 }
             }
 
-            const updatedUser = await usersService.findByIdAndUpdate(userId, reqBody, { projection: { password: 0, userType: 0, plan: 0, updatedAt: 0, createdAt: 0 } });
-            if (!updatedUser) {
-                throw global.config.message.NOT_UPDATED;
+            // Master-only fields: admin updating a master user
+            if (isAdmin && targetUser.userType === USERS_TYPE.MASTER) {
+                if (Array.isArray(body.shift)) {
+                    updateObj.shift = usersService.validateShift(body.shift);
+                }
+
+                if (Array.isArray(body.machineIds)) {
+                    const machineIds = [...new Set(
+                        body.machineIds.filter((id) => typeof id === 'string' && utilService.isValidObjectId(id))
+                    )];
+                    if (!machineIds?.length) throw global.config.message.MASTER_MACHINES_REQUIRED;
+                    if (machineIds.length !== body.machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
+
+                    const machineCount = await machineService.countDocuments({
+                        _id: { $in: machineIds },
+                        workspaceId: user.workspaceId
+                    });
+                    if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
+
+                    updateObj.machineIds = machineIds;
+                }
+
+                if (typeof body.isActive === 'boolean') {
+                    updateObj.isActive = body.isActive;
+                }
             }
 
-            return res.ok(updatedUser, global.config.message.OK);
+            if (Object.keys(updateObj).length === 0) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            if (updateObj.userName) {
+                const duplicate = await usersService.findOneV2({
+                    _id: { $ne: userId },
+                    userName: {
+                        $regex: `^${utilService.escapeRegex(updateObj.userName, { throwError: true })}$`,
+                        $options: 'i'
+                    }
+                }, {
+                    useLean: true,
+                    projection: '_id'
+                });
+                if (duplicate) throw global.config.message.USER_EXISTS;
+            }
+
+            const entry = await usersService.findByIdAndUpdate(userId, updateObj, {
+                projection: { ..._commonProjection },
+                useLean: true,
+            });
+            if (!entry) throw global.config.message.NOT_UPDATED;
+
+            return res.ok(entry, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }

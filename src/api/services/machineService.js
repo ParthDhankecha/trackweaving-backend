@@ -62,8 +62,21 @@ module.exports = {
         return await query;
     },
 
-    async findByIdAndDelete(_id) {
-        return await machineModel.findByIdAndUpdate({ _id: _id }, { isDeleted: true }, { new: true });
+    async softDeleteOne(queryFilter, queryOptions = {}) {
+        queryOptions = {
+            projection: undefined,
+            populate: undefined,
+            useLean: false,
+            ...queryOptions
+        };
+
+        const query = machineModel.findOneAndUpdate({ ...queryFilter, isDeleted: false }, { isDeleted: true }, { new: true });
+
+        if (queryOptions.projection) query.select(queryOptions.projection);
+        if (queryOptions.populate) query.populate(queryOptions.populate);
+        if (queryOptions.useLean) query.lean();
+
+        return await query;
     },
 
     async countDocuments(filter = {}) {

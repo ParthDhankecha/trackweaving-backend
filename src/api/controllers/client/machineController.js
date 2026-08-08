@@ -1,18 +1,20 @@
 const machineGroupService = require('../../services/machineGroupService');
 const machineService = require('../../services/machineService');
-const { log } = require('../../services/utilService');
+const utilService = require('../../services/utilService');
 
 
 module.exports = {
     optionList: async (req, res, next) => {
         try {
-            const workspaceId = req.user.workspaceId;
-            const projection = 'machineCode machineName machineGroupId';
-            const machines = await machineService.find({ workspaceId, isDeleted: false }, { projection: projection });
+            const { workspaceId } = req.user;
+            const machines = await machineService.find({ workspaceId }, {
+                projection: 'machineCode machineName machineGroupId',
+                useLean: true,
+            });
 
             return res.ok(machines, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
@@ -25,7 +27,7 @@ module.exports = {
 
             return res.ok(machines, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
@@ -87,7 +89,7 @@ module.exports = {
 
             return res.ok(updatedMachine, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     }

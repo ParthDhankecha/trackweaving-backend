@@ -338,7 +338,22 @@ module.exports = {
         },
         INVALID_SHIFT: {
             code: "E_BAD_REQUEST",
-            message: "Shift value is invalid, it should be either 'day' or 'night'.",
+            message: "Shift value is invalid. It should be Day (0) or Night (1) or both (0,1).",
+            status: 400
+        },
+        MASTER_SHIFT_REQUIRED: {
+            code: "E_BAD_REQUEST",
+            message: "Shift is required for master users.",
+            status: 400
+        },
+        MASTER_MACHINES_REQUIRED: {
+            code: "E_BAD_REQUEST",
+            message: "At least one machine is required for master users.",
+            status: 400
+        },
+        INVALID_MACHINE_IDS: {
+            code: "E_BAD_REQUEST",
+            message: "One or more selected machines are invalid or do not belong to this workspace.",
             status: 400
         },
         INVALID_INVOICE_DETAILS_CHANGE: {

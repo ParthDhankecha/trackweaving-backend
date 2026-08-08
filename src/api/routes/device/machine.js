@@ -1,8 +1,14 @@
 const router = require('express').Router();
-const machineController = require('../../controllers/device/machineController');
-const isAuth = require('../../middleware/auth');
 
-router.get('/', isAuth, machineController.getMachineList);
-router.put('/:id', isAuth, machineController.updateMachine);
+const controller = require('../../controllers/device/machineController');
+const auth = require('../../middleware/auth');
+
+
+router.get('/', auth, controller.getMachineList);
+
+router.get('/option-list', auth, controller.optionList);
+
+router.put('/:id', auth, controller.updateMachine);
+
 
 module.exports = router;

@@ -159,6 +159,13 @@ module.exports = {
         return await userModel.updateOne({ ...queryFilter, isDeleted: false }, updateData);
     },
 
+    async updateMany(filter = {}, updatesObj = {}) {
+        return await userModel.updateMany({
+            ...filter,
+            isDeleted: false
+        }, updatesObj);
+    },
+
     async create(data) {
         if (data.password) {
             data.password = await utilService.generateHashValue(data.password);
@@ -204,5 +211,17 @@ module.exports = {
             throw global.config.message.PLAN_EXPIRED;
         }
         return workspace;
+    },
+
+    validateShift(shifts) {
+        if (!Array.isArray(shifts) || shifts.length === 0) {
+            throw global.config.message.INVALID_SHIFT;
+        }
+
+        const SHIFT_TYPE = Object.values(global.config.SHIFT_TYPE ?? {});
+        if (shifts.some(shift => typeof shift !== 'number' || !SHIFT_TYPE.includes(shift))) {
+            throw global.config.message.INVALID_SHIFT;
+        }
+        return shifts;
     }
 }

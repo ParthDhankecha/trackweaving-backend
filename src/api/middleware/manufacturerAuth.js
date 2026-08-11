@@ -1,23 +1,23 @@
 const jwtService = require('../services/jwtService');
-const { log } = require('../services/utilService');
+const utilService = require('../services/utilService');
 
 
 module.exports = async (req, res, next) => {
     try {
-        if (req.headers && req.headers.authorization) {
-            const payload = await jwtService.verifyManufacturerToken(req.headers.authorization);
+        const token = req.headers?.authorization?.trim?.();
+        if (!token) return res.unauthorized({}, global.config.message.UNAUTHORIZED);
 
-            if (payload && payload.manufacturerId) {
-                req.mfrUser = payload;
-                return next();
-            }
-
-            return res.unauthorized({}, global.config.message.UNAUTHORIZED);
-        } else {
+        const payload = jwtService.verifyManufacturerToken(token);
+        if (payload?.expiredAt) {
+            return res.unauthorized({}, global.config.message.TOKEN_EXPIRED);
+        }
+        if (!payload.manufacturerId || !payload.id) {
             return res.unauthorized({}, global.config.message.UNAUTHORIZED);
         }
+
+        req.mfrUser = payload;
+        next();
     } catch (error) {
-        log(error);
-        return res.unauthorized({}, global.config.message.TOKEN_EXPIRED);
+        return res.unauthorized({}, global.config.message.UNAUTHORIZED);
     }
 };

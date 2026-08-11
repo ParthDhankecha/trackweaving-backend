@@ -1,17 +1,18 @@
 const router = require('express').Router();
 
-const workspaceController = require('../../controllers/admin/workspaceController');
-const isAuth = require('../../middleware/auth');
+const auth = require('../../middleware/adminAuth');
+const controller = require('../../controllers/admin/workspaceController');
 
-router.post('/create', isAuth, workspaceController.create);
 
-router.post('/pagination', isAuth, workspaceController.getList);
+router.post('/create', auth, controller.create);
 
-router.get('/option-list', isAuth, workspaceController.getAllList);
+router.post('/pagination', auth, controller.getList);
 
-router.get('/:id', isAuth, workspaceController.getById);
+router.get('/option-list', auth, controller.getAllList);
 
-router.put('/update/:id', isAuth, workspaceController.updateById);
+router.get('/:id', auth, controller.getById);
+
+router.put('/update/:id', auth, controller.updateById);
 
 
 module.exports = router;

@@ -23,4 +23,5 @@ router.use('/manufacturer-user', require('./manufacturerUser'));
 
 router.use('/alert-config', require('./alertConfig'));
 
+
 module.exports = router;

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 
+const auth = require('../../middleware/adminAuth');
 const controller = require('../../controllers/admin/invoiceController');
-const auth = require('../../middleware/auth');
 
 
 router.get('/options', auth, controller.getOptions);

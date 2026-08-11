@@ -1,13 +1,14 @@
 const router = require('express').Router();
 
+const auth = require('../../middleware/adminAuth');
 const controller = require('../../controllers/admin/appVersionController');
 
 
-router.get('/', controller.get);
+router.get('/', auth, controller.get);
 
-router.post('/', controller.create);
+router.post('/', auth, controller.create);
 
-router.put('/', controller.update);
+router.put('/', auth, controller.update);
 
 
 module.exports = router;

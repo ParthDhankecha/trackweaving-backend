@@ -16,12 +16,18 @@ module.exports = {
         const payload = {
             user: {
                 id: user._id,
-                type: user?.userType,
-                uid: user?.uid || '',
-                workspaceId: user?.workspaceId || null,
-                subUserLimit: user?.plan?.subUserLimit || 4
+                type: user.userType,
             }
         };
+        if (String(user?.uid || '')) {
+            payload.user.uid = user.uid;
+        }
+        if (String(user?.workspaceId || '')) {
+            payload.user.workspaceId = user.workspaceId;
+        }
+        if (String(user?.plan?.subUserLimit ?? '')) {
+            payload.user.subUserLimit = user.plan.subUserLimit;
+        }
 
         const options = {
             algorithm: ALGORITHM

@@ -1,8 +1,10 @@
 const router = require('express').Router();
 
+const auth = require('../../middleware/adminAuth');
 const controller = require('../../controllers/admin/machineController');
-const auth = require('../../middleware/auth');
 
+
+router.get('/configurations', auth, controller.getConfigurations);
 
 router.get('/code/:workspaceId', auth, controller.getMachineCode);
 

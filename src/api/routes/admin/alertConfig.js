@@ -1,16 +1,16 @@
 const router = require('express').Router();
 
-const alertConfigController = require('../../controllers/admin/alertConfigController');
-const isAuth = require('../../middleware/auth');
+const auth = require('../../middleware/adminAuth');
+const controller = require('../../controllers/admin/alertConfigController');
 
 
-router.get('/workspace/:workspaceId', isAuth, alertConfigController.getByWorkspace);
+router.get('/workspace/:workspaceId', auth, controller.getByWorkspace);
 
-router.put('/workspace/:workspaceId', isAuth, alertConfigController.upsertWorkspace);
+router.put('/workspace/:workspaceId', auth, controller.upsertWorkspace);
 
-router.put('/user/:userId', isAuth, alertConfigController.upsertUser);
+router.put('/user/:userId', auth, controller.upsertUser);
 
-router.delete('/user/:userId', isAuth, alertConfigController.deleteUserOverride);
+router.delete('/user/:userId', auth, controller.deleteUserOverride);
 
 
 module.exports = router;

@@ -26,5 +26,6 @@ module.exports = {
         //     model: 'userModel'
         // }
     ],
+    BEAM_LEFT_MIN: 1000,
     API_KEY: '4d38b5078b4bcd8122e3af614b1239379de1205d85e48808555eb8ca13019f21'
 };

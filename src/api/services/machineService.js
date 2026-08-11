@@ -1,4 +1,8 @@
-const { Types } = require('mongoose');
+const { ObjectId } = require('mongoose').Types;
+
+const _machineCodeRegex = /^M\d+$/;
+const _ipRegex = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
 
 module.exports = {
     create: async (body) => {
@@ -34,10 +38,14 @@ module.exports = {
             projection: undefined,
             populate: undefined,
             useLean: false,
+            handleDeleted: true,
             ...queryOptions
         };
 
-        const query = machineModel.findOne({ ...options, isDeleted: false });
+        const query = machineModel.findOne({
+            ...options,
+            ...(queryOptions.handleDeleted && { isDeleted: false }),
+        });
 
         if (queryOptions.projection) query.select(queryOptions.projection);
         if (queryOptions.populate) query.populate(queryOptions.populate);
@@ -100,7 +108,7 @@ module.exports = {
 
     async getNextMachineCode(workspaceId) {
         const result = await machineModel.aggregate([
-            { $match: { workspaceId: Types.ObjectId(workspaceId) } },
+            { $match: { workspaceId: ObjectId(workspaceId) } },
             {
                 $addFields: {
                     numericCode: {
@@ -118,5 +126,17 @@ module.exports = {
         }
 
         return `M${nextNumber}`;
+    },
+    validateMachineCode(machineCode) {
+        if (!_machineCodeRegex.test(machineCode)) {
+            throw global.config.message.BAD_REQUEST;
+        }
+        return true;
+    },
+    validateIp(ip) {
+        if (!_ipRegex.test(ip)) {
+            throw global.config.message.BAD_REQUEST;
+        }
+        return true;
     }
 }

@@ -1,15 +1,15 @@
 const adminUserService = require('../../services/adminUserService');
 const authService = require('../../services/authService');
 const jwtService = require('../../services/jwtService');
-const { log, checkRequiredParams } = require('../../services/utilService');
+const utilService = require('../../services/utilService');
 
 
 module.exports = {
     async signIn(req, res, next) {
         try {
-            checkRequiredParams(['data', 'date'], req.body);
+            utilService.checkRequiredParams(['data', 'date'], req.body);
             const reqBody = await authService.decryptData(req.body);
-            checkRequiredParams(['email', 'password'], reqBody);
+            utilService.checkRequiredParams(['email', 'password'], reqBody);
 
             const userData = await adminUserService.login(reqBody.email, reqBody.password);
             if (!userData) {
@@ -28,7 +28,7 @@ module.exports = {
 
             return res.ok(payload, global.config.message.LOGIN);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error);
         }

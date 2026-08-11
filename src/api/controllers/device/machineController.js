@@ -42,52 +42,89 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const machine = await machineService.findOne({ _id: machineId, isDeleted: false }, {
-                useLean: true,
-            });
-            if (!machine) throw global.config.message.RECORD_NOT_FOUND;
+            const { workspaceId } = req.user;
+            const machine = await machineService.findOne({ _id: machineId, workspaceId }, { useLean: true });
+            if (!machine) {
+                throw global.config.message.RECORD_NOT_FOUND;
+            }
 
-            const updateData = req.body;
-            if (updateData.machineGroupId) {
-                const machineGroup = await machineGroupService.findOne({ _id: updateData.machineGroupId }, {
+            const updateObj = {}, updateData = req.body;
+            if (updateData.machineCode) {
+                machineService.validateMachineCode(updateData.machineCode);
+                updateObj.machineCode = updateData.machineCode;
+            }
+            if (updateData.hasOwnProperty('machineGroupId')) {
+                updateObj.machineGroupId = null;
+                if (updateData.machineGroupId) {
+                    if (!utilService.isValidObjectId(updateData.machineGroupId)) {
+                        throw global.config.message.BAD_REQUEST;
+                    }
+
+                    const mg = await machineGroupService.findOne({ _id: updateData.machineGroupId, workspaceId }, {
+                        useLean: true,
+                        projection: '_id'
+                    });
+                    if (!mg) throw global.config.message.MACHINE_GROUP_NOT_FOUND;
+
+                    updateObj.machineGroupId = mg._id;
+                }
+            }
+            if (updateData?.hasOwnProperty('maxSpeedLimit')) {
+                updateObj.maxSpeedLimit = null;
+                if (utilService.isNumber(updateData.maxSpeedLimit, { min: 1 })) {
+                    updateObj.maxSpeedLimit = updateData.maxSpeedLimit;
+                }
+            }
+            if (typeof updateData.quality === 'string') {
+                updateObj.quality = updateData.quality.trim();
+            }
+            if (typeof updateData.reed === 'string') {
+                updateObj.reed = updateData.reed.trim();
+            }
+            if (typeof updateData.isAlertActive === 'boolean') {
+                updateObj.isAlertActive = updateData.isAlertActive;
+            }
+
+            if (updateObj.machineCode) {
+                const duplicate = await machineService.findOne({
+                    workspaceId,
+                    machineCode: updateObj.machineCode,
+                    _id: { $ne: machineId }
+                }, {
                     useLean: true,
-                    projection: '_id',
+                    handleDeleted: false,
+                    projection: '_id'
                 });
-                if (!machineGroup) throw global.config.message.MACHINE_GROUP_NOT_FOUND;
+                if (duplicate) throw global.config.message.IS_DUPLICATE;
             }
 
-            delete updateData._id; // Prevent updating the _id field
-            delete updateData.createdBy; // Prevent updating the createdBy field
-            delete updateData.workspaceId; // Prevent updating the workspaceId field
-            delete updateData.isDeleted; // Prevent updating the isDeleted field
-            delete updateData.ip; // Prevent updating the ip field
-            delete updateData.lastStopTime; // Prevent updating the lastStopTime field
-            delete updateData.lastStartTime; // Prevent updating the lastStartTime field
-            delete updateData.stopsCount; // Prevent updating the stopsCount field
-            delete updateData.stopsData; // Prevent updating the stopsData field
-            if (updateData.maxSpeedLimit <= 0) {
-                updateData.maxSpeedLimit = null;
-            }
-            if (updateData.maxSpeedLimit && machine.maxSpeedLimit !== updateData.maxSpeedLimit) {
-                if (!global.config.MACHINE_ALERT_CONFIG[machineId]) {
-                    global.config.MACHINE_ALERT_CONFIG[machineId] = {
-                        sendAlert: machine.isAlertActive || false
-                    };
-                }
-                global.config.MACHINE_ALERT_CONFIG[machineId].speedLimit = updateData.maxSpeedLimit;
-                delete global.config.MACHINE_ALERT_CONFIG[machineId].lastSpeedAlertTime;
-            } else if (updateData.maxSpeedLimit === null) {
-                if (global.config.MACHINE_ALERT_CONFIG[machineId]) {
+            const entry = await machineService.findOneAndUpdate({ _id: machineId, workspaceId }, updateObj, {
+                populate: 'machineGroupId',
+                projection: 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality reed'
+            });
+            if (!entry) throw global.config.message.NOT_UPDATED;
+
+
+            if (updateObj.hasOwnProperty('maxSpeedLimit')) {
+                if (!entry.maxSpeedLimit) {
                     delete global.config.MACHINE_ALERT_CONFIG[machineId];
+                } else if (entry.maxSpeedLimit && machine.maxSpeedLimit !== entry.maxSpeedLimit) {
+                    if (!global.config.MACHINE_ALERT_CONFIG[machineId]) {
+                        global.config.MACHINE_ALERT_CONFIG[machineId] = {
+                            sendAlert: entry.isAlertActive ?? false
+                        };
+                    }
+
+                    global.config.MACHINE_ALERT_CONFIG[machineId].speedLimit = entry.maxSpeedLimit;
+                    delete global.config.MACHINE_ALERT_CONFIG[machineId].lastSpeedAlertTime;
                 }
             }
-            if (typeof updateData.isAlertActive == 'boolean' && global.config.MACHINE_ALERT_CONFIG[machineId]) {
-                global.config.MACHINE_ALERT_CONFIG[machineId].sendAlert = updateData.isAlertActive;
+            if (typeof updateObj.isAlertActive == 'boolean' && global.config.MACHINE_ALERT_CONFIG[machineId]) {
+                global.config.MACHINE_ALERT_CONFIG[machineId].sendAlert = updateObj.isAlertActive;
             }
 
-            const updatedMachine = await machineService.findByIdAndUpdate(machineId, updateData);
 
-            return res.ok(updatedMachine, global.config.message.UPDATED);
+            return res.ok(entry, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
             return res.serverError(error);

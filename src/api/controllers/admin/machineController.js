@@ -1,9 +1,26 @@
 const machineService = require('../../services/machineService');
 const usersService = require('../../services/usersService');
+const machineEnums = require('../../../config/constant/scoped/machine');
 const utilService = require('../../services/utilService');
 
 
 module.exports = {
+    getConfigurations: async (req, res, next) => {
+        try {
+            const data = {
+                machineNames: machineEnums.MACHINE_NAMES,
+                deviceTypes: machineEnums.DEVICE_TYPE,
+                displayTypes: machineEnums.DISPLAY_TYPE,
+                machineTypes: machineEnums.MACHINE_TYPE,
+            };
+
+            return res.ok(data, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
     getMachineCode: async (req, res, next) => {
         try {
             const { workspaceId } = req.params;
@@ -44,8 +61,25 @@ module.exports = {
 
     create: async (req, res, next) => {
         try {
-            utilService.checkRequiredParams(['machineCode', 'machineName', 'workspaceId', 'ip'], req.body);
             const body = req.body;
+            utilService.checkRequiredParams(['workspaceId', 'machineCode', 'machineName', 'ip'], body);
+            if (!utilService.isValidObjectId(body.workspaceId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            machineService.validateMachineCode(body.machineCode);
+            machineService.validateIp(body.ip);
+
+            const keyMap = {
+                deviceType: 'DEVICE_TYPE',
+                displayType: 'DISPLAY_TYPE',
+                machineType: 'MACHINE_TYPE'
+            };
+            for (const field in keyMap) {
+                if (typeof body[field] !== 'string' || !body[field]) throw global.config.message.BAD_REQUEST;
+                if (!machineEnums[keyMap[field]].includes(body[field])) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+            }
 
             const duplicate = await machineService.findOne({
                 workspaceId: body.workspaceId,
@@ -53,7 +87,7 @@ module.exports = {
                     { machineCode: body.machineCode },
                     { ip: body.ip }
                 ]
-            }, { useLean: true, projection: '_id' });
+            }, { useLean: true, handleDeleted: false, projection: '_id' });
             if (duplicate) throw global.config.message.IS_DUPLICATE;
 
             await machineService.create(body);
@@ -149,6 +183,18 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
+            const keyMap = {
+                deviceType: 'DEVICE_TYPE',
+                displayType: 'DISPLAY_TYPE',
+                machineType: 'MACHINE_TYPE'
+            };
+            for (const field in keyMap) {
+                if (typeof body[field] !== 'string') continue;
+                if (!body[field] || !machineEnums[keyMap[field]].includes(body[field])) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+            }
+
             if (body.machineCode || body.ip) {
                 if (!body.workspaceId) throw global.config.message.BAD_REQUEST;
 
@@ -158,15 +204,16 @@ module.exports = {
                     $or: []
                 };
                 if (body.machineCode) {
+                    machineService.validateMachineCode(body.machineCode);
                     query.$or.push({ machineCode: body.machineCode });
                 }
                 if (body.ip) {
+                    machineService.validateIp(body.ip);
                     query.$or.push({ ip: body.ip });
                 }
 
                 const duplicate = await machineService.findOne(query, {
-                    useLean: true,
-                    projection: '_id'
+                    useLean: true, handleDeleted: false, projection: '_id'
                 });
                 if (duplicate) throw global.config.message.IS_DUPLICATE;
             }

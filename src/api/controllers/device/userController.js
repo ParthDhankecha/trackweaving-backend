@@ -62,7 +62,7 @@ module.exports = {
                 efficiencyAveragePer: global.config.EFFICIENCY_AVERAGE_PER,
                 efficiencyGoodPer: global.config.EFFICIENCY_GOOD_PER,
                 forceVersion: forceVersion,
-                beamLeftMin: 1000,
+                beamLeftMin: global.config.BEAM_LEFT_MIN,
 
                 // TODO: Remove this after app update in all devices
                 iosVersion: '1.0.2',

@@ -1,6 +1,6 @@
-const { decryptData, encryptData } = require('../../services/authService');
+const authService = require('../../services/authService');
 // const jwtService = require('../../services/jwtService');
-const { log, generateRandomNumber } = require('../../services/utilService');
+const utilService = require('../../services/utilService');
 
 
 module.exports = {
@@ -18,25 +18,26 @@ module.exports = {
                 refreshInterval: global.config.REFRESH_INTERVAL,
                 efficiencyAveragePer: global.config.EFFICIENCY_AVERAGE_PER,
                 efficiencyGoodPer: global.config.EFFICIENCY_GOOD_PER,
+                beamLeftMin: global.config.BEAM_LEFT_MIN,
             };
 
             // if (body.data && body.date) {
-            //     body = await decryptData(body);
+            //     body = await authService.decryptData(body);
             //     if (body?.token) {
             //         const detailOfUserToken = await jwtService.verifyToken(body.token);
             //         if (detailOfUserToken && !jwtService.isJwtTokenExpiredError(detailOfUserToken)) { }
             //     }
             // }
 
-            const encodeKey = generateRandomNumber(13);
+            const encodeKey = utilService.generateRandomNumber(13);
             const data = {
-                data: await encryptData(syncData, encodeKey),
+                data: await authService.encryptData(syncData, encodeKey),
                 date: encodeKey
             };
 
             return res.ok(data, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     }

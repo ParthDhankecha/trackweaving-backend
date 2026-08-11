@@ -1,20 +1,20 @@
 const router = require('express').Router();
 
-const manufacturerController = require('../../controllers/admin/manufacturerController');
-const isAuth = require('../../middleware/auth');
+const auth = require('../../middleware/adminAuth');
+const controller = require('../../controllers/admin/manufacturerController');
 
 
-router.get('/option-list', isAuth, manufacturerController.getAllList);
+router.get('/option-list', auth, controller.getAllList);
 
-router.get('/:id', isAuth, manufacturerController.getById);
+router.get('/:id', auth, controller.getById);
 
-router.post('/create', isAuth, manufacturerController.create);
+router.post('/create', auth, controller.create);
 
-router.post('/pagination', isAuth, manufacturerController.getList);
+router.post('/pagination', auth, controller.getList);
 
-router.put('/update/:id', isAuth, manufacturerController.updateById);
+router.put('/update/:id', auth, controller.updateById);
 
-router.delete('/delete/:id', isAuth, manufacturerController.deleteById);
+router.delete('/delete/:id', auth, controller.deleteById);
 
 
 module.exports = router;

@@ -23,6 +23,7 @@ const machineStopsDataSubSchema = getSubSchema({
     }
 });
 
+const machineEnums = require('../../config/constant/scoped/machine');
 const machineSchema = new Schema({
     serialNumber: {
         type: String,
@@ -116,17 +117,17 @@ const machineSchema = new Schema({
     deviceType: {
         type: String,
         default: 'lan',
-        enum: ['lan', 'rs485']
+        enum: machineEnums.DEVICE_TYPE
     },
     displayType: {
         type: String,
         default: 'nazon',
-        enum: ['nazon', 'chitic', 'pickwell', 'biana', 'haiwell']
+        enum: machineEnums.DISPLAY_TYPE
     },
     machineType: {
         type: String,
         default: 'rapier',
-        enum: ['rapier', 'airjet', 'waterjet', 'circular']
+        enum: machineEnums.MACHINE_TYPE
     },
     maxSpeedLimit: {
         type: Number,

@@ -1,9 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const { message } = require('../message');
+const msgs = require('../message');
 const models = require('../../api/models/indexModel');
-const { errLog, infoLog } = require('../../api/services/utilService');
+const utilService = require('../../api/services/utilService');
 
 
 exports.setGlobalConfigs = () => {
@@ -12,7 +12,7 @@ exports.setGlobalConfigs = () => {
     /**
      * Set 'messages' to global for server response to user, Use as per requirement.
      */
-    global.config.message = message;
+    global.config.message = msgs.message;
 
     /**
      * set all 'constant' file's 'objects' and 'variables' only, not index file.
@@ -33,7 +33,7 @@ exports.setGlobalConfigs = () => {
     for (const dirPath of dirsToCreate) {
         if (!fs.existsSync(dirPath)) {
             fs.mkdirSync(dirPath, { recursive: true });
-            infoLog(`Directory successfully created. ${dirPath.replace(__dirname.replace('/config/constant', ''), '')}`);
+            utilService.infoLog(`Directory successfully created. ${dirPath.replace(__dirname.replace('/config/constant', ''), '')}`);
         }
     }
 
@@ -45,6 +45,6 @@ exports.setGlobalConfigs = () => {
             global[modelName] = modelFile;
         }
     } else {
-        errLog('Error while set models to Global Object. Check models/index* file.');
+        utilService.errLog('Error while set models to Global Object. Check models/index* file.');
     }
 }

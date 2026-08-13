@@ -1,5 +1,6 @@
 const usersService = require('../../services/usersService');
 const appVersionService = require('../../services/appVersionService');
+const machineService = require('../../services/machineService');
 const utilService = require('../../services/utilService');
 
 const _commonProjection = { _id: 1, fullname: 1, userName: 1, email: 1, mobile: 1, userType: 1, isActive: 1, shift: 1, machineIds: 1 };

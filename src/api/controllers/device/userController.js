@@ -163,8 +163,7 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            utilService.checkRequiredParams(['data', 'date'], req.body);
-            const body = await authService.decryptData(req.body);
+            const body = req.body;
             if (Object.keys(body).length === 0) {
                 throw global.config.message.BAD_REQUEST;
             }

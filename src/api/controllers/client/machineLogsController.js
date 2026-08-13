@@ -1,29 +1,29 @@
-const moment = require("moment");
+const moment = require('moment');
 
-const machineLogsService = require("../../services/machineLogsService");
-const machineService = require("../../services/machineService");
-const { checkRequiredParams, log } = require("../../services/utilService");
+const machineLogsService = require('../../services/machineLogsService');
+const machineService = require('../../services/machineService');
+const utilService = require('../../services/utilService');
 
 
 
 module.exports = {
     createInovanceLog: async (req, res, next) => {
         try {
-            checkRequiredParams(['apiKey', 'logs'], req.body);
+            utilService.checkRequiredParams(['apiKey', 'logs'], req.body);
             if (req.body.apiKey !== global.config.API_KEY) {
                 throw global.config.message.UNAUTHORIZED;
             }
             const records = await inovanceModel.insertMany(req.body.logs);
             return res.ok(records);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
 
     createLog: async (req, res, next) => {
         try {
-            checkRequiredParams(['apiKey', 'workspaceId', 'logs'], req.body);
+            utilService.checkRequiredParams(['apiKey', 'workspaceId', 'logs'], req.body);
             if (req.body.apiKey !== global.config.API_KEY) {
                 throw global.config.message.UNAUTHORIZED;
             }
@@ -62,14 +62,14 @@ module.exports = {
 
             return res.ok(null);
         } catch (error) {
-            log(error);
+            utilService.log(error);
 
             return res.serverError(error)
         }
     },
 
     getMachineList: async (req, res, next) => {
-        checkRequiredParams(['apiKey', 'workspaceId'], req.body);
+        utilService.checkRequiredParams(['apiKey', 'workspaceId'], req.body);
         if (req.body.apiKey !== global.config.API_KEY) {
             throw global.config.message.UNAUTHORIZED;
         }
@@ -111,7 +111,7 @@ module.exports = {
             const qualities = await machineLogsService.getDistinctQualities(req.user.workspaceId);
             return res.ok(qualities, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
@@ -181,7 +181,7 @@ module.exports = {
 
             return res.ok(response, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     }

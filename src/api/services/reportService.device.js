@@ -200,7 +200,7 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             totalNumbers.totalRealEfficiency += dayShift.realEfficiency;
             totalNumbers.totalProdMeter += dayShift.prodMeter;
             totalNumbers.avgCount += 1;
-            totalNumbers.avgPicks = dayShift.avgPicks;
+            totalNumbers.avgPicks += dayShift.avgPicks;
             totalNumbers.avgSpeed += dayShift.avgSpeed;
         }
         if (finalData[date].nightShift) {
@@ -217,7 +217,7 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             totalNumbers.totalRealEfficiency += nightShift.realEfficiency;
             totalNumbers.totalProdMeter += nightShift.prodMeter;
             totalNumbers.avgCount += 1;
-            totalNumbers.avgPicks = nightShift.avgPicks;
+            totalNumbers.avgPicks += nightShift.avgPicks;
             totalNumbers.avgSpeed += nightShift.avgSpeed;
         }
         parsedData.push({

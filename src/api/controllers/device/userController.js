@@ -91,7 +91,7 @@ module.exports = {
             const body = req.body;
             const createObj = {
                 fullname: body.fullname?.trim?.(),
-                userName: body.userName?.trim?.(),
+                userName: usersService.validateUserName(body.userName),
                 password: body.password?.trim?.(),
             };
             utilService.checkRequiredParams(['fullname', 'userName', 'password'], createObj);
@@ -190,7 +190,7 @@ module.exports = {
                 updateObj.fullname = body.fullname.trim();
             }
             if (typeof body.userName === 'string' && body.userName.trim()) {
-                updateObj.userName = body.userName.trim();
+                updateObj.userName = usersService.validateUserName(body.userName);
             }
             if (typeof body.password === 'string' && body.password.trim()) {
                 updateObj.password = body.password.trim();

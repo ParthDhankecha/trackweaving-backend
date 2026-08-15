@@ -19,8 +19,9 @@ const C = {
     border:     '#adb5bd',
     text:       '#212529',
     muted:      '#6c757d',
+    accent:     '#0d6efd',
+    beamLow:    '#f89595',
 };
-
 // ─── Page constants ───────────────────────────────────────────────────────────
 // A4 landscape: 841.89 × 595.28
 const PAGE_W    = 841.89;
@@ -33,8 +34,14 @@ const HDR2_H  = 13;   // Count/Duration sub-row
 const ROW_H   = 15;
 const FS_HDR  = 6.5;
 const FS_DATA = 6.5;
+const LINE_RATIO = 1.4;
 
-// ─── Fixed column definitions ─────────────────────────────────────────────────
+const SUMMARY_GAP = 14;
+const SUMMARY_HDR_H = 18;
+const SUMMARY_ROW_H = 14;
+const SUMMARY_FS = 7;
+const MINI_BANNER_H = 22;
+
 const BEAM_COMPLETION_COL = { key: 'beamCompletion', label: ['Beam', 'Completion'], w: 50, align: 'center' };
 
 function getFixedCols(showBeamCompletionDate = false) {
@@ -51,75 +58,78 @@ function getFixedCols(showBeamCompletionDate = false) {
         { key: 'runtime', label: ['Run Time'],       w: 40,  align: 'center' },
         { key: 'beam',    label: ['Beam', 'Left'],   w: 30,  align: 'right'  },
     ];
-    if (showBeamCompletionDate) {
-        cols.push(BEAM_COMPLETION_COL);
-    }
+    if (showBeamCompletionDate) cols.push(BEAM_COMPLETION_COL);
     return cols;
 }
-
-function hasBeamCompletionDate(reportData) {
-    for (const item of reportData.list || []) {
-        for (const machine of item.list || []) {
-            if (machine.beamCompletionDate) return true;
-        }
-    }
-    return false;
-}
-
-const BEAM_LOW_BG = '#f89595';
-const SUMMARY_GAP = 14;
-const SUMMARY_HDR_H = 18;
-const SUMMARY_ROW_H = 14;
-const SUMMARY_FS = 7;
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function normalizeQuality(quality) {
     const value = String(quality ?? '').trim();
     return value || 'Other';
 }
 
-function buildQualitySummaries(reportData) {
-    const productionMap = new Map();
-    const beamLeftMap = new Map();
+function compareQuality(a, b) {
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return a.localeCompare(b, undefined, { sensitivity: 'base' });
+}
+
+function collectReportMeta(reportData) {
+    let showBeamCompletion = false;
+    const qualityMap = new Map();
 
     for (const item of reportData.list || []) {
         for (const machine of item.list || []) {
+            if (!showBeamCompletion && machine.beamCompletionDate) showBeamCompletion = true;
+
             const quality = normalizeQuality(machine.quality);
+            const machineCode = String(machine.machineCode ?? '').trim() || '-';
+            if (!qualityMap.has(quality)) qualityMap.set(quality, new Map());
+
+            const machines = qualityMap.get(quality);
+            const prev = machines.get(machineCode);
             const prod = Number(machine.pieceLengthM) || 0;
             const beam = Number(machine.beamLeft) || 0;
-
-            productionMap.set(quality, (productionMap.get(quality) || 0) + prod);
-            beamLeftMap.set(quality, (beamLeftMap.get(quality) || 0) + beam);
+            if (prev) {
+                prev.prod += prod;
+                prev.beam += beam;
+            } else {
+                machines.set(machineCode, { prod, beam });
+            }
         }
     }
 
-    const toSortedRows = (map) => {
-        const rows = [...map.entries()].map(([quality, total]) => ({ quality, total }));
-        rows.sort((a, b) => {
-            if (a.quality === 'Other') return 1;
-            if (b.quality === 'Other') return -1;
-            return a.quality.localeCompare(b.quality, undefined, { sensitivity: 'base' });
-        });
-        return rows;
-    };
+    let grandProd = 0;
+    let grandBeam = 0;
+    const groups = [...qualityMap.entries()].map(([quality, machineMap]) => {
+        let production = 0;
+        let beamLeft = 0;
+        const machines = [...machineMap.entries()].map(([machine, totals]) => {
+            production += totals.prod;
+            beamLeft += totals.beam;
+            return { machine, production: totals.prod, beamLeft: totals.beam };
+        }).sort((a, b) =>
+            a.machine.localeCompare(b.machine, undefined, { numeric: true, sensitivity: 'base' })
+        );
+        grandProd += production;
+        grandBeam += beamLeft;
+        return { quality, machines, production, beamLeft };
+    }).sort((a, b) =>
+        compareQuality(a.quality, b.quality)
+    );
 
-    return {
-        production: toSortedRows(productionMap),
-        beamLeft: toSortedRows(beamLeftMap)
-    };
+    return { showBeamCompletion, groups, grandProd, grandBeam };
 }
 
 function formatQualityReed(quality, reed) {
     const q = String(quality ?? '').trim();
     const r = String(reed ?? '').trim();
     if (!q && !r) return '-';
-    if (!r) return q || '-';
+    if (!r) return q;
     return q ? `${q} (${r})` : `(${r})`;
 }
 
 function ensureReportsDir() {
-    if (!fs.existsSync(REPORTS_DIR)) fs.mkdirSync(REPORTS_DIR, { recursive: true });
+    fs.mkdirSync(REPORTS_DIR, { recursive: true });
 }
 
 function fmtDate(d) {
@@ -135,9 +145,54 @@ function str(v) {
     return (v != null && v !== '') ? String(v) : '-';
 }
 
-/**
- * Draw one table cell: fill background, stroke border, render text.
- */
+function breakWord(doc, word, width) {
+    const parts = [];
+    let chunk = '';
+    for (const ch of word) {
+        if (chunk && doc.widthOfString(chunk + ch) > width) {
+            parts.push(chunk);
+            chunk = ch;
+        } else {
+            chunk += ch;
+        }
+    }
+    if (chunk) parts.push(chunk);
+    return parts;
+}
+
+function wrapTextToWidth(doc, text, maxWidth, fontSize, bold = false) {
+    const value = String(text ?? '');
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize);
+    const width = Math.max(maxWidth, 1);
+    if (doc.widthOfString(value) <= width) return [value];
+
+    const lines = [];
+    for (const para of value.split('\n')) {
+        let line = '';
+        for (const word of para.split(/\s+/).filter(Boolean)) {
+            const next = line ? `${line} ${word}` : word;
+            if (doc.widthOfString(next) <= width) {
+                line = next;
+                continue;
+            }
+            if (line) lines.push(line);
+            if (doc.widthOfString(word) <= width) {
+                line = word;
+                continue;
+            }
+            const parts = breakWord(doc, word, width);
+            lines.push(...parts.slice(0, -1));
+            line = parts[parts.length - 1] || '';
+        }
+        if (line) lines.push(line);
+    }
+    return lines.length ? lines : [''];
+}
+
+function heightForLines(count, fontSize, minHeight, padding = 2) {
+    return Math.max(minHeight, Math.ceil(count * fontSize * LINE_RATIO + padding));
+}
+
 function cell(doc, x, y, w, h, text, {
     bg       = null,
     color    = C.text,
@@ -145,342 +200,275 @@ function cell(doc, x, y, w, h, text, {
     bold     = false,
     align    = 'center',
     padding  = 2.5,
+    lines    = null,
 } = {}) {
-    if (bg) {
-        doc.save().rect(x, y, w, h).fill(bg).restore();
-    }
-    doc.save().rect(x, y, w, h).stroke(C.border).restore();
+    if (bg) doc.rect(x, y, w, h).fillAndStroke(bg, C.border);
+    else doc.rect(x, y, w, h).stroke(C.border);
 
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica')
-       .fontSize(fontSize)
-       .fillColor(color);
+    const maxW = Math.max(w - padding * 2, 1);
+    const drawLines = lines || String(text ?? '').split('\n');
+    const lineH = fontSize * LINE_RATIO;
+    const contentH = fontSize + (drawLines.length - 1) * lineH;
+    let ty = y + (h - contentH) / 2;
 
-    const lines  = String(text ?? '').split('\n');
-    const lineH  = fontSize * 1.4;
-    const totalH = lines.length * lineH;
-    let   ty     = y + (h - totalH) / 2;
-
-    for (const line of lines) {
-        doc.text(line, x + padding, ty, { width: w - padding * 2, align, lineBreak: false });
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize).fillColor(color);
+    for (const line of drawLines) {
+        doc.text(line, x + padding, ty, { width: maxW, align, lineBreak: false, ellipsis: true, baseline: 'top' });
         ty += lineH;
     }
 }
 
-/**
- * Build the full column layout so the total width equals exactly CONTENT_W.
- *
- * Strategy:
- *   remaining = CONTENT_W - FIXED_W
- *   Split remaining among (numStops + 1) pairs where the "Total" pair
- *   gets a 20% bonus over each regular stop pair.
- *
- *   Each pair: cntW = floor(pairW * 0.38), durW = pairW - cntW
- *
- * Returns: { cols, stopPairW, totCntW, totDurW }
- */
 function buildCols(stopCols, fixedCols) {
     const fixedW = fixedCols.reduce((s, c) => s + c.w, 0);
     const remaining = CONTENT_W - fixedW;
     const numStops  = stopCols.length;
 
-    // Total pair is 1.2× a regular stop pair
-    // N * pairW + 1.2 * pairW = remaining  →  pairW = remaining / (N + 1.2)
     const pairW    = remaining / (numStops + 1.2);
-    const totPairW = remaining - numStops * pairW;  // absorbs any rounding
-
-    // Within each regular stop pair
+    const totPairW = remaining - numStops * pairW;
     const cntW = Math.floor(pairW * 0.38);
     const durW = Math.round(pairW - cntW);
-
-    // Within the total pair
     const totCntW = Math.floor(totPairW * 0.38);
     const totDurW = Math.round(totPairW - totCntW);
 
     const cols = fixedCols.map(c => ({ ...c }));
-
     for (const sc of stopCols) {
         cols.push({
             key: `stop_${sc.key}_cnt`, stopKey: sc.key, sub: 'count',
             label: [sc.label, 'Count'], w: cntW, align: 'right', isStop: true,
-            groupW: cntW + durW, groupLabel: sc.label,
         });
         cols.push({
             key: `stop_${sc.key}_dur`, stopKey: sc.key, sub: 'duration',
             label: [sc.label, 'Duration'], w: durW, align: 'center', isStop: true,
         });
     }
-
-    cols.push({ key: 'tot_cnt', label: ['Total', 'Count'],    w: totCntW, align: 'right',  isTotal: true, groupW: totCntW + totDurW });
+    cols.push({ key: 'tot_cnt', label: ['Total', 'Count'],    w: totCntW, align: 'right',  isTotal: true });
     cols.push({ key: 'tot_dur', label: ['Stops', 'Duration'], w: totDurW, align: 'center', isTotal: true });
 
-    return { cols, cntW, durW, totCntW, totDurW, stopPairW: cntW + durW, totPairW };
+    return { cols, cntW, durW, totCntW, totDurW, stopPairW: cntW + durW, totPairW, fixedW };
 }
 
-/**
- * Draw the 2-row table header. Returns Y after header.
- */
 function drawHeader(doc, x, y, colLayout, stopCols, fixedCols) {
-    const { cols, stopPairW, totPairW, cntW, durW, totCntW, totDurW } = colLayout;
-    const r1y = y, r2y = y + HDR1_H;
+    const { stopPairW, totPairW, cntW, durW, totCntW, totDurW, fixedW } = colLayout;
+    const r1y = y;
+    const r2y = y + HDR1_H;
+    const head = { bg: C.headerBg, color: C.headerText, fontSize: FS_HDR, bold: true, align: 'center' };
+    const sub = { bg: C.subHeadBg, color: C.headerText, fontSize: FS_HDR - 0.5, align: 'center' };
     let cx = x;
 
-    // Row 1: fixed cols span both header rows
     for (const c of fixedCols) {
-        cell(doc, cx, r1y, c.w, HDR1_H + HDR2_H, c.label.join('\n'), {
-            bg: C.headerBg, color: C.headerText, fontSize: FS_HDR, bold: true, align: 'center',
-        });
+        cell(doc, cx, r1y, c.w, HDR1_H + HDR2_H, c.label.join('\n'), head);
         cx += c.w;
     }
-
-    // Row 1: stop group labels
     for (const sc of stopCols) {
-        cell(doc, cx, r1y, stopPairW, HDR1_H, sc.label, {
-            bg: C.headerBg, color: C.headerText, fontSize: FS_HDR, bold: true, align: 'center',
-        });
+        cell(doc, cx, r1y, stopPairW, HDR1_H, sc.label, head);
         cx += stopPairW;
     }
+    cell(doc, cx, r1y, totPairW, HDR1_H, 'Total Stops', head);
 
-    // Row 1: "Total Stops"
-    cell(doc, cx, r1y, totPairW, HDR1_H, 'Total Stops', {
-        bg: C.headerBg, color: C.headerText, fontSize: FS_HDR, bold: true, align: 'center',
-    });
-
-    // Row 2: Count / Duration sub-labels
-    const fixedW = fixedCols.reduce((s, c) => s + c.w, 0);
     cx = x + fixedW;
-    for (const sc of stopCols) {
-        cell(doc, cx,        r2y, cntW, HDR2_H, 'Count',    { bg: C.subHeadBg, color: C.headerText, fontSize: FS_HDR - 0.5, align: 'center' });
-        cell(doc, cx + cntW, r2y, durW, HDR2_H, 'Duration', { bg: C.subHeadBg, color: C.headerText, fontSize: FS_HDR - 0.5, align: 'center' });
+    for (let i = 0; i < stopCols.length; i++) {
+        cell(doc, cx,        r2y, cntW, HDR2_H, 'Count', sub);
+        cell(doc, cx + cntW, r2y, durW, HDR2_H, 'Duration', sub);
         cx += stopPairW;
     }
-    cell(doc, cx,           r2y, totCntW, HDR2_H, 'Count',    { bg: C.subHeadBg, color: C.headerText, fontSize: FS_HDR - 0.5, align: 'center' });
-    cell(doc, cx + totCntW, r2y, totDurW, HDR2_H, 'Duration', { bg: C.subHeadBg, color: C.headerText, fontSize: FS_HDR - 0.5, align: 'center' });
+    cell(doc, cx,           r2y, totCntW, HDR2_H, 'Count', sub);
+    cell(doc, cx + totCntW, r2y, totDurW, HDR2_H, 'Duration', sub);
 
     return r2y + HDR2_H;
 }
 
-/**
- * Draw one machine data row. Returns next Y.
- */
-function drawDataRow(doc, x, y, machine, item, cols, bg) {
+function dataCellValue(c, machine, item) {
+    switch (c.key) {
+        case 'date': return fmtDate(item.reportDate);
+        case 'shift': return str(item.shiftLabel);
+        case 'machine': return str(machine.machineCode);
+        case 'quality': return formatQualityReed(machine.quality, machine.reed);
+        case 'prod': return fmtNum(machine.pieceLengthM);
+        case 'picks': return str(machine.picksCurrentShift);
+        case 'eff': return fmtNum(machine.efficiencyPercent, 1);
+        case 'realEff': return fmtNum(machine.realEfficiencyPercent, 1);
+        case 'speed': return fmtNum(machine.speedRpm, 0);
+        case 'runtime': return str(machine.runTime);
+        case 'beam': return str(machine.beamLeft);
+        case 'beamCompletion': return fmtDate(machine.beamCompletionDate);
+        case 'tot_cnt': return str(machine.stopsData?.total?.count);
+        case 'tot_dur': return str(machine.stopsData?.total?.duration);
+        default:
+            if (c.isStop) {
+                return str(machine.stopsData?.[c.stopKey]?.[c.sub === 'count' ? 'count' : 'duration']);
+            }
+            return '-';
+    }
+}
+
+function drawDataRow(doc, x, y, machine, item, cols, bg, rowH, qualityLines) {
     let cx = x;
     for (const c of cols) {
-        let val;
-        if      (c.key === 'date')    val = fmtDate(item.reportDate);
-        else if (c.key === 'shift')   val = str(item.shiftLabel);
-        else if (c.key === 'machine') val = str(machine.machineCode);
-        else if (c.key === 'quality') val = formatQualityReed(machine.quality, machine.reed);
-        else if (c.key === 'prod')    val = fmtNum(machine.pieceLengthM);
-        else if (c.key === 'picks')   val = str(machine.picksCurrentShift);
-        else if (c.key === 'eff')     val = fmtNum(machine.efficiencyPercent, 1);
-        else if (c.key === 'realEff') val = fmtNum(machine.realEfficiencyPercent, 1);
-        else if (c.key === 'speed')   val = fmtNum(machine.speedRpm);
-        else if (c.key === 'runtime') val = str(machine.runTime);
-        else if (c.key === 'beam') {
-            val = str(machine.beamLeft);
+        const val = dataCellValue(c, machine, item);
+        let rowBg = bg;
+        if (c.key === 'beam') {
             const beamValue = Number(machine.beamLeft);
-            const rowBg = Number.isFinite(beamValue) && beamValue < 1000 ? BEAM_LOW_BG : bg;
-            cell(doc, cx, y, c.w, ROW_H, val, { bg: rowBg, color: C.text, fontSize: FS_DATA, align: c.align });
-            cx += c.w;
-            continue;
+            if (Number.isFinite(beamValue) && beamValue < 1000) rowBg = C.beamLow;
         }
-        else if (c.key === 'beamCompletion') val = fmtDate(machine.beamCompletionDate);
-        else if (c.isStop)            val = c.sub === 'count'
-            ? str(machine.stopsData?.[c.stopKey]?.count)
-            : str(machine.stopsData?.[c.stopKey]?.duration);
-        else if (c.key === 'tot_cnt') val = str(machine.stopsData?.total?.count);
-        else if (c.key === 'tot_dur') val = str(machine.stopsData?.total?.duration);
-        else                          val = '-';
-
-        cell(doc, cx, y, c.w, ROW_H, val, { bg, color: C.text, fontSize: FS_DATA, align: c.align });
+        cell(doc, cx, y, c.w, rowH, val, {
+            bg: rowBg,
+            color: C.text,
+            fontSize: FS_DATA,
+            align: c.align,
+            lines: c.key === 'quality' ? qualityLines : null,
+        });
         cx += c.w;
     }
-    return y + ROW_H;
+    return y + rowH;
 }
 
-/**
- * Draw a bold subtotal row.
- * Run Time + Beam Left are merged into one cell → "Avg Picks: X".
- * Returns next Y.
- */
-function drawSubtotalRow(doc, x, y, item, cols) {
+function drawTotalsRow(doc, x, y, cols, { bg, values, avgPicks }) {
     let cx = x;
-    let rtX = null, mergedW = 0;
+    let mergeX = null;
+    let mergeW = 0;
 
     for (const c of cols) {
-        if (c.key === 'runtime') { rtX = cx; mergedW += c.w; cx += c.w; continue; }
-        if (c.key === 'beam' || c.key === 'beamCompletion') { mergedW += c.w; cx += c.w; continue; }
+        if (c.key === 'runtime') { mergeX = cx; mergeW += c.w; cx += c.w; continue; }
+        if (c.key === 'beam' || c.key === 'beamCompletion') { mergeW += c.w; cx += c.w; continue; }
 
-        let val = '', align = c.align || 'center';
-        if      (c.key === 'date')    val = fmtDate(item.reportDate);
-        else if (c.key === 'shift')   { val = str(item.shiftLabel); align = 'left'; }
-        else if (c.key === 'machine') val = 'Subtotal';
-        else if (c.key === 'prod')    val = fmtNum(item.prodMeter);
-        else if (c.key === 'picks')   val = str(item.totalPicks);
-        else if (c.key === 'eff')     val = fmtNum(item.efficiency, 1);
-        else if (c.key === 'realEff') val = fmtNum(item.realEfficiency, 1);
-        else if (c.key === 'speed')   val = fmtNum(item.avgSpeed);
-        else                          val = '';
-
-        cell(doc, cx, y, c.w, ROW_H, val, { bg: C.subtotalBg, color: C.text, fontSize: FS_DATA, bold: true, align });
+        const entry = values[c.key] || { val: '', align: c.align || 'center' };
+        cell(doc, cx, y, c.w, ROW_H, entry.val, {
+            bg, color: C.text, fontSize: FS_DATA, bold: true, align: entry.align,
+        });
         cx += c.w;
     }
 
-    if (rtX !== null) {
-        cell(doc, rtX, y, mergedW, ROW_H, `Avg Picks: ${str(item.avgPicks)}`, {
-            bg: C.subtotalBg, color: C.text, fontSize: FS_DATA, bold: true, align: 'left',
+    if (mergeX !== null) {
+        cell(doc, mergeX, y, mergeW, ROW_H, `Avg Picks: ${str(avgPicks)}`, {
+            bg, color: C.text, fontSize: FS_DATA, bold: true, align: 'left',
         });
     }
-
     return y + ROW_H;
 }
 
-/**
- * Draw one compact quality summary table. Returns next Y.
- */
-function drawQualitySummaryTable(doc, x, y, width, title, valueLabel, rows) {
-    const qualityW = Math.round(width * 0.58);
-    const valueW = width - qualityW;
-    let cy = y;
-
-    cell(doc, x, cy, width, SUMMARY_HDR_H, title, {
-        bg: C.headerBg,
-        color: C.headerText,
-        fontSize: SUMMARY_FS,
-        bold: true,
-        align: 'center'
-    });
-    cy += SUMMARY_HDR_H;
-
-    cell(doc, x, cy, qualityW, SUMMARY_ROW_H, 'Quality', {
-        bg: C.subHeadBg,
-        color: C.headerText,
-        fontSize: SUMMARY_FS,
-        bold: true,
-        align: 'center'
-    });
-    cell(doc, x + qualityW, cy, valueW, SUMMARY_ROW_H, valueLabel, {
-        bg: C.subHeadBg,
-        color: C.headerText,
-        fontSize: SUMMARY_FS,
-        bold: true,
-        align: 'center'
-    });
-    cy += SUMMARY_ROW_H;
-
-    if (!rows.length) {
-        cell(doc, x, cy, width, SUMMARY_ROW_H, 'No data', {
-            bg: C.altBg,
-            color: C.muted,
-            fontSize: SUMMARY_FS,
-            align: 'center'
-        });
-        return cy + SUMMARY_ROW_H;
-    }
-
-    rows.forEach((row, index) => {
-        const rowBg = index % 2 === 0 ? C.altBg : C.rowBg;
-        cell(doc, x, cy, qualityW, SUMMARY_ROW_H, row.quality, {
-            bg: rowBg,
-            color: C.text,
-            fontSize: SUMMARY_FS,
-            align: 'left',
-            padding: 4
-        });
-        cell(doc, x + qualityW, cy, valueW, SUMMARY_ROW_H, fmtNum(row.total), {
-            bg: rowBg,
-            color: C.text,
-            fontSize: SUMMARY_FS,
-            align: 'right',
-            padding: 4
-        });
-        cy += SUMMARY_ROW_H;
-    });
-
-    const total = rows.reduce((sum, row) => sum + (Number(row.total) || 0), 0);
-    cell(doc, x, cy, qualityW, SUMMARY_ROW_H, 'Total', {
-        bg: C.grandBg,
-        color: C.text,
-        fontSize: SUMMARY_FS,
-        bold: true,
-        align: 'left',
-        padding: 4
-    });
-    cell(doc, x + qualityW, cy, valueW, SUMMARY_ROW_H, fmtNum(total), {
-        bg: C.grandBg,
-        color: C.text,
-        fontSize: SUMMARY_FS,
-        bold: true,
-        align: 'right',
-        padding: 4
-    });
-
-    return cy + SUMMARY_ROW_H;
+function getSummaryColWidths(tableW) {
+    const qualityW = Math.round(tableW * 0.30);
+    const machineW = Math.round(tableW * 0.18);
+    const valueW = Math.round(tableW * 0.26);
+    return { qualityW, machineW, valueW, totalW: tableW - qualityW - machineW - valueW };
 }
 
-/**
- * Draw quality-wise production and beam-left tables side by side.
- */
-function drawQualitySummarySection(doc, x, y, summaries) {
+function drawSummaryTableHead(doc, x, y, width, widths, title, valueLabel) {
+    const { qualityW, machineW, valueW, totalW } = widths;
+    cell(doc, x, y, width, SUMMARY_HDR_H, title, {
+        bg: C.headerBg, color: C.headerText, fontSize: SUMMARY_FS, bold: true, align: 'center',
+    });
+    const hy = y + SUMMARY_HDR_H;
+    const head = { bg: C.subHeadBg, color: C.headerText, fontSize: SUMMARY_FS, bold: true, align: 'center' };
+    cell(doc, x, hy, qualityW, SUMMARY_ROW_H, 'Quality', head);
+    cell(doc, x + qualityW, hy, machineW, SUMMARY_ROW_H, 'Machine', head);
+    cell(doc, x + qualityW + machineW, hy, valueW, SUMMARY_ROW_H, valueLabel, {...head, align: 'right'});
+    cell(doc, x + qualityW + machineW + valueW, hy, totalW, SUMMARY_ROW_H, 'Total', {...head, align: 'right'});
+    return hy + SUMMARY_ROW_H;
+}
+
+function drawSummaryGroup(doc, x, y, widths, { qualityLines, machines, total, valueKey, groupH, highlightLow }) {
+    const { qualityW, machineW, valueW, totalW } = widths;
+    const rowH = groupH / machines.length;
+    const machineX = x + qualityW;
+    const valueX = machineX + machineW;
+    const totalX = valueX + valueW;
+    const base = { color: C.text, fontSize: SUMMARY_FS, padding: 4 };
+
+    cell(doc, x, y, qualityW, groupH, '', {
+        ...base, bg: C.altBg, bold: true, align: 'left', lines: qualityLines,
+    });
+
+    const valueFormat = valueKey === 'beamLeft' ? 0 : undefined;
+    for (let i = 0; i < machines.length; i++) {
+        const row = machines[i];
+        const ry = y + i * rowH;
+        const rowBg = i % 2 === 0 ? C.rowBg : C.altBg;
+        const value = row[valueKey];
+        const valueBg = (highlightLow && Number.isFinite(Number(value)) && Number(value) < 1000) ? C.beamLow : rowBg;
+
+        cell(doc, machineX, ry, machineW, rowH, row.machine, { ...base, bg: rowBg, align: 'center' });
+        cell(doc, valueX, ry, valueW, rowH, fmtNum(value, valueFormat), { ...base, bg: valueBg, align: 'right' });
+    }
+
+    cell(doc, totalX, y, totalW, groupH, fmtNum(total, valueFormat), {
+        ...base, bg: C.subtotalBg, bold: true, align: 'right',
+    });
+    return y + groupH;
+}
+
+function drawSummaryGrandTotal(doc, x, y, widths, total, valueKey) {
+    const { qualityW, machineW, valueW, totalW } = widths;
+    const opts = { bg: C.grandBg, color: C.text, fontSize: SUMMARY_FS, bold: true, padding: 4 };
+    cell(doc, x, y, qualityW + machineW + valueW, SUMMARY_ROW_H, 'Total', { ...opts, align: 'left' });
+    cell(doc, x + qualityW + machineW + valueW, y, totalW, SUMMARY_ROW_H, fmtNum(total, valueKey === 'beamLeft' ? 0 : undefined), { ...opts, align: 'right' });
+}
+
+function drawQualitySummarySection(doc, x, y, groups, grandProd, grandBeam, { onPageBreak } = {}) {
     const tableW = (CONTENT_W - SUMMARY_GAP) / 2;
     const leftX = x;
     const rightX = x + tableW + SUMMARY_GAP;
+    const widths = getSummaryColWidths(tableW);
+    const pad = 4;
+    let cy = y;
 
-    const leftEndY = drawQualitySummaryTable(
-        doc,
-        leftX,
-        y,
-        tableW,
-        'Quality-wise Production',
-        'Prod (Mtrs)',
-        summaries.production
-    );
-    const rightEndY = drawQualitySummaryTable(
-        doc,
-        rightX,
-        y,
-        tableW,
-        'Quality-wise Beam Left',
-        'Beam Left',
-        summaries.beamLeft
-    );
-
-    return Math.max(leftEndY, rightEndY);
-}
-
-/**
- * Draw the grand total row.
- * Run Time + Beam Left are merged → "Avg Picks: X".
- * Returns next Y.
- */
-function drawGrandTotalRow(doc, x, y, exportData, cols) {
-    let cx = x;
-    let rtX = null, mergedW = 0;
-
-    for (const c of cols) {
-        if (c.key === 'runtime') { rtX = cx; mergedW += c.w; cx += c.w; continue; }
-        if (c.key === 'beam' || c.key === 'beamCompletion') { mergedW += c.w; cx += c.w; continue; }
-
-        let val = '', align = c.align || 'center';
-        if      (c.key === 'date')  { val = 'TOTAL'; align = 'center'; }
-        else if (c.key === 'prod')  val = fmtNum(exportData.avgProdMeter);
-        else if (c.key === 'picks') val = str(exportData.totalPicks);
-        else if (c.key === 'eff')   val = fmtNum(exportData.totalEfficiency, 1);
-        else if (c.key === 'realEff') val = fmtNum(exportData.totalRealEfficiency, 1);
-        else if (c.key === 'speed')   val = fmtNum(exportData.avgSpeed);
-        else                        val = '';
-
-        cell(doc, cx, y, c.w, ROW_H, val, { bg: C.grandBg, color: C.text, fontSize: FS_DATA, bold: true, align });
-        cx += c.w;
+    function drawHeads() {
+        drawSummaryTableHead(doc, leftX, cy, tableW, widths, 'Quality-wise Production', 'Prod (Mtrs)');
+        cy = drawSummaryTableHead(doc, rightX, cy, tableW, widths, 'Quality-wise Beam Left', 'Beam Left');
     }
 
-    if (rtX !== null) {
-        cell(doc, rtX, y, mergedW, ROW_H, `Avg Picks: ${str(exportData.avgPicks)}`, {
-            bg: C.grandBg, color: C.text, fontSize: FS_DATA, bold: true, align: 'left',
+    function ensureSpace(neededH) {
+        if (cy + neededH <= PAGE_H - MARGIN) return;
+        if (typeof onPageBreak === 'function') {
+            cy = onPageBreak();
+            drawHeads();
+        }
+    }
+
+    drawHeads();
+
+    if (!groups.length) {
+        ensureSpace(SUMMARY_ROW_H);
+        const empty = { bg: C.altBg, color: C.muted, fontSize: SUMMARY_FS, align: 'center' };
+        cell(doc, leftX, cy, tableW, SUMMARY_ROW_H, 'No data', empty);
+        cell(doc, rightX, cy, tableW, SUMMARY_ROW_H, 'No data', empty);
+        return cy + SUMMARY_ROW_H;
+    }
+
+    for (const group of groups) {
+        const qualityLines = wrapTextToWidth(doc, group.quality, widths.qualityW - pad * 2, SUMMARY_FS, true);
+        const groupH = Math.max(
+            group.machines.length * SUMMARY_ROW_H,
+            heightForLines(qualityLines.length, SUMMARY_FS, SUMMARY_ROW_H, pad)
+        );
+        ensureSpace(groupH);
+
+        drawSummaryGroup(doc, leftX, cy, widths, {
+            qualityLines, machines: group.machines, total: group.production,
+            valueKey: 'production', groupH,
+        });
+        cy = drawSummaryGroup(doc, rightX, cy, widths, {
+            qualityLines, machines: group.machines, total: group.beamLeft,
+            valueKey: 'beamLeft', groupH, highlightLow: true,
         });
     }
 
-    return y + ROW_H;
+    ensureSpace(SUMMARY_ROW_H);
+    drawSummaryGrandTotal(doc, leftX, cy, widths, grandProd, 'production');
+    drawSummaryGrandTotal(doc, rightX, cy, widths, grandBeam, 'beamLeft');
+    return cy + SUMMARY_ROW_H;
+}
+
+function drawContinuedBanner(doc, firmName, shiftLabel, reportDate) {
+    doc.rect(0, 0, PAGE_W, MINI_BANNER_H).fill(C.headerBg);
+    doc.rect(0, MINI_BANNER_H, PAGE_W, 3).fill(C.accent);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#ffffff').text(
+        firmName.toUpperCase(), MARGIN + 6, 7, { lineBreak: false }
+    );
+    doc.font('Helvetica').fontSize(8).fillColor('#adb5bd').text(
+        `${shiftLabel}  ·  ${fmtDate(reportDate)}  ·  continued`, 0, 7, { width: PAGE_W - MARGIN - 6, align: 'right', lineBreak: false }
+    );
+    return MINI_BANNER_H + 8;
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
@@ -493,120 +481,121 @@ module.exports = {
         const fileName  = `shift-report-${safeFile}-${moment(reportDate).format('YYYYMMDD')}-${shiftLabel.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.pdf`;
         const filePath  = path.join(REPORTS_DIR, fileName);
 
-        const stopCols  = reportData.stopColumns || [];
-        const showBeamCompletionDate = hasBeamCompletionDate(reportData);
-        const fixedCols = getFixedCols(showBeamCompletionDate);
-        const colLayout = buildCols(stopCols, fixedCols);   // widths computed to fill CONTENT_W exactly
-        const { cols }  = colLayout;
-        const tableX    = MARGIN;                // always flush to left margin
+        const { showBeamCompletion, groups, grandProd, grandBeam } = collectReportMeta(reportData);
+        const stopCols = reportData.stopColumns || [];
+        const fixedCols = getFixedCols(showBeamCompletion);
+        const colLayout = buildCols(stopCols, fixedCols);
+        const { cols } = colLayout;
+        const qualityCol = cols.find(c => c.key === 'quality');
+        const qualityPad = 2.5;
+        const tableX = MARGIN;
 
         return new Promise((resolve, reject) => {
-            // size:'A4' + layout:'landscape' → pdfkit uses 841.89 × 595.28
             const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 0, autoFirstPage: true });
             const stream = fs.createWriteStream(filePath);
             doc.pipe(stream);
 
-            let curY = 0;
-
-            // ── Hero header banner ────────────────────────────────────────
             const BANNER_H = 52;
             const ACCENT_H = 4;
+            const pillW = 90;
+            const pillH = 18;
+            const pillX = PAGE_W - MARGIN - pillW * 2 - 8;
+            const dateX = PAGE_W - MARGIN - pillW;
 
-            // Dark banner background (full page width)
-            doc.save().rect(0, 0, PAGE_W, BANNER_H).fill(C.headerBg).restore();
-
-            // Accent stripe at bottom of banner
-            doc.save().rect(0, BANNER_H, PAGE_W, ACCENT_H).fill('#0d6efd').restore();
-
-            // Firm name — large, white, left-aligned with margin
+            doc.rect(0, 0, PAGE_W, BANNER_H).fill(C.headerBg);
+            doc.rect(0, BANNER_H, PAGE_W, ACCENT_H).fill(C.accent);
             doc.font('Helvetica-Bold').fontSize(18).fillColor('#ffffff')
-               .text(firmName.toUpperCase(), MARGIN + 6, 10, { lineBreak: false });
-
-            // Report type — right side, smaller
+                .text(firmName.toUpperCase(), MARGIN + 6, 10, { lineBreak: false });
             doc.font('Helvetica').fontSize(8).fillColor('#adb5bd')
-               .text('PRODUCTION SHIFT-WISE REPORT', MARGIN + 6, 34, { lineBreak: false });
-
-            // Shift pill — right side
-            const pillText  = `  ${shiftLabel}  `;
-            const dateText  = `  ${fmtDate(reportDate)}  `;
-            const pillW     = 90, pillH = 18, pillX = PAGE_W - MARGIN - pillW * 2 - 8;
-            const dateX     = PAGE_W - MARGIN - pillW;
-
-            // Shift pill
-            doc.save().roundedRect(pillX, 17, pillW, pillH, 3).fill('#0d6efd').restore();
+                .text('PRODUCTION SHIFT-WISE REPORT', MARGIN + 6, 34, { lineBreak: false });
+            doc.roundedRect(pillX, 17, pillW, pillH, 3).fill(C.accent);
             doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff')
-               .text(shiftLabel, pillX, 22, { width: pillW, align: 'center', lineBreak: false });
-
-            // Date pill
-            doc.save().roundedRect(dateX, 17, pillW, pillH, 3).fill('#343a40').restore();
+                .text(shiftLabel, pillX, 22, { width: pillW, align: 'center', lineBreak: false });
+            doc.roundedRect(dateX, 17, pillW, pillH, 3).fill('#343a40');
             doc.font('Helvetica').fontSize(8).fillColor('#e9ecef')
-               .text(fmtDate(reportDate), dateX, 22, { width: pillW, align: 'center', lineBreak: false });
+                .text(fmtDate(reportDate), dateX, 22, { width: pillW, align: 'center', lineBreak: false });
 
-            curY = BANNER_H + ACCENT_H + 6;
+            let curY = BANNER_H + ACCENT_H + 6;
 
-            // ── Header helpers ────────────────────────────────────────────
             function printHeader() {
                 curY = drawHeader(doc, tableX, curY, colLayout, stopCols, fixedCols);
             }
 
+            function startContinuedPage() {
+                doc.addPage();
+                curY = drawContinuedBanner(doc, firmName, shiftLabel, reportDate);
+            }
+
             function checkBreak(neededH) {
-                if (curY + neededH > PAGE_H - MARGIN) {
-                    doc.addPage();
-                    curY = 0;
-
-                    // Compact continuation banner
-                    const MINI_H = 22;
-                    doc.save().rect(0, 0, PAGE_W, MINI_H).fill(C.headerBg).restore();
-                    doc.save().rect(0, MINI_H, PAGE_W, 3).fill('#0d6efd').restore();
-                    doc.font('Helvetica-Bold').fontSize(9).fillColor('#ffffff')
-                       .text(firmName.toUpperCase(), MARGIN + 6, 7, { lineBreak: false });
-                    doc.font('Helvetica').fontSize(8).fillColor('#adb5bd')
-                       .text(`${shiftLabel}  ·  ${fmtDate(reportDate)}  ·  continued`,
-                             0, 7, { width: PAGE_W - MARGIN - 6, align: 'right', lineBreak: false });
-
-                    curY = MINI_H + 3 + 5;
-                    printHeader();
-                }
+                if (curY + neededH <= PAGE_H - MARGIN) return;
+                startContinuedPage();
+                printHeader();
             }
 
             printHeader();
 
             // ── Data rows ─────────────────────────────────────────────────
             let rowIdx = 0;
-
             for (const item of reportData.list || []) {
                 for (const machine of item.list || []) {
-                    checkBreak(ROW_H);
+                    const qualityText = formatQualityReed(machine.quality, machine.reed);
+                    const qualityLines = qualityCol
+                        ? wrapTextToWidth(doc, qualityText, qualityCol.w - qualityPad * 2, FS_DATA)
+                        : [qualityText];
+                    const rowH = heightForLines(qualityLines.length, FS_DATA, ROW_H, qualityPad);
+                    checkBreak(rowH);
                     const bg = rowIdx % 2 === 0 ? C.altBg : C.rowBg;
-                    curY = drawDataRow(doc, tableX, curY, machine, item, cols, bg);
+                    curY = drawDataRow(doc, tableX, curY, machine, item, cols, bg, rowH, qualityLines);
                     rowIdx++;
                 }
 
                 checkBreak(ROW_H);
-                curY = drawSubtotalRow(doc, tableX, curY, item, cols);
+                curY = drawTotalsRow(doc, tableX, curY, cols, {
+                    bg: C.subtotalBg,
+                    avgPicks: item.avgPicks,
+                    values: {
+                        date: { val: fmtDate(item.reportDate), align: 'center' },
+                        shift: { val: str(item.shiftLabel), align: 'left' },
+                        machine: { val: 'Subtotal', align: 'center' },
+                        prod: { val: fmtNum(item.prodMeter), align: 'right' },
+                        picks: { val: str(item.totalPicks), align: 'right' },
+                        eff: { val: fmtNum(item.efficiency, 1), align: 'right' },
+                        realEff: { val: fmtNum(item.realEfficiency, 1), align: 'right' },
+                        speed: { val: fmtNum(item.avgSpeed, 0), align: 'right' },
+                    },
+                });
                 rowIdx++;
 
                 checkBreak(5);
                 curY += 5;
             }
 
-            // ── Grand total ───────────────────────────────────────────────
             checkBreak(ROW_H + 6);
             curY += 6;
-            drawGrandTotalRow(doc, tableX, curY, reportData, cols);
-            curY += ROW_H + 10;
+            curY = drawTotalsRow(doc, tableX, curY, cols, {
+                bg: C.grandBg,
+                avgPicks: reportData.avgPicks,
+                values: {
+                    date: { val: 'TOTAL', align: 'center' },
+                    prod: { val: fmtNum(reportData.avgProdMeter), align: 'right' },
+                    picks: { val: str(reportData.totalPicks), align: 'right' },
+                    eff: { val: fmtNum(reportData.totalEfficiency, 1), align: 'right' },
+                    realEff: { val: fmtNum(reportData.totalRealEfficiency, 1), align: 'right' },
+                    speed: { val: fmtNum(reportData.avgSpeed, 0), align: 'right' },
+                },
+            });
+            curY += 10;
 
-            const summaries = buildQualitySummaries(reportData);
-            const summaryHeight = SUMMARY_HDR_H + SUMMARY_ROW_H
-                + Math.max(summaries.production.length, summaries.beamLeft.length, 1) * SUMMARY_ROW_H
-                + SUMMARY_ROW_H;
-
-            if (curY + summaryHeight > PAGE_H - MARGIN) {
-                doc.addPage();
-                curY = MARGIN;
+            if (curY + SUMMARY_HDR_H + SUMMARY_ROW_H * 3 > PAGE_H - MARGIN) {
+                startContinuedPage();
             }
 
-            curY = drawQualitySummarySection(doc, tableX, curY, summaries);
+            drawQualitySummarySection(doc, tableX, curY, groups, grandProd, grandBeam, {
+                onPageBreak: () => {
+                    startContinuedPage();
+                    return curY;
+                },
+            });
 
             doc.end();
             stream.on('finish', () => resolve({ filePath, fileName }));

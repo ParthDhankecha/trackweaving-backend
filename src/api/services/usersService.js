@@ -2,6 +2,9 @@ const moment = require('moment');
 const utilService = require('./utilService');
 
 
+// 2-no limit characters, start with a letter, and contain only letters, numbers, and underscores
+const _userNameRegex = /^[a-zA-Z][a-zA-Z0-9_]+$/;
+
 module.exports = {
     async findById(id, projection = {}) {
         projection = {
@@ -281,5 +284,15 @@ module.exports = {
             throw global.config.message.INVALID_SHIFT;
         }
         return shifts;
+    },
+
+    validateUserName(userName) {
+        if (typeof userName !== 'string' || !userName.trim()) {
+            throw global.config.message.BAD_REQUEST;
+        }
+        if (!_userNameRegex.test(userName)) {
+            throw global.config.message.INVALID_USER_NAME;
+        }
+        return userName;
     }
 }

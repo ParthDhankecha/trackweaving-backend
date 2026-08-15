@@ -75,7 +75,7 @@ module.exports = {
 
             const createObj = {
                 fullname: body.fullname?.trim?.(),
-                userName: body.userName?.trim?.(),
+                userName: usersService.validateUserName(body.userName),
                 password: body.password?.trim?.(),
             };
             if (utilService.isValidObjectId(body?.workspaceId)) {
@@ -159,7 +159,7 @@ module.exports = {
             }
             const dupQuery = { _id: userId };
             if (typeof body.userName === 'string' && body.userName.trim()) {
-                updateObj.userName = body.userName.trim();
+                updateObj.userName = usersService.validateUserName(body.userName);
                 delete dupQuery._id;
                 Object.assign(dupQuery, {
                     $or: [{

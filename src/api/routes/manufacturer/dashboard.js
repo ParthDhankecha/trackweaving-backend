@@ -1,24 +1,24 @@
 const router = require('express').Router();
 
-const dashboardController = require('../../controllers/manufacturer/dashboardController');
-const isAuth = require('../../middleware/manufacturerAuth');
+const auth = require('../../middleware/manufacturerAuth');
+const controller = require('../../controllers/manufacturer/dashboardController');
 
 
-router.get('/overview', isAuth, dashboardController.getOverview);
+router.get('/overview', auth, controller.getOverview);
 
-router.get('/workspace-options', isAuth, dashboardController.getWorkspaceOptions);
+router.get('/workspace-options', auth, controller.getWorkspaceOptions);
 
-router.get('/machine-group-options/:workspaceId', isAuth, dashboardController.getMachineGroupOptions);
+router.get('/machine-group-options/:workspaceId', auth, controller.getMachineGroupOptions);
 
-router.get('/machines/:workspaceId', isAuth, dashboardController.getMachines);
+router.get('/machines/:workspaceId', auth, controller.getMachines);
 
-router.get('/qualities/:workspaceId', isAuth, dashboardController.getQualities);
+router.get('/qualities/:workspaceId', auth, controller.getQualities);
 
-router.post('/machine-log-list', isAuth, dashboardController.getMachineLogList);
+router.post('/machine-log-list', auth, controller.getMachineLogList);
 
-router.post('/report', isAuth, dashboardController.getReport);
+router.post('/report', auth, controller.getReport);
 
-router.post('/analytics', isAuth, dashboardController.getAnalytics);
+router.post('/analytics', auth, controller.getAnalytics);
 
 
 module.exports = router;

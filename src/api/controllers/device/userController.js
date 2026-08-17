@@ -1,5 +1,6 @@
 const usersService = require('../../services/usersService');
 const appVersionService = require('../../services/appVersionService');
+const machineService = require('../../services/machineService');
 const utilService = require('../../services/utilService');
 
 const _commonProjection = { _id: 1, fullname: 1, userName: 1, email: 1, mobile: 1, userType: 1, isActive: 1, shift: 1, machineIds: 1 };
@@ -90,7 +91,7 @@ module.exports = {
             const body = req.body;
             const createObj = {
                 fullname: body.fullname?.trim?.(),
-                userName: body.userName?.trim?.(),
+                userName: usersService.validateUserName(body.userName),
                 password: body.password?.trim?.(),
             };
             utilService.checkRequiredParams(['fullname', 'userName', 'password'], createObj);
@@ -163,8 +164,7 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            utilService.checkRequiredParams(['data', 'date'], req.body);
-            const body = await authService.decryptData(req.body);
+            const body = req.body;
             if (Object.keys(body).length === 0) {
                 throw global.config.message.BAD_REQUEST;
             }
@@ -190,7 +190,7 @@ module.exports = {
                 updateObj.fullname = body.fullname.trim();
             }
             if (typeof body.userName === 'string' && body.userName.trim()) {
-                updateObj.userName = body.userName.trim();
+                updateObj.userName = usersService.validateUserName(body.userName);
             }
             if (typeof body.password === 'string' && body.password.trim()) {
                 updateObj.password = body.password.trim();

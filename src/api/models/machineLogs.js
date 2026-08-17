@@ -119,6 +119,14 @@ const machineLogsSchema = new Schema({
         type: Number,
         default: 0
     },
+    totalSpeed: {
+        type: Number,
+        default: 0
+    },
+    totalSpeedCount: {
+        type: Number,
+        default: 0
+    },
     stopsCount: {
         type: getSubSchema({
             warp: {

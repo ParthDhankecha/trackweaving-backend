@@ -134,7 +134,8 @@ module.exports = {
     async verifyingUser(userName, planePassword, throwError = true) {
         const errorObj = {
             notFound: false,
-            invalidCredentials: false
+            invalidCredentials: false,
+            inactiveAccount: false
         };
 
         const user = await userModel.findOne({ 'userName': { $regex: `^${userName}$`, $options: 'i' }, isDeleted: false }, '+password +userType').lean();
@@ -143,6 +144,11 @@ module.exports = {
             if (throwError) throw global.config.message.MOBILE_NOT_FOUND;
             return errorObj; // return early if not found
         };
+        if (!user.isActive) {
+            errorObj.inactiveAccount = true;
+            if (throwError) throw global.config.message.INACTIVE_ACCOUNT;
+            return errorObj; // return early if inactive account
+        }
 
         const isMatch = await compare(planePassword, user.password);
         if (!isMatch) {

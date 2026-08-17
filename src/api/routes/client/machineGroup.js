@@ -1,15 +1,16 @@
 const router = require('express').Router();
-const machineGroupController = require('../../controllers/client/machineGroupController');
-const isAuth = require('../../middleware/auth');
+
+const auth = require('../../middleware/auth');
+const controller = require('../../controllers/client/machineGroupController');
 
 
-router.get('/', isAuth, machineGroupController.getMachineGroupsList);
+router.get('/', auth, controller.getMachineGroupsList);
 
-router.get('/:id', isAuth, machineGroupController.getMachineGroupById);
+router.get('/:id', auth, controller.getMachineGroupById);
 
-router.post('/', isAuth, machineGroupController.createMachineGroup);
+router.post('/', auth, controller.createMachineGroup);
 
-router.put('/:id', isAuth, machineGroupController.updateMachineGroup);
+router.put('/:id', auth, controller.updateMachineGroup);
 
 
 module.exports = router;

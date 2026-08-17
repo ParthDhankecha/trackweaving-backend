@@ -243,6 +243,11 @@ module.exports = {
             message: "User with this username already exists.",
             status: 409
         },
+        INVALID_USER_NAME: {
+            code: "E_BAD_REQUEST",
+            message: "Invalid username. It should be 2-20 characters, start with a letter and contain only letters, numbers, and underscores.",
+            status: 400
+        },
         REQUIRED_FIELD_MISSING: {
             code: "UNPROCESSABLE_ENTITY",
             message: "Required field missing.",

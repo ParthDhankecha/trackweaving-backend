@@ -6,9 +6,12 @@ module.exports = {
     getMachineGroupsList: async (req, res, next) => {
         try {
             const { workspaceId } = req.user;
-            const result = await machineGroupService.find({ workspaceId: workspaceId });
+            const list = await machineGroupService.find({ workspaceId: workspaceId }, {
+                useLean: true,
+                projection: { _id: 1, groupName: 1 }
+            });
 
-            return res.ok(result, global.config.message.OK);
+            return res.ok(list, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
             return res.serverError(error);
@@ -17,16 +20,14 @@ module.exports = {
 
     getMachineGroupById: async (req, res, next) => {
         try {
-            const machineGroupId = req.params?.id;
-            if (!machineGroupId) {
-                throw global.config.message.BAD_REQUEST;
-            }
+            const { id } = req.params;
+            if (!utilService.isValidObjectId(id)) throw global.config.message.BAD_REQUEST;
 
             const { workspaceId } = req.user;
-            const machineGroup = await machineGroupService.findOne({ _id: machineGroupId, workspaceId: workspaceId });
-            if (!machineGroup) {
-                return res.notFound(null, global.config.message.RECORD_NOT_FOUND);
-            }
+            const machineGroup = await machineGroupService.findOne({ _id: id, workspaceId: workspaceId }, {
+                useLean: true,
+            });
+            if (!machineGroup) throw global.config.message.RECORD_NOT_FOUND;
 
             return res.ok(machineGroup, global.config.message.OK);
         } catch (error) {
@@ -37,20 +38,27 @@ module.exports = {
 
     createMachineGroup: async (req, res, next) => {
         try {
-            utilService.checkRequiredParams(['groupName'], req.body);
-            const reqBody = req.body;
-
-            const existingGroup = await machineGroupService.findOne({ groupName: reqBody.groupName, workspaceId: req.user.workspaceId });
-            if (existingGroup) {
-                return res.conflict(null, global.config.message.MACHINE_GROUP_ALREADY_EXIST);
+            const groupName = req.body.groupName?.trim();
+            if (!groupName || typeof groupName !== 'string') {
+                throw global.config.message.BAD_REQUEST;
             }
 
-            reqBody.createdBy = req.user.id;
-            reqBody.workspaceId = req.user.workspaceId;
+            const user = req.user;
+            const duplicate = await machineGroupService.findOne({
+                workspaceId: user.workspaceId,
+                groupName: { $regex: `^${utilService.escapeRegex(groupName)}$`, $options: 'i' },
+            }, { useLean: true, projection: { _id: 1 } });
+            if (duplicate) {
+                throw global.config.message.MACHINE_GROUP_ALREADY_EXIST;
+            }
 
-            const machineGroup = await machineGroupService.create(reqBody);
+            const entry = await machineGroupService.create({
+                groupName: groupName,
+                createdBy: user.id,
+                workspaceId: user.workspaceId
+            });
 
-            return res.created(machineGroup, global.config.message.CREATED);
+            return res.created(entry, global.config.message.CREATED);
         } catch (error) {
             utilService.log(error);
             return res.serverError(error);
@@ -59,22 +67,35 @@ module.exports = {
 
     updateMachineGroup: async (req, res, next) => {
         try {
-            utilService.checkRequiredParams(['id'], req.params);
-            const body = req.body;
-            utilService.checkRequiredParams(['groupName'], body);
-
-            const machineGroupId = req.params.id;
-            const machineGroup = await machineGroupService.findOne({ _id: machineGroupId, workspaceId: req.user.workspaceId });
-            if (!machineGroup) {
-                return res.notFound(null, global.config.message.RECORD_NOT_FOUND);
+            const { id } = req.params;
+            const groupName = req.body.groupName?.trim();
+            if (!utilService.isValidObjectId(id) || !groupName) {
+                throw global.config.message.BAD_REQUEST;
             }
 
-            const updateObj = {
-                groupName: body.groupName
-            };
+            const user = req.user;
+            const duplicate = await machineGroupService.findOne({
+                workspaceId: user.workspaceId,
+                $or: [{
+                    _id: { $ne: id },
+                    groupName: { $regex: `^${utilService.escapeRegex(groupName)}$`, $options: 'i' }
+                }, {
+                    _id: id,
+                }]
+            }, {
+                useLean: true,
+                projection: { groupName: 1 }
+            });
+            if (!duplicate) throw global.config.message.RECORD_NOT_FOUND;
+            if (duplicate._id.toString() !== id) {
+                throw global.config.message.MACHINE_GROUP_ALREADY_EXIST;
+            }
 
-            const updatedMachineGroup = await machineGroupService.findByIdAndUpdate(machineGroupId, updateObj);
-            return res.ok(updatedMachineGroup, global.config.message.OK);
+            const entry = await machineGroupService.findByIdAndUpdate(id, {
+                groupName: groupName
+            });
+
+            return res.ok(entry, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
             return res.serverError(error);

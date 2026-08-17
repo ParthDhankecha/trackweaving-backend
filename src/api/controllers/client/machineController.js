@@ -39,25 +39,25 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const { workspaceId } = req.user;
+            const { workspaceId, type: userType } = req.user;
             const machine = await machineService.findOne({ _id: machineId, workspaceId }, { useLean: true });
             if (!machine) {
                 throw global.config.message.RECORD_NOT_FOUND;
             }
 
-            const updateObj = {}, updateData = req.body;
-            if (updateData.machineCode) {
-                machineService.validateMachineCode(updateData.machineCode);
-                updateObj.machineCode = updateData.machineCode;
+            const updateObj = {}, body = req.body;
+            if (body.machineCode) {
+                machineService.validateMachineCode(body.machineCode);
+                updateObj.machineCode = body.machineCode;
             }
-            if (updateData.hasOwnProperty('machineGroupId')) {
+            if (body.hasOwnProperty('machineGroupId')) {
                 updateObj.machineGroupId = null;
-                if (updateData.machineGroupId) {
-                    if (!utilService.isValidObjectId(updateData.machineGroupId)) {
+                if (body.machineGroupId) {
+                    if (!utilService.isValidObjectId(body.machineGroupId)) {
                         throw global.config.message.BAD_REQUEST;
                     }
 
-                    const mg = await machineGroupService.findOne({ _id: updateData.machineGroupId, workspaceId }, {
+                    const mg = await machineGroupService.findOne({ _id: body.machineGroupId, workspaceId }, {
                         useLean: true,
                         projection: '_id'
                     });
@@ -66,20 +66,22 @@ module.exports = {
                     updateObj.machineGroupId = mg._id;
                 }
             }
-            if (updateData?.hasOwnProperty('maxSpeedLimit')) {
+            if (body?.hasOwnProperty('maxSpeedLimit')) {
                 updateObj.maxSpeedLimit = null;
-                if (utilService.isNumber(updateData.maxSpeedLimit, { min: 1 })) {
-                    updateObj.maxSpeedLimit = updateData.maxSpeedLimit;
+                if (utilService.isNumber(body.maxSpeedLimit, { min: 1 })) {
+                    updateObj.maxSpeedLimit = body.maxSpeedLimit;
                 }
             }
-            if (typeof updateData.quality === 'string') {
-                updateObj.quality = updateData.quality.trim();
+            if (typeof body.quality === 'string') {
+                updateObj.quality = body.quality.trim();
             }
-            if (typeof updateData.reed === 'string') {
-                updateObj.reed = updateData.reed.trim();
+            if (typeof body.reed === 'string') {
+                updateObj.reed = body.reed.trim();
             }
-            if (typeof updateData.isAlertActive === 'boolean') {
-                updateObj.isAlertActive = updateData.isAlertActive;
+            if (userType === global.config.USERS.TYPE.ADMIN) {
+                if (typeof body.isAlertActive === 'boolean') {
+                    updateObj.isAlertActive = body.isAlertActive;
+                }
             }
 
             if (updateObj.machineCode) {

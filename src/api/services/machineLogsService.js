@@ -245,6 +245,30 @@ const register = {
     }
 };
 
+async function upsertShiftLog(body, shiftDate, options = {}) {
+    const { updateMachineQuality = true } = options;
+    if (updateMachineQuality) {
+        const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
+        body.quality = machine?.quality || null;
+    }
+
+    // Sum running speeds for shift avg; skip while stopped (or zero RPM).
+    const speedRpm = Number(body.speedRpm) || 0;
+    if (!speedRpm) {
+        delete body.speedRpm;
+    }
+    delete body.totalSpeed;
+    delete body.totalSpeedCount;
+
+    const update = { $set: body };
+    if (body.stop === 0 && speedRpm > 0) {
+        update.$inc = { totalSpeed: speedRpm, totalSpeedCount: 1 };
+    }
+    await machineLogsModel.findOneAndUpdate({
+        machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate
+    }, update, { upsert: true });
+}
+
 module.exports = {
     async create(body) {
         let machineLog = await machineLatestLogsModel.findOneAndUpdate({ machineId: body.machineId }, body, { upsert: true, returnDocument: 'before' });
@@ -280,17 +304,9 @@ module.exports = {
                     return;
                 }
 
-                const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
-                body.quality = machine?.quality || null;
-                if (!body.speedRpm || body.speedRpm == 0) {
-                    delete body.speedRpm;
-                }
-                await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
+                await upsertShiftLog(body, shiftDate);
             } else {
-                if (!body.speedRpm || body.speedRpm == 0) {
-                    delete body.speedRpm;
-                }
-                await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
+                await upsertShiftLog(body, shiftDate, { updateMachineQuality: false });
             }
             await this.checkAlertNotification(machineLog, body);
         } else {
@@ -305,12 +321,7 @@ module.exports = {
                 h2: []
             };
 
-            const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
-            body.quality = machine?.quality || null;
-            if (!body.speedRpm || body.speedRpm == 0) {
-                delete body.speedRpm;
-            }
-            await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate }, body, { upsert: true });
+            await upsertShiftLog(body, shiftDate);
         }
     },
 

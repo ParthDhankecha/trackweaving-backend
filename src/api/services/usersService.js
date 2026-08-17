@@ -2,6 +2,9 @@ const moment = require('moment');
 const utilService = require('./utilService');
 
 
+// 2-no limit characters, start with a letter, and contain only letters, numbers, and underscores
+const _userNameRegex = /^[a-zA-Z][a-zA-Z0-9_]+$/;
+
 module.exports = {
     async findById(id, projection = {}) {
         projection = {
@@ -201,7 +204,10 @@ module.exports = {
     async validatePlanForSignIn(workspaceId) {
         if (!workspaceId) return null;
 
-        const workspace = await workspaceModel.findById({ _id: workspaceId, isDeleted: false }, { userId: 1, uid: 1, isActive: 1 }).populate('userId', 'plan').lean();
+        const workspace = await workspaceModel.findById({ _id: workspaceId, isDeleted: false }, { userId: 1, uid: 1, isActive: 1 }).populate('userId', 'plan isActive').lean();
+        if (!workspace?.isActive || !workspace?.userId?.isActive) {
+            throw global.config.message.INACTIVE_ACCOUNT;
+        }
         const plan = workspace?.userId?.plan ?? {};
         if (!plan?.endDate) {
             throw global.config.message.PLAN_NOT_FOUND;
@@ -210,6 +216,61 @@ module.exports = {
         if (planExpired) {
             throw global.config.message.PLAN_EXPIRED;
         }
+        return workspace;
+    },
+
+    /**
+     * Request-time access check for admin/master tokens:
+     * - Admin: self active → workspace active → plan valid
+     * - Master: self active → workspace admin active → workspace active → plan valid
+     */
+    async validateUserSessionAccess({ id, workspaceId, type } = {}) {
+        if (!id || !workspaceId) {
+            throw global.config.message.UNAUTHORIZED;
+        }
+
+        const user = await userModel.findOne(
+            { _id: id, isDeleted: false },
+            { isActive: 1, userType: 1, workspaceId: 1 }
+        ).lean();
+        if (!user?.isActive) {
+            throw global.config.message.INACTIVE_ACCOUNT;
+        }
+
+        const workspace = await workspaceModel.findById(
+            { _id: workspaceId, isDeleted: false },
+            { userId: 1, uid: 1, isActive: 1 }
+        ).populate('userId', 'plan isActive').lean();
+
+        if (!workspace?.isActive) {
+            throw global.config.message.INACTIVE_ACCOUNT;
+        }
+
+        const admin = workspace.userId;
+        if (!admin?.isActive) {
+            throw global.config.message.INACTIVE_ACCOUNT;
+        }
+
+        let hasAccess = false;
+        switch (user.userType) {
+            case global.config.USERS.TYPE.MASTER:
+                hasAccess = String(user.workspaceId) === String(workspaceId);
+                break;
+            case global.config.USERS.TYPE.ADMIN:
+                hasAccess = String(admin._id) === String(user._id);
+                break;
+        }
+        if (!hasAccess) throw global.config.message.UNAUTHORIZED;
+
+        const plan = admin.plan ?? {};
+        if (!plan?.endDate) {
+            throw global.config.message.PLAN_NOT_FOUND;
+        }
+        const planExpired = moment(plan.endDate).endOf('day').isBefore(moment());
+        if (planExpired) {
+            throw global.config.message.PLAN_EXPIRED;
+        }
+
         return workspace;
     },
 
@@ -223,5 +284,15 @@ module.exports = {
             throw global.config.message.INVALID_SHIFT;
         }
         return shifts;
+    },
+
+    validateUserName(userName) {
+        if (typeof userName !== 'string' || !userName.trim()) {
+            throw global.config.message.BAD_REQUEST;
+        }
+        if (!_userNameRegex.test(userName)) {
+            throw global.config.message.INVALID_USER_NAME;
+        }
+        return userName;
     }
 }

@@ -84,6 +84,19 @@ function calculateRealEfficiencyPercent(runTime, availableMinutes) {
     return Math.min(100, Math.round(value * 10) / 10);
 }
 
+/**
+ * New logs store running-speed sum in totalSpeed / totalSpeedCount.
+ * Older logs only have speedRpm — use whichever is available for display.
+ */
+function resolveDisplaySpeedRpm(data = {}) {
+    const totalSpeedCount = Number(data.totalSpeedCount) || 0;
+    if (totalSpeedCount > 0) {
+        const totalSpeed = Number(data.totalSpeed) || 0;
+        return Math.round(totalSpeed / totalSpeedCount);
+    }
+    return Number(data.speedRpm) || 0;
+}
+
 const STOP_CATEGORY_CODE = {
     warp: 1,
     weft: 2,
@@ -175,13 +188,16 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             availableMinutesCache[cacheKey] = getAvailableShiftMinutes(data.shiftDate, shiftKey, workspace);
         }
         data.realEfficiencyPercent = calculateRealEfficiencyPercent(data.runTime, availableMinutesCache[cacheKey]);
+        data.speedRpm = resolveDisplaySpeedRpm(data);
+        delete data.totalSpeed;
+        delete data.totalSpeedCount;
 
         finalData[reportDate][shiftKey].list.push(data);
         finalData[reportDate][shiftKey].totalPicks += data.picksCurrentShift || 0;
         finalData[reportDate][shiftKey].efficiency += data.efficiencyPercent || 0;
         finalData[reportDate][shiftKey].realEfficiency += data.realEfficiencyPercent || 0;
         finalData[reportDate][shiftKey].prodMeter += data.pieceLengthM || 0;
-        finalData[reportDate][shiftKey].avgSpeed += data.speedRpm ?? 0;
+        finalData[reportDate][shiftKey].avgSpeed += data.speedRpm;
     }
 
     const parsedData = [];
@@ -200,7 +216,7 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             totalNumbers.totalRealEfficiency += dayShift.realEfficiency;
             totalNumbers.totalProdMeter += dayShift.prodMeter;
             totalNumbers.avgCount += 1;
-            totalNumbers.avgPicks = dayShift.avgPicks;
+            totalNumbers.avgPicks += dayShift.avgPicks;
             totalNumbers.avgSpeed += dayShift.avgSpeed;
         }
         if (finalData[date].nightShift) {
@@ -217,7 +233,7 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             totalNumbers.totalRealEfficiency += nightShift.realEfficiency;
             totalNumbers.totalProdMeter += nightShift.prodMeter;
             totalNumbers.avgCount += 1;
-            totalNumbers.avgPicks = nightShift.avgPicks;
+            totalNumbers.avgPicks += nightShift.avgPicks;
             totalNumbers.avgSpeed += nightShift.avgSpeed;
         }
         parsedData.push({

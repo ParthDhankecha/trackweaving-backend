@@ -189,7 +189,6 @@ const register = {
     haiwell: {
         shift: 1,
         stopCode: 2,
-        stopReason: 3,
         speedRpm: 4,
         currentDensity: 5,
         beamLeft: 6,
@@ -198,6 +197,45 @@ const register = {
         picksCurrentShift: 9,
         efficiencyPercent: 10,
         runTime: 11,
+        stopsCount: {
+            warp: { count: 12, duration: 13 },
+            h1: { count: 14, duration: 15 },
+            h2: { count: 16, duration: 17 },
+            other: { count: 18, duration: 19 }
+        }
+    },
+    picanolRapier: {
+        shift: 1,
+        quality: 2,
+        stopCode: 3,
+        runTime: 4,
+        efficiencyPercent: 5,
+        currentDensity: 6,
+        pieceLengthM: 7,
+        picksCurrentShift: 8,
+        beamLeft: 9,
+        initialBeamLeft: 10,
+        beamCompletionDate: 11,
+        stopsCount: {
+            warp: { count: 12, duration: 13 },
+            weft: { count: 14, duration: 15 },
+            feeder: { count: 16, duration: 17 },
+            manual: { count: 18, duration: 19 },
+            other: { count: 20, duration: 21 }
+        }
+    },
+    picanolAirjet: {
+        shift: 1,
+        quality: 2,
+        stopCode: 3,
+        runTime: 4,
+        efficiencyPercent: 5,
+        currentDensity: 6,
+        pieceLengthM: 7,
+        picksCurrentShift: 8,
+        beamLeft: 9,
+        initialBeamLeft: 10,
+        beamCompletionDate: 11,
         stopsCount: {
             warp: { count: 12, duration: 13 },
             h1: { count: 14, duration: 15 },
@@ -811,25 +849,32 @@ module.exports = {
                 stopsCount: stopsCount,
                 runTime: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
             };
-        } else if (global.config.HAIWELL_DISPLAYS.includes(displayType)) {
+        } else if (global.config.DIRECT_DISPLAYS.includes(displayType)) {
             let stopsCount = {};
             for (const [key, value] of Object.entries(register[displayType].stopsCount)) {
                 const count = value.count ? get16(body, value.count) : 0;
                 const duration = (value.duration ? get16(body, value.duration) : 0) * 60;
                 stopsCount[key] = { count, duration };
             }
+            let beamCompletionDate = get16(body, register[displayType].beamCompletionDate) || null;
+            if(beamCompletionDate) {
+                if(displayType == "haiwell") {
+                    beamCompletionDate = moment(
+                        `${beamCompletionDate} +05:30`,
+                        'YYYY-MM-DD HH:mm Z'
+                    ).utc();
+                } else {
+                    beamCompletionDate = moment(beamCompletionDate);
+                }
+            }
             return {
                 speedRpm: get16(body, register[displayType].speedRpm),
                 efficiencyPercent: get16(body, register[displayType].efficiencyPercent),
                 stop: get16(body, register[displayType].stopCode),
-                stopReason: get16(body, register[displayType].stopReason),
                 picksCurrentShift: get16(body, register[displayType].picksCurrentShift),
                 pieceLengthM: get16(body, register[displayType].pieceLengthM),
                 beamLeft: get16(body, register[displayType].beamLeft),
-                beamCompletionDate: get16(body, register[displayType].beamCompletionDate) ? moment(
-                    `${get16(body, register[displayType].beamCompletionDate)} +05:30`,
-                    'YYYY-MM-DD HH:mm Z'
-                ).utc() : null,
+                beamCompletionDate: beamCompletionDate,
                 setPicks: get16(body, register[displayType].currentDensity),
                 shift: get16(body, register[displayType].shift),
                 stopsCount: stopsCount,
@@ -995,113 +1040,141 @@ module.exports = {
 
     getStopReason(stopCode, displayType = 'nazon') {
         let STOP_REASON = {};
-        if (displayType == 'nazon') {
-            STOP_REASON = {
-                0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Hand stop", 5: "Full piece",
-                6: "Emergency stop", 7: "Lack weft stop", 8: "Loom error", 9: "Power off (running)",
-                10: "ELOETU error stop", 11: "Weft present on empty cycle", 12: "Weft present on double cycle",
-                13: "Jacquard fix length stop", 14: "Safety barrier stop", 15: "Weft stop area 1",
-                16: "Weft stop area 2", 17: "Weft stop area 3", 18: "Weft stop area 4",
-                19: "Warp stop area 1", 20: "Warp stop area 2"
-            };
-        } else if (displayType == "chitic") {
-            STOP_REASON = {
-                0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Hand stop", 5: "Full piece",
-                6: "Emergency stop", 7: "Lack weft stop", 8: "Loom error", 9: "Power off (running)",
-                10: "ELOETU error stop", 11: "Weft present on empty cycle", 12: "Weft present on double cycle",
-                13: "SRDB Fault", 14: "MCB Instruction Err", 15: "Safety barrier stop",
-                16: "Jacquard fix length stop"
-            };
-        } else if (displayType == "pickwell") {
-            STOP_REASON = {
-                0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Manual stop", 5: "Full piece",
-                6: "Emergency stop", 7: "Weft feeder lacks yarn", 8: "Loom failure", 9: "Power outage during fast driving",
-                10: "ETU-ELO failure", 11: "Empty weft with weft yarn", 12: "Double weft with broken weft",
-                13: "Driver board alarm", 14: "Main board instruction error", 15: "Safety light curtain action",
-                16: "Jacquard quantitative parking"
-            };
-        } else if (displayType == "biana") {
-            STOP_REASON = {
-                0: "--", 1: "Manual stop", 2: "Warp stop", 6: "Storer break stop", 7: "Lack weft stop", 8: "Color 1 short weft stop",
-                9: "Color 2 short weft stop", 10: "Color 3 short weft stop", 11: "Color 4 short weft stop", 12: "Color 1 long weft stop",
-                13: "Color 2 long weft stop", 14: "Color 3 long weft stop", 15: "Color 4 long weft stop"
-            };
-        } else if (displayType == "haiwell") {
-            STOP_REASON = {
-                0: "--",
-                1: "Manual stop",
-                2: "Leno-Left stop",
-                3: "Leno-Right stop",
-                4: "Waste stop",
-                5: "EDP stop",
-                6: "Warp stop",
-                10: "Blank holder motor fault",
-                11: "Mechanical folding belt",
-                12: "Abnormal dobby oil level",
-                13: "Abnormal Oil pressurization",
-                14: "Abnormal pressure relief",
-                15: "Dobby pattern preparation",
-                16: "Cashmere meridian stop",
-                17: "Cashmere warp hank yarn",
-                18: "Broken meridians",
-                19: "Abnormal towel pattern",
-                20: "--",
-                21: "Left electronic hinge reset is common",
-                22: "Left electronic hinge reset is unavailable",
-                23: "Right electronic hinge reset is common",
-                24: "Right electronic hinge reset is unavailable",
-                798: "S CAN error",
-                799: "W No response",
-                800: "W CAN error",
-                801: "Loom CAN error",
-                901: "C1H1 weft stop",
-                902: "C1H2 weft stop",
-                903: "C2H1 weft stop",
-                904: "C2H2 weft stop",
-                905: "C3H1 weft stop",
-                906: "C3H2 weft stop",
-                907: "C4H1 weft stop",
-                908: "C4H2 weft stop",
-                909: "C5H1 weft stop",
-                910: "C5H2 weft stop",
-                911: "C6H1 weft stop",
-                912: "C6H2 weft stop",
-                913: "C6H2 weft stop",
-                914: "C7H2 weft stop",
-                915: "C8H1 weft stop",
-                916: "C8H2 weft stop",
-                1000: "Warp Tension:Too Low",
-                1001: "Warp Tension:Too High",
-                1002: "The warp tension is too small",
-                1003: "Warp Tension(U):Too High",
-                1012: "The fuzzing rod does not return to the original point",
-                1036: "loom Low speed1",
-                1037: "loom Turning error1",
-                1038: "loom encoder error 3",
-                1039: "loom encoder error 4",
-                1040: "W No response",
-                1041: "loom encoder error 1",
-                1042: "loom Turning error",
-                1043: "loom Low speed",
-                1100: "Motor overheating",
-                1101: "Brake overheating",
-                1102: "Emergency stop",
-                1103: "Fell-security stop",
-                1104: "ETU-Servo Failure",
-                1105: "ELO-Servo Failure",
-                1106: "ELO-Servo(U) Failure",
-                1107: "Cloth winding servo failure",
-                1108: "Brake released",
-                1109: "Jacquard interlock",
-                1111: "Fuzzing servo failure",
-                1112: "Left leno servo failure",
-                1113: "Right leno servo failure",
-                1200: "Warp servo failure",
-                1201: "Fuzzing servo failure",
-                1202: "Tension servo failure",
-                1203: "The fuzzing rod does not return to the original point"
-            };
+        switch(displayType) {
+            case 'nazon':
+                STOP_REASON = {
+                    0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Hand stop", 5: "Full piece",
+                    6: "Emergency stop", 7: "Lack weft stop", 8: "Loom error", 9: "Power off (running)",
+                    10: "ELOETU error stop", 11: "Weft present on empty cycle", 12: "Weft present on double cycle",
+                    13: "Jacquard fix length stop", 14: "Safety barrier stop", 15: "Weft stop area 1",
+                    16: "Weft stop area 2", 17: "Weft stop area 3", 18: "Weft stop area 4",
+                    19: "Warp stop area 1", 20: "Warp stop area 2"
+                };
+                break;
+
+            case "chitic":
+                STOP_REASON = {
+                    0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Hand stop", 5: "Full piece",
+                    6: "Emergency stop", 7: "Lack weft stop", 8: "Loom error", 9: "Power off (running)",
+                    10: "ELOETU error stop", 11: "Weft present on empty cycle", 12: "Weft present on double cycle",
+                    13: "SRDB Fault", 14: "MCB Instruction Err", 15: "Safety barrier stop",
+                    16: "Jacquard fix length stop"
+                };
+                break;
+
+            case "pickwell":
+                STOP_REASON = {
+                    0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Manual stop", 5: "Full piece",
+                    6: "Emergency stop", 7: "Weft feeder lacks yarn", 8: "Loom failure", 9: "Power outage during fast driving",
+                    10: "ETU-ELO failure", 11: "Empty weft with weft yarn", 12: "Double weft with broken weft",
+                    13: "Driver board alarm", 14: "Main board instruction error", 15: "Safety light curtain action",
+                    16: "Jacquard quantitative parking"
+                };
+                break;
+            case "biana":
+                STOP_REASON = {
+                    0: "--", 1: "Manual stop", 2: "Warp stop", 6: "Storer break stop", 7: "Lack weft stop", 8: "Color 1 short weft stop",
+                    9: "Color 2 short weft stop", 10: "Color 3 short weft stop", 11: "Color 4 short weft stop", 12: "Color 1 long weft stop",
+                    13: "Color 2 long weft stop", 14: "Color 3 long weft stop", 15: "Color 4 long weft stop"
+                };
+                break;
+
+            case "haiwell":
+                STOP_REASON = {
+                    0: "--",
+                    1: "Manual stop",
+                    2: "Leno-Left stop",
+                    3: "Leno-Right stop",
+                    4: "Waste stop",
+                    5: "EDP stop",
+                    6: "Warp stop",
+                    10: "Blank holder motor fault",
+                    11: "Mechanical folding belt",
+                    12: "Abnormal dobby oil level",
+                    13: "Abnormal Oil pressurization",
+                    14: "Abnormal pressure relief",
+                    15: "Dobby pattern preparation",
+                    16: "Cashmere meridian stop",
+                    17: "Cashmere warp hank yarn",
+                    18: "Broken meridians",
+                    19: "Abnormal towel pattern",
+                    20: "--",
+                    21: "Left electronic hinge reset is common",
+                    22: "Left electronic hinge reset is unavailable",
+                    23: "Right electronic hinge reset is common",
+                    24: "Right electronic hinge reset is unavailable",
+                    798: "S CAN error",
+                    799: "W No response",
+                    800: "W CAN error",
+                    801: "Loom CAN error",
+                    901: "C1H1 weft stop",
+                    902: "C1H2 weft stop",
+                    903: "C2H1 weft stop",
+                    904: "C2H2 weft stop",
+                    905: "C3H1 weft stop",
+                    906: "C3H2 weft stop",
+                    907: "C4H1 weft stop",
+                    908: "C4H2 weft stop",
+                    909: "C5H1 weft stop",
+                    910: "C5H2 weft stop",
+                    911: "C6H1 weft stop",
+                    912: "C6H2 weft stop",
+                    913: "C6H2 weft stop",
+                    914: "C7H2 weft stop",
+                    915: "C8H1 weft stop",
+                    916: "C8H2 weft stop",
+                    1000: "Warp Tension:Too Low",
+                    1001: "Warp Tension:Too High",
+                    1002: "The warp tension is too small",
+                    1003: "Warp Tension(U):Too High",
+                    1012: "The fuzzing rod does not return to the original point",
+                    1036: "loom Low speed1",
+                    1037: "loom Turning error1",
+                    1038: "loom encoder error 3",
+                    1039: "loom encoder error 4",
+                    1040: "W No response",
+                    1041: "loom encoder error 1",
+                    1042: "loom Turning error",
+                    1043: "loom Low speed",
+                    1100: "Motor overheating",
+                    1101: "Brake overheating",
+                    1102: "Emergency stop",
+                    1103: "Fell-security stop",
+                    1104: "ETU-Servo Failure",
+                    1105: "ELO-Servo Failure",
+                    1106: "ELO-Servo(U) Failure",
+                    1107: "Cloth winding servo failure",
+                    1108: "Brake released",
+                    1109: "Jacquard interlock",
+                    1111: "Fuzzing servo failure",
+                    1112: "Left leno servo failure",
+                    1113: "Right leno servo failure",
+                    1200: "Warp servo failure",
+                    1201: "Fuzzing servo failure",
+                    1202: "Tension servo failure",
+                    1203: "The fuzzing rod does not return to the original point"   
+                };
+                break;
+
+            case "picanolRapier":
+            case "picanolAirjet":
+                STOP_REASON = {
+                    0: "--",
+                    1: "Warp stop",
+                    2: "Weft stop",
+                    3: "Filling Break stop",
+                    4: "Bobbin Break stop",
+                    5: "Mechanical stop",
+                    6: "Emergency stop",
+                    7: "Emergency Brake stop",
+                    8: "Service stop",
+                    9: "Other stop",
+                    10: "Other stop",
+                };
+                break;
+
         }
+
         return STOP_REASON[stopCode] || "Unknown stop reason";
     }
 }

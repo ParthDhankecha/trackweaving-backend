@@ -816,7 +816,7 @@ module.exports = {
             for (const [key, value] of Object.entries(register[displayType].stopsCount)) {
                 const count = value.count ? at(value.count) : 0;
                 let duration = value.duration ? at(value.duration) : 0;
-                if (displayType == "pickwell") {
+                if (["chitic", "pickwell"].includes(displayType)) {
                     duration = duration * 60;
                 }
                 stopsCount[key] = { count, duration };

@@ -111,6 +111,7 @@ const register = {
             feeder: { count: 5049, duration: 5050 },
             other: { count: 5039, duration: 5043 }
         },
+        runTime: { hours: 5034, minutes: 5035 },
         shift: 5005
     },
     pickwell: {

@@ -94,7 +94,9 @@ const register = {
         stopCode: 5023,
         stateCode: 5013,
         efficiency: 5044,
-        pieceLenCm: 5045,
+        pieceLenHi: 5007,
+        pieceLenLo: 5006,
+        pieceLenDecimals: 3,
         shiftWeftCountHi: 5048,
         shiftWeftCountLo: 5047,
         totalWeftHundredsHi: null,
@@ -109,7 +111,6 @@ const register = {
             feeder: { count: 5049, duration: 5050 },
             other: { count: 5039, duration: 5043 }
         },
-        runTime: { hours: 5034, minutes: 5035 },
         shift: 5005
     },
     pickwell: {

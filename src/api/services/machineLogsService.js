@@ -787,7 +787,10 @@ module.exports = {
             const speedRpm = register[displayType].speedRpm ? at(register[displayType].speedRpm) : 0;
             const stopCode = register[displayType].stopCode ? at(register[displayType].stopCode) : 0;
             const stateCode = register[displayType].stateCode ? at(register[displayType].stateCode) : 0;
-            const efficiency = register[displayType].efficiency ? at(register[displayType].efficiency) : 0;
+            let efficiency = register[displayType].efficiency ? at(register[displayType].efficiency) : 0;
+            if (displayType == "chitic") {
+                efficiency = efficiency / 10;
+            }
 
             let pieceLenMeters = 0;
             if (register[displayType].pieceLenHi && register[displayType].pieceLenLo) {

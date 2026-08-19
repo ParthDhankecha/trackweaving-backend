@@ -218,6 +218,7 @@ const register = {
         beamLeft: 9,
         initialBeamLeft: 10,
         beamCompletionDate: 11,
+        speedRpm: 22,
         stopsCount: {
             warp: { count: 12, duration: 13 },
             weft: { count: 14, duration: 15 },
@@ -238,6 +239,7 @@ const register = {
         beamLeft: 9,
         initialBeamLeft: 10,
         beamCompletionDate: 11,
+        speedRpm: 20,
         stopsCount: {
             warp: { count: 12, duration: 13 },
             h1: { count: 14, duration: 15 },

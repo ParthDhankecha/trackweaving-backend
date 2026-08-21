@@ -5,6 +5,7 @@ const { ObjectId } = require('mongoose').Types;
 const { serverResponseRecordLimit } = require('../../config/env-vars');
 const _emailRegExp = /^[-!#$%&'*+\/0-9=?A-Z^_a-z`{|}~](\.?[-!#$%&'*+\/0-9=?A-Z^_a-z`{|}~])*@[a-zA-Z0-9](-*\.?[a-zA-Z0-9])*\.[a-zA-Z](-?[a-zA-Z0-9])+$/;
 const _mobileRegExp = /^[0-9]{10,15}$/;
+const _escapeRegExp = /[.*+?^${}()|[\]\\]/g;
 
 
 module.exports = {
@@ -212,15 +213,22 @@ module.exports = {
      * @param {string} str - The string to escape.
      * @param {object} [options={}] - Optional options object.
      * @param {boolean} [options.throwError=true] - Whether to throw an error if the string is not a valid string.
-     * @returns {string} The escaped string.
+     * @returns { { normalized: string, escaped: string } } The object containing the normalized and escaped strings.
+     * @throws {Error} If the string is not a valid string and throwError is true.
      */
     escapeRegex(str, options = {}) {
         const { throwError = false } = options;
         if (!str || typeof str !== 'string' || !str.trim()) {
             if (throwError) throw global.config.message.BAD_REQUEST;
-            return str;
+            return { normalized: '', escaped: '' };
         }
-        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim();
+
+        const normalizedStr = str.replace(/\s+/g, ' ').trim();
+        if (!normalizedStr && throwError) {
+            throw global.config.message.BAD_REQUEST;
+        }
+
+        return { normalized: normalizedStr, escaped: normalizedStr.replace(_escapeRegExp, '\\$&') };
     },
 
     /**

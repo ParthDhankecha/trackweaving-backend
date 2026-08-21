@@ -1,8 +1,14 @@
 const router = require('express').Router();
-const alertController = require('../../controllers/device/alertController');
-const isAuth = require('../../middleware/auth');
 
-router.get('/', isAuth, alertController.getAlertList);
-router.put('/:id', isAuth, alertController.updateAlert);
+const auth = require('../../middleware/auth');
+const controller = require('../../controllers/device/alertController');
+
+
+router.get('/', auth, controller.getAlertList);
+
+router.post('/history', auth, controller.getMaintenanceHistory);
+
+router.put('/:id', auth, controller.updateAlert);
+
 
 module.exports = router;

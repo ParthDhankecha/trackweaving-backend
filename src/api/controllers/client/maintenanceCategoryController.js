@@ -1,239 +1,187 @@
 const maintenanceCategoryService = require('../../services/maintenanceCategoryService');
-const machineService = require('../../services/machineService');
+const maintenanceDataService = require('../../services/maintenanceDataService');
 const utilService = require('../../services/utilService');
-const { log } = require('../../services/utilService');
 
-const toCategoryType = (name = '') => {
-    const words = String(name)
-        .trim()
-        .replace(/[^a-zA-Z0-9\s]/g, '')
-        .split(/\s+/)
-        .filter(Boolean);
+const _projection = { updatedAt: 0, createdAt: 0, workspaceId: 0, isDeleted: 0 };
 
-    if (!words.length) return '';
-
-    return words
-        .map((word, index) => {
-            const lower = word.toLowerCase();
-            return index === 0 ? lower : lower.charAt(0).toUpperCase() + lower.slice(1);
-        })
-        .join('');
-};
-
-const buildUniqueCategoryType = async (workspaceId, name, excludeId = null) => {
-    let baseType = toCategoryType(name);
-    if (!baseType) {
-        baseType = 'customCategory';
-    }
-
-    let categoryType = baseType;
-    let suffix = 1;
-
-    while (true) {
-        const query = { workspaceId, categoryType, isDeleted: false };
-        if (excludeId) {
-            query._id = { $ne: excludeId };
-        }
-
-        const existing = await maintenanceCategoryModel.findOne(query).select('_id').lean();
-        if (!existing) break;
-
-        suffix += 1;
-        categoryType = `${baseType}${suffix}`;
-    }
-
-    return categoryType;
-};
-
-const bootstrapMaintenanceData = async (workspaceId, category) => {
-    const machines = await machineService.find(
-        { workspaceId, isDeleted: false },
-        { projection: '_id', useLean: true }
-    );
-
-    if (!machines.length) return;
-
-    const now = new Date();
-    const scheduleDays = Number(category.scheduleDays) || 0;
-    const nextMaintenanceDate = new Date(now);
-    nextMaintenanceDate.setDate(nextMaintenanceDate.getDate() + scheduleDays);
-
-    const records = machines.map(machine => ({
-        maintenanceCategoryId: category._id,
-        workspaceId,
-        machineId: machine._id,
-        lastMaintenanceDate: now,
-        nextMaintenanceDate,
-        remarks: ''
-    }));
-
-    await maintenanceDataModel.insertMany(records);
-};
 
 module.exports = {
-    getMaintenanceCategories: async (req, res, next) => {
+    getList: async (req, res, next) => {
         try {
-            const workspaceId = req.user.workspaceId;
-            const maintenanceCategories = await maintenanceCategoryService.find(
+            const { workspaceId } = req.user;
+            const list = await maintenanceCategoryService.find({ workspaceId }, {
+                projection: { ..._projection },
+                sort: { createdAt: 1 },
+                useLean: true,
+            });
+
+            return res.ok(list, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
+    getOptionList: async (req, res, next) => {
+        try {
+            const { workspaceId } = req.user;
+            const list = await maintenanceCategoryService.find(
                 { workspaceId },
-                { sort: { createdAt: 1 } }
+                { sort: { createdAt: 1 }, projection: 'name', useLean: true }
             );
 
-            return res.ok(maintenanceCategories, global.config.message.OK);
+            return res.ok(list, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
 
-    createMaintenanceCategory: async (req, res, next) => {
+    create: async (req, res, next) => {
         try {
-            utilService.checkRequiredParams(['name', 'scheduleDays', 'alertDays'], req.body);
+            const body = req.body;
+            utilService.checkRequiredParams(['name', 'scheduleDays', 'alertDays'], body);
 
-            const workspaceId = req.user.workspaceId;
-            const name = String(req.body.name || '').trim();
-            const scheduleDays = Number(req.body.scheduleDays);
-            const alertDays = Number(req.body.alertDays);
-            const alertMessage = String(req.body.alertMessage || '').trim();
-
-            if (!name) {
+            const mcNameObj = utilService.escapeRegex(body.name, { throwError: true });
+            if (!mcNameObj?.normalized) {
                 throw global.config.message.BAD_REQUEST;
             }
-            if (!Number.isFinite(scheduleDays) || scheduleDays <= 0) {
+            const scheduleDays = Number(body.scheduleDays);
+            if (!utilService.isNumber(scheduleDays, { min: 1 })) {
                 throw global.config.message.BAD_REQUEST;
             }
-            if (!Number.isFinite(alertDays) || alertDays < 0) {
+            const alertDays = Number(body.alertDays);
+            if (!utilService.isNumber(alertDays, { min: 0 })) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const existingCategory = await maintenanceCategoryModel.findOne({
+            const { workspaceId } = req.user;
+            const duplicate = await maintenanceCategoryService.findOne({
                 workspaceId,
-                name: { $regex: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-                isDeleted: false
-            }).lean();
-
-            if (existingCategory) {
-                return res.conflict(null, {
-                    code: 'CONFLICT',
-                    message: 'Maintenance category with this name already exists.'
-                });
+                name: { $regex: `^${mcNameObj.escaped}$`, $options: 'i' }
+            }, {
+                useLean: true,
+                projection: '_id'
+            });
+            if (duplicate) {
+                throw global.config.message.DUPLICATE_MAINTENANCE_CATEGORY;
             }
 
-            const categoryType = await buildUniqueCategoryType(workspaceId, name);
             const category = await maintenanceCategoryService.create({
-                name,
-                categoryType,
+                name: mcNameObj.normalized,
                 scheduleDays,
                 alertDays,
-                alertMessage,
-                workspaceId,
-                isActive: req.body.isActive !== false
+                alertMessage: body.alertMessage?.trim?.() ?? '',
+                workspaceId
             });
 
-            await bootstrapMaintenanceData(workspaceId, category);
+            await maintenanceCategoryService.bootstrapMaintenanceData(workspaceId, category);
 
-            return res.created(category, global.config.message.CREATED);
+            const data = category?.toObject?.() || category;
+            Object.keys(_projection).forEach(key => {
+                if (data?.hasOwnProperty?.(key)) delete data[key];
+            });
+
+            return res.created(data, global.config.message.CREATED);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
 
-    updateMaintenanceCategory: async (req, res, next) => {
+    update: async (req, res, next) => {
         try {
-            const categoryId = req.params.id;
-            if (!categoryId) {
+            const mcId = req.params.id;
+            if (!utilService.isValidObjectId(mcId)) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const workspaceId = req.user.workspaceId;
-            const category = await maintenanceCategoryService.findOne({ _id: categoryId, workspaceId });
-            if (!category) {
-                throw global.config.message.RECORD_NOT_FOUND;
-            }
+            const updateObj = {}, body = req.body;
 
-            const updateData = {};
-            const allowedFields = ['name', 'scheduleDays', 'alertDays', 'alertMessage', 'isActive'];
-
-            allowedFields.forEach(field => {
-                if (req.body[field] !== undefined) {
-                    updateData[field] = req.body[field];
-                }
-            });
-
-            if (updateData.name !== undefined) {
-                updateData.name = String(updateData.name).trim();
-                if (!updateData.name) {
+            let mcNameObj = null;
+            if (body.hasOwnProperty('name')) {
+                mcNameObj = utilService.escapeRegex(body.name, { throwError: true });
+                if (!mcNameObj?.normalized) {
                     throw global.config.message.BAD_REQUEST;
                 }
+                updateObj.name = mcNameObj.normalized;
+            }
+            if (body.hasOwnProperty('scheduleDays')) {
+                if (!utilService.isNumber(body.scheduleDays, { min: 1 })) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                updateObj.scheduleDays = body.scheduleDays;
+            }
+            if (body.hasOwnProperty('alertDays')) {
+                if (!utilService.isNumber(body.alertDays, { min: 0 })) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                updateObj.alertDays = body.alertDays;
+            }
+            if (body.hasOwnProperty('alertMessage')) {
+                updateObj.alertMessage = String(body.alertMessage || '').trim();
+            }
+            if (body.hasOwnProperty('isActive')) {
+                if (typeof body.isActive !== 'boolean') {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                updateObj.isActive = body.isActive;
+            }
 
-                const existingCategory = await maintenanceCategoryModel.findOne({
+            if (Object.keys(updateObj).length === 0) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+
+            const { workspaceId } = req.user;
+            if (updateObj?.name) {
+                const duplicate = await maintenanceCategoryService.findOne({
                     workspaceId,
-                    _id: { $ne: categoryId },
-                    name: { $regex: new RegExp(`^${updateData.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-                    isDeleted: false
-                }).lean();
-
-                if (existingCategory) {
-                    return res.conflict(null, {
-                        code: 'CONFLICT',
-                        message: 'Maintenance category with this name already exists.'
-                    });
-                }
+                    name: { $regex: `^${mcNameObj.escaped}$`, $options: 'i' },
+                    _id: { $ne: mcId },
+                }, {
+                    useLean: true,
+                    projection: '_id'
+                });
+                if (duplicate) throw global.config.message.DUPLICATE_MAINTENANCE_CATEGORY;
             }
 
-            if (updateData.scheduleDays !== undefined) {
-                updateData.scheduleDays = Number(updateData.scheduleDays);
-                if (!Number.isFinite(updateData.scheduleDays) || updateData.scheduleDays <= 0) {
-                    throw global.config.message.BAD_REQUEST;
-                }
-            }
+            const entry = await maintenanceCategoryService.findOneAndUpdate({ _id: mcId, workspaceId }, updateObj, {
+                useLean: true,
+                projection: { ..._projection },
+            });
+            if (!entry) throw global.config.message.NOT_UPDATED;
 
-            if (updateData.alertDays !== undefined) {
-                updateData.alertDays = Number(updateData.alertDays);
-                if (!Number.isFinite(updateData.alertDays) || updateData.alertDays < 0) {
-                    throw global.config.message.BAD_REQUEST;
-                }
-            }
-
-            if (updateData.alertMessage !== undefined) {
-                updateData.alertMessage = String(updateData.alertMessage || '').trim();
-            }
-
-            const updatedCategory = await maintenanceCategoryService.findByIdAndUpdate(categoryId, updateData);
-            if (!updatedCategory) {
-                throw global.config.message.NOT_UPDATED;
-            }
-
-            return res.ok(updatedCategory, global.config.message.OK);
+            return res.ok(entry, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
 
-    deleteMaintenanceCategory: async (req, res, next) => {
+    delete: async (req, res, next) => {
         try {
-            const categoryId = req.params.id;
-            if (!categoryId) {
+            const mcId = req.params.id;
+            if (!utilService.isValidObjectId(mcId)) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const workspaceId = req.user.workspaceId;
-            const category = await maintenanceCategoryService.findOne({ _id: categoryId, workspaceId });
-            if (!category) {
-                throw global.config.message.RECORD_NOT_FOUND;
+            const { workspaceId } = req.user;
+            const entry = await maintenanceCategoryService.findOneAndDelete({ _id: mcId, workspaceId }, {
+                projection: { ..._projection },
+                useLean: true,
+            });
+            if (!entry) throw global.config.message.NOT_DELETED;
+
+            const status = await maintenanceDataService.deleteReferences(workspaceId, mcId);
+            if (status) {
+                console.log('Maintenance data deleted successfully', status);
             }
 
-            const deletedCategory = await maintenanceCategoryService.findByIdAndDelete(categoryId);
-            if (!deletedCategory) {
-                throw global.config.message.NOT_DELETED;
-            }
-
-            return res.ok(deletedCategory, global.config.message.OK);
+            return res.ok(entry, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     }
-};
+}

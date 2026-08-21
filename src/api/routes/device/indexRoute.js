@@ -15,6 +15,7 @@ router.use('/maintenance-categories', require('./maintenanceCategory'));
 
 router.use('/alerts', require('./alert'));
 
+// TODO: remove this route after `new APP` release
 router.use('/shift-wise-comments', require('./shiftWiseComment'));
 
 router.use('/reports', require('./report'));

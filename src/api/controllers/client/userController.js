@@ -1,9 +1,10 @@
-const usersService = require('../../services/usersService');
+const userService = require('../../services/userService');
 const authService = require('../../services/authService');
 const machineService = require('../../services/machineService');
+const accessService = require('../../services/accessService');
 const utilService = require('../../services/utilService');
 
-const _commonProjection = { _id: 1, fullname: 1, userName: 1, email: 1, mobile: 1, userType: 1, isActive: 1, shift: 1, machineIds: 1 };
+const _commonProjection = { _id: 1, fullname: 1, userName: 1, email: 1, mobile: 1, userType: 1, isActive: 1, shift: 1, machineIds: 1, access: 1 };
 
 
 module.exports = {
@@ -17,12 +18,19 @@ module.exports = {
                 conditions._id = user.id;
             }
 
-            const list = await usersService.findV2(conditions, {
+            const list = await userService.findV2(conditions, {
                 projection: { ..._commonProjection },
                 useLean: true,
             });
 
-            return res.ok(list, global.config.message.OK);
+            // Return stored access matrix so admin can edit what is on the master record
+            const normalized = (list ?? []).map((u) => ({
+                ...u,
+                // null = never configured on record; object = stored master access
+                access: !u.access ? null : accessService.resolveAccess(u),
+            }));
+
+            return res.ok(normalized, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
 
@@ -30,20 +38,13 @@ module.exports = {
         }
     },
 
-    getById: async (req, res, next) => {
+    getAccessMatrix: async (req, res, next) => {
         try {
-            const { id } = req.params;
-            if (!utilService.isValidObjectId(id)) {
-                throw global.config.message.BAD_REQUEST;
-            }
+            const data = {
+                moduleWiseAccess: accessService.MODULE_WISE_ACCESS,
+            };
 
-            const { workspaceId } = req.user;
-            const userdata = await usersService.findOneV2({ _id: id, workspaceId: workspaceId }, {
-                projection: { ..._commonProjection },
-            });
-            if (!userdata) throw global.config.message.NOT_FOUND;
-
-            return res.ok(userdata, global.config.message.OK);
+            return res.ok(data, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
 
@@ -63,11 +64,14 @@ module.exports = {
 
             const createObj = {
                 fullname: body.fullname?.trim?.(),
-                userName: usersService.validateUserName(body.userName),
+                userName: userService.validateUserName(body.userName),
                 password: body.password?.trim?.(),
             };
-            utilService.checkRequiredParams(['fullname', 'userName', 'password'], createObj);
+            utilService.checkRequiredParams(['fullname', 'password'], createObj);
 
+            if (!createObj.userName?.normalized) {
+                throw global.config.message.BAD_REQUEST;
+            }
             if (typeof body.email === 'string' && body.email.trim()) {
                 if (!utilService.validateEmail(body.email)) {
                     throw global.config.message.BAD_REQUEST;
@@ -84,7 +88,7 @@ module.exports = {
                 createObj.isActive = body.isActive;
             }
 
-            createObj.shift = usersService.validateShift(body.shift);
+            createObj.shift = userService.validateShift(body.shift);
 
             if (!Array.isArray(body.machineIds)) {
                 throw global.config.message.BAD_REQUEST;
@@ -95,11 +99,11 @@ module.exports = {
             if (!machineIds.length) throw global.config.message.MASTER_MACHINES_REQUIRED;
             if (machineIds.length !== body.machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
-            await usersService.getUserPlan(user.workspaceId, true);
+            await userService.getUserPlan(user.workspaceId, true);
 
-            const duplicate = await usersService.findOneV2({
+            const duplicate = await userService.findOneV2({
                 userName: {
-                    $regex: `^${utilService.escapeRegex(createObj.userName, { throwError: true })}$`,
+                    $regex: `^${createObj.userName.escaped}$`,
                     $options: 'i',
                 }
             }, {
@@ -114,8 +118,9 @@ module.exports = {
             });
             if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
-            await usersService.create({
+            await userService.create({
                 ...createObj,
+                userName: createObj.userName.normalized,
                 machineIds: machineIds,
                 userType: global.config.USERS.TYPE.MASTER,
                 workspaceId: user.workspaceId
@@ -152,7 +157,7 @@ module.exports = {
                 throw global.config.message.UNAUTHORIZED;
             }
 
-            const targetUser = await usersService.findOneV2({ _id: userId, workspaceId: user.workspaceId }, {
+            const targetUser = await userService.findOneV2({ _id: userId, workspaceId: user.workspaceId }, {
                 useLean: true,
                 projection: 'userType'
             });
@@ -163,7 +168,11 @@ module.exports = {
                 updateObj.fullname = body.fullname.trim();
             }
             if (typeof body.userName === 'string' && body.userName.trim()) {
-                updateObj.userName = usersService.validateUserName(body.userName);
+                const userNameObj = userService.validateUserName(body.userName);
+                if (!userNameObj?.normalized) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                updateObj.userName = userNameObj;
             }
             if (typeof body.password === 'string' && body.password.trim()) {
                 updateObj.password = body.password.trim();
@@ -192,7 +201,7 @@ module.exports = {
             // Master-only fields: admin updating a master user
             if (isAdmin && targetUser.userType === USERS_TYPE.MASTER) {
                 if (Array.isArray(body.shift)) {
-                    updateObj.shift = usersService.validateShift(body.shift);
+                    updateObj.shift = userService.validateShift(body.shift);
                 }
 
                 if (Array.isArray(body.machineIds)) {
@@ -214,6 +223,10 @@ module.exports = {
                 if (typeof body.isActive === 'boolean') {
                     updateObj.isActive = body.isActive;
                 }
+
+                if (body.access && typeof body.access === 'object') {
+                    updateObj.access = accessService.sanitizeAccess(body.access, true);
+                }
             }
 
             if (Object.keys(updateObj).length === 0) {
@@ -221,10 +234,10 @@ module.exports = {
             }
 
             if (updateObj.userName) {
-                const duplicate = await usersService.findOneV2({
+                const duplicate = await userService.findOneV2({
                     _id: { $ne: userId },
                     userName: {
-                        $regex: `^${utilService.escapeRegex(updateObj.userName, { throwError: true })}$`,
+                        $regex: `^${updateObj.userName.escaped}$`,
                         $options: 'i'
                     }
                 }, {
@@ -232,9 +245,11 @@ module.exports = {
                     projection: '_id'
                 });
                 if (duplicate) throw global.config.message.USER_EXISTS;
+
+                updateObj.userName = updateObj.userName.normalized;
             }
 
-            const entry = await usersService.findByIdAndUpdate(userId, updateObj, {
+            const entry = await userService.findByIdAndUpdate(userId, updateObj, {
                 projection: { ..._commonProjection },
                 useLean: true,
             });

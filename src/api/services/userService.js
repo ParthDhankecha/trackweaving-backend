@@ -108,6 +108,7 @@ module.exports = {
         queryOptions = {
             projection: undefined,
             populate: undefined,
+            useLean: false,
             ...queryOptions
         };
 
@@ -115,10 +116,16 @@ module.exports = {
             data.password = await utilService.generateHashValue(data.password);
         }
 
-        const query = userModel.findByIdAndUpdate({ _id: _id }, data, { new: true });
+        // Use $set so Mixed fields like `access` always replace the stored object
+        const query = userModel.findByIdAndUpdate(
+            { _id: _id },
+            { $set: data },
+            { new: true, runValidators: true }
+        );
 
         if (queryOptions.projection) query.select(queryOptions.projection);
         if (queryOptions.populate) query.populate(queryOptions.populate);
+        if (queryOptions.useLean) query.lean();
 
         return await query;
     },
@@ -182,6 +189,7 @@ module.exports = {
         return await userModel.countDocuments({ ...filter, isDeleted: false });
     },
 
+
     async getUserPlan(workspaceId, validatePlanAndThrowError = false) {
         const workspace = await workspaceModel.findById({ _id: workspaceId, isDeleted: false }, { userId: 1 }).populate('userId', 'plan').lean();
         if (validatePlanAndThrowError) {
@@ -193,8 +201,11 @@ module.exports = {
             if (planExpired) {
                 throw global.config.message.PLAN_EXPIRED;
             }
+            if (!utilService.isNumber(plan.subUserLimit, { min: 0 })) {
+                throw global.config.message.INVALID_USER_LIMIT;
+            }
             const userCount = await this.count({ workspaceId });
-            if (userCount >= (plan.subUserLimit || 4)) {
+            if (userCount >= (plan.subUserLimit ?? 4)) {
                 throw global.config.message.USER_LIMIT_EXCEEDED;
             }
         }
@@ -224,14 +235,15 @@ module.exports = {
      * - Admin: self active → workspace active → plan valid
      * - Master: self active → workspace admin active → workspace active → plan valid
      */
-    async validateUserSessionAccess({ id, workspaceId, type } = {}) {
+    async validateUserSessionAccess(data = {}) {
+        const { id, workspaceId } = data;
         if (!id || !workspaceId) {
             throw global.config.message.UNAUTHORIZED;
         }
 
         const user = await userModel.findOne(
             { _id: id, isDeleted: false },
-            { isActive: 1, userType: 1, workspaceId: 1 }
+            { isActive: 1, userType: 1, workspaceId: 1, access: 1 }
         ).lean();
         if (!user?.isActive) {
             throw global.config.message.INACTIVE_ACCOUNT;
@@ -253,12 +265,17 @@ module.exports = {
 
         let hasAccess = false;
         switch (user.userType) {
-            case global.config.USERS.TYPE.MASTER:
+            case global.config.USERS.TYPE.MASTER: {
+                if (!user?.access) throw global.config.message.ACCESS_DENIED;
+                data.access = user.access;
+
                 hasAccess = String(user.workspaceId) === String(workspaceId);
                 break;
-            case global.config.USERS.TYPE.ADMIN:
+            }
+            case global.config.USERS.TYPE.ADMIN: {
                 hasAccess = String(admin._id) === String(user._id);
                 break;
+            }
         }
         if (!hasAccess) throw global.config.message.UNAUTHORIZED;
 
@@ -270,8 +287,6 @@ module.exports = {
         if (planExpired) {
             throw global.config.message.PLAN_EXPIRED;
         }
-
-        return workspace;
     },
 
     validateShift(shifts) {
@@ -286,13 +301,21 @@ module.exports = {
         return shifts;
     },
 
+    /**
+     * Validates the user name.
+     * @param {string} userName - The user name to validate.
+     * @returns { { normalized: string, escaped: string } } The object containing the normalized and escaped strings.
+     * @throws {Error} If the user name is not a valid string and throwError is true.
+     */
     validateUserName(userName) {
-        if (typeof userName !== 'string' || !userName.trim()) {
+        const obj = utilService.escapeRegex(userName, { throwError: true });
+        if (!obj?.normalized) {
             throw global.config.message.BAD_REQUEST;
         }
-        if (!_userNameRegex.test(userName)) {
+        if (obj.normalized.length < 6) {
             throw global.config.message.INVALID_USER_NAME;
         }
-        return userName;
+
+        return { normalized: obj.normalized, escaped: obj.escaped };
     }
 }

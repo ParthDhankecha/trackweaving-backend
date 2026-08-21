@@ -1,5 +1,5 @@
 const jwtService = require('../services/jwtService');
-const usersService = require('../services/usersService');
+const userService = require('../services/userService');
 const utilService = require('../services/utilService');
 
 
@@ -16,7 +16,7 @@ module.exports = async (req, res, next) => {
             return res.unauthorized({}, global.config.message.UNAUTHORIZED);
         }
 
-        await usersService.validateUserSessionAccess(payload);
+        await userService.validateUserSessionAccess(payload);
 
         req.user = payload;
         next();

@@ -8,10 +8,6 @@ const maintenanceCategorySchema = new Schema({
         trim: true,
         required: true
     },
-    categoryType: {
-        type: String,
-        required: true
-    },
     scheduleDays: {
         type: Number,
         default: 0

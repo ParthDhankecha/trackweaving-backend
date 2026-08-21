@@ -1,10 +1,18 @@
 const router = require('express').Router();
-const partChangeLogController = require('../../controllers/device/partChangeLogController');
-const isAuth = require('../../middleware/auth');
 
-router.post('/', isAuth, partChangeLogController.create);
-router.put('/:id', isAuth, partChangeLogController.update);
-router.get('/parts-list', isAuth, partChangeLogController.partsList);
-router.post('/list', isAuth, partChangeLogController.list);
+const auth = require('../../middleware/auth');
+const controller = require('../../controllers/device/partChangeLogController');
+
+
+router.get('/parts-list', auth, controller.partsList);
+
+router.post('/list', auth, controller.list);
+
+router.post('/', auth, controller.create);
+
+router.put('/:id', auth, controller.update);
+
+router.delete('/:id', auth, controller.delete);
+
 
 module.exports = router;

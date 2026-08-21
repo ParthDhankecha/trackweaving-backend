@@ -1,18 +1,18 @@
 const router = require("express").Router();
 
-const machineLogsController = require("../../controllers/client/machineLogsController");
-const isAuth = require("../../middleware/auth");
+const auth = require("../../middleware/auth");
+const controller = require("../../controllers/client/machineLogsController");
 
 
-router.get('/qualities', isAuth, machineLogsController.getQualityList);
+router.get('/qualities', auth, controller.getQualityList);
 
-router.post('/', machineLogsController.createLog);
+router.post('/', controller.createLog);
+/* not in use */
+// router.post('/inovance', controller.createInovanceLog);
 
-router.post('/inovance', machineLogsController.createInovanceLog);
+router.post('/list', auth, controller.getList);
 
-router.post('/list', isAuth, machineLogsController.getList);
-
-router.post('/machine-list', machineLogsController.getMachineList);
+router.post('/machine-list', controller.getMachineList);
 
 
 module.exports = router;

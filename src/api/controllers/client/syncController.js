@@ -1,12 +1,13 @@
 const authService = require('../../services/authService');
-// const jwtService = require('../../services/jwtService');
+const jwtService = require('../../services/jwtService');
+const accessService = require('../../services/accessService');
+const userService = require('../../services/userService');
 const utilService = require('../../services/utilService');
 
 
 module.exports = {
     getSync: async (req, res, next) => {
         try {
-            // let body = req.body;
             const syncData = {
                 publicUrl: global.config.SERVER_URL || '',
                 clientUrl: global.config.CLIENT_URL || '',
@@ -15,19 +16,29 @@ module.exports = {
                     ADMIN: global.config.USERS.TYPE.ADMIN,
                     MASTER: global.config.USERS.TYPE.MASTER,
                 },
+                access: null,
+
                 refreshInterval: global.config.REFRESH_INTERVAL,
                 efficiencyAveragePer: global.config.EFFICIENCY_AVERAGE_PER,
                 efficiencyGoodPer: global.config.EFFICIENCY_GOOD_PER,
                 beamLeftMin: global.config.BEAM_LEFT_MIN,
             };
 
-            // if (body.data && body.date) {
-            //     body = await authService.decryptData(body);
-            //     if (body?.token) {
-            //         const detailOfUserToken = await jwtService.verifyToken(body.token);
-            //         if (detailOfUserToken && !jwtService.isJwtTokenExpiredError(detailOfUserToken)) { }
-            //     }
-            // }
+            const token = req.headers?.authorization?.trim?.();
+            if (token && typeof token === 'string') {
+                try {
+                    const tokenUser = await jwtService.verifyToken(token);
+                    if (tokenUser && !jwtService.isJwtTokenExpiredError(tokenUser)) {
+                        const user = await userService.findOneV2({ _id: tokenUser.id }, {
+                            projection: { access: 1, userType: 1 },
+                            useLean: true,
+                        });
+                        if (user) syncData.access = accessService.resolveAccess(user);
+                    }
+                } catch (error) {
+                    utilService.log(error);
+                }
+            }
 
             const encodeKey = utilService.generateRandomNumber(13);
             const data = {

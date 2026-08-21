@@ -3,21 +3,30 @@ const moment = require('moment');
 const machineService = require('../../services/machineService');
 const maintenanceCategoryService = require('../../services/maintenanceCategoryService');
 const maintenanceDataService = require('../../services/maintenanceDataService');
-const { log, checkRequiredParams } = require('../../services/utilService');
+const utilService = require('../../services/utilService');
 
 
 module.exports = {
     getAlertList: async (req, res, next) => {
         try {
-            let machines = await machineService.find({ workspaceId: req.user.workspaceId, isAlertActive: true }, { projection: "machineCode machineName" });
+            let machines = await machineService.find({ workspaceId: req.user.workspaceId, isAlertActive: true }, {
+                projection: "machineCode machineName",
+                useLean: true
+            });
             let machineIds = machines.map(machine => machine._id);
-            let maintenanceCategories = await maintenanceCategoryService.find({ workspaceId: req.user.workspaceId, isActive: true }, { projection: "name alertDays scheduleDays" });
+            let maintenanceCategories = await maintenanceCategoryService.find({ workspaceId: req.user.workspaceId, isActive: true }, {
+                projection: "name alertDays scheduleDays",
+                useLean: true
+            });
             let categoriesMap = {};
             let maintenanceCategoryIds = maintenanceCategories.map(category => {
                 categoriesMap[category._id] = category;
                 return category._id;
             });
-            let maintenanceData = await maintenanceDataService.find({ machineId: { $in: machineIds }, maintenanceCategoryId: { $in: maintenanceCategoryIds } }, { projection: "maintenanceCategoryId machineId nextMaintenanceDate", useLean: true });
+            let maintenanceData = await maintenanceDataService.find({ machineId: { $in: machineIds }, maintenanceCategoryId: { $in: maintenanceCategoryIds } }, {
+                projection: "maintenanceCategoryId machineId nextMaintenanceDate",
+                useLean: true
+            });
 
             const alerts = {};
             for (let data of maintenanceData) {
@@ -36,7 +45,7 @@ module.exports = {
 
             return res.ok(Object.values(alerts), global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
@@ -44,11 +53,16 @@ module.exports = {
     updateAlert: async (req, res, next) => {
         try {
             const body = req.body;
-            checkRequiredParams(['nextMaintenanceDate', 'lastMaintenanceDate'], body);
+            utilService.checkRequiredParams(['nextMaintenanceDate', 'lastMaintenanceDate'], body);
 
-            const maintenanceData = await maintenanceDataService.findOne({ _id: req.params.id, isDeleted: false }, { useLean: true });
+            const mdId = req.params.id;
+            if (!utilService.isValidObjectId(mdId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const maintenanceData = await maintenanceDataService.findOne({ _id: mdId }, { useLean: true });
             if (!maintenanceData) {
-                return res.badRequest({}, "No maintenance data found for this machine and category.");
+                throw global.config.message.RECORD_NOT_FOUND;
             }
 
             const historyEntry = {
@@ -63,18 +77,22 @@ module.exports = {
                 lastMaintenanceDate: new Date(body.lastMaintenanceDate),
                 nextMaintenanceDate: new Date(body.nextMaintenanceDate),
                 remarks: body.remarks,
-                completedBy: body.completedBy || '',
+                completedBy: '',
+                completedByMobile: '',
                 $push: { history: historyEntry }
             };
-            if (body.completedByMobile || body.phone) {
-                updatedData.completedByMobile = body.completedByMobile || body.phone;
+            if (typeof body.completedBy && body.completedBy?.trim()) {
+                updatedData.completedBy = body.completedBy.trim();
+            }
+            if (typeof body.completedByMobile && body.completedByMobile?.trim()) {
+                updatedData.completedByMobile = body.completedByMobile.trim();
             }
 
-            const updatedMaintenanceData = await maintenanceDataService.findByIdAndUpdate(maintenanceData._id, updatedData);
+            const entry = await maintenanceDataService.findByIdAndUpdate(maintenanceData._id, updatedData);
 
-            return res.ok(updatedMaintenanceData, global.config.message.OK);
+            return res.ok(entry, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
@@ -82,11 +100,14 @@ module.exports = {
     getMaintenanceHistory: async (req, res, next) => {
         try {
             const { maintenanceCategoryId, machineId } = req.query;
-            if (!maintenanceCategoryId) {
+            if (!utilService.isValidObjectId(maintenanceCategoryId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            if (machineId && !utilService.isValidObjectId(machineId)) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const workspaceId = req.user.workspaceId;
+            const { workspaceId } = req.user;
             const category = await maintenanceCategoryService.findOne({ _id: maintenanceCategoryId, workspaceId });
             if (!category) {
                 throw global.config.message.RECORD_NOT_FOUND;
@@ -121,7 +142,6 @@ module.exports = {
                         machineId: record.machineId,
                         machineCode: machine.machineCode || '',
                         machineName: machine.machineName || '',
-                        categoryName: category.name,
                         lastMaintenanceDate: entry.lastMaintenanceDate,
                         nextMaintenanceDate: entry.nextMaintenanceDate,
                         completedBy: entry.completedBy || '',
@@ -137,7 +157,6 @@ module.exports = {
                         machineId: record.machineId,
                         machineCode: machine.machineCode || '',
                         machineName: machine.machineName || '',
-                        categoryName: category.name,
                         lastMaintenanceDate: record.lastMaintenanceDate,
                         nextMaintenanceDate: record.nextMaintenanceDate,
                         completedBy: record.completedBy || '',
@@ -155,13 +174,9 @@ module.exports = {
                 return dateB - dateA;
             });
 
-            return res.ok({
-                list,
-                categoryName: category.name,
-                maintenanceCategoryId: category._id
-            }, global.config.message.OK);
+            return res.ok(list, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     }

@@ -1,8 +1,12 @@
 const router = require('express').Router();
-const shiftWiseCommentController = require('../../controllers/device/shiftWiseCommentController');
-const isAuth = require('../../middleware/auth');
 
-router.post('/list', isAuth, shiftWiseCommentController.getShiftWiseComments);
-router.put('/', isAuth, shiftWiseCommentController.updateShiftWiseComment);
+const auth = require('../../middleware/auth');
+const controller = require('../../controllers/device/shiftWiseCommentController');
+
+
+router.post('/list', auth, controller.getShiftWiseComments);
+
+router.put('/', auth, controller.updateShiftWiseComment);
+
 
 module.exports = router;

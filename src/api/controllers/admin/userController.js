@@ -1,7 +1,7 @@
 const moment = require('moment');
 
 const authService = require('../../services/authService');
-const usersService = require('../../services/usersService');
+const userService = require('../../services/userService');
 const workspaceService = require('../../services/workspaceService');
 const machineService = require('../../services/machineService');
 const utilService = require('../../services/utilService');
@@ -47,7 +47,7 @@ module.exports = {
             }
 
             queryOption.populate = { path: 'workspaceId', select: 'firmName uid' };
-            const data = await usersService.getUserWithPagination(searchQuery, queryOption);
+            const data = await userService.getUserWithPagination(searchQuery, queryOption);
             const workspaceIds = new Set(data.list.map((user) => user.workspaceId?._id?.toString()).filter(Boolean));
             if (workspaceIds.size > 0) {
                 const workspaceList = await workspaceService.find({ _id: { $in: [...workspaceIds] } }, { projection: 'userId' });
@@ -75,14 +75,17 @@ module.exports = {
 
             const createObj = {
                 fullname: body.fullname?.trim?.(),
-                userName: usersService.validateUserName(body.userName),
+                userName: userService.validateUserName(body.userName),
                 password: body.password?.trim?.(),
             };
             if (utilService.isValidObjectId(body?.workspaceId)) {
                 createObj.workspaceId = body.workspaceId;
             }
-            utilService.checkRequiredParams(['fullname', 'userName', 'password', 'workspaceId'], createObj);
+            utilService.checkRequiredParams(['fullname', 'password', 'workspaceId'], createObj);
 
+            if (!createObj.userName?.normalized) {
+                throw global.config.message.BAD_REQUEST;
+            }
             if (typeof body.email === 'string' && body.email.trim()) {
                 if (!utilService.validateEmail(body.email)) {
                     throw global.config.message.BAD_REQUEST;
@@ -102,7 +105,7 @@ module.exports = {
                 createObj.isActive = body.isActive;
             }
 
-            createObj.shift = usersService.validateShift(body.shift);
+            createObj.shift = userService.validateShift(body.shift);
 
             if (!Array.isArray(body.machineIds)) {
                 throw global.config.message.BAD_REQUEST;
@@ -113,9 +116,9 @@ module.exports = {
             if (!machineIds.length) throw global.config.message.MASTER_MACHINES_REQUIRED;
             if (machineIds.length !== body.machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
-            const duplicate = await usersService.findOneV2({
+            const duplicate = await userService.findOneV2({
                 userName: {
-                    $regex: `^${utilService.escapeRegex(createObj.userName, { throwError: true })}$`,
+                    $regex: `^${createObj.userName.escaped}$`,
                     $options: 'i'
                 }
             }, {
@@ -132,6 +135,7 @@ module.exports = {
 
             await authService.createUser({
                 ...createObj,
+                userName: createObj.userName.normalized,
                 machineIds: machineIds,
                 userType: global.config.USERS.TYPE.MASTER,
             });
@@ -159,19 +163,24 @@ module.exports = {
             }
             const dupQuery = { _id: userId };
             if (typeof body.userName === 'string' && body.userName.trim()) {
-                updateObj.userName = usersService.validateUserName(body.userName);
+                const userNameObj = userService.validateUserName(body.userName);
+                if (!userNameObj?.normalized) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+
                 delete dupQuery._id;
                 Object.assign(dupQuery, {
                     $or: [{
                         _id: { $ne: userId },
                         userName: {
-                            $regex: `^${utilService.escapeRegex(updateObj.userName, { throwError: true })}$`,
+                            $regex: `^${userNameObj.escaped}$`,
                             $options: 'i'
                         }
                     }, {
                         _id: userId
                     }]
                 });
+                updateObj.userName = userNameObj.normalized;
             }
             if (typeof body.password === 'string' && body.password.trim()) {
                 updateObj.password = body.password.trim();
@@ -197,7 +206,7 @@ module.exports = {
                 }
             }
 
-            const targetUser = await usersService.findOneV2(dupQuery, {
+            const targetUser = await userService.findOneV2(dupQuery, {
                 useLean: true,
                 projection: 'userType mobile workspaceId'
             });
@@ -216,7 +225,7 @@ module.exports = {
             switch (targetUser.userType) {
                 case USERS_TYPE.MASTER: {
                     if (Array.isArray(body.shift)) {
-                        updateObj.shift = usersService.validateShift(body.shift);
+                        updateObj.shift = userService.validateShift(body.shift);
                     }
                     if (Array.isArray(body.machineIds)) {
                         const machineIds = [...new Set(
@@ -240,7 +249,7 @@ module.exports = {
                 case USERS_TYPE.ADMIN: {
                     const planBody = body.plan;
                     if (typeof planBody === 'object') {
-                        if (!planBody?.startDate || !planBody?.endDate || !planBody?.subUserLimit) {
+                        if (!planBody?.startDate || !planBody?.endDate || typeof planBody?.subUserLimit !== 'number') {
                             updateObj.plan = {
                                 startDate: null,
                                 endDate: null,
@@ -272,7 +281,7 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const entry = await usersService.findByIdAndUpdate(userId, updateObj, {
+            const entry = await userService.findByIdAndUpdate(userId, updateObj, {
                 populate: { path: 'workspaceId', select: 'firmName uid' }
             });
             if (!entry) throw global.config.message.NOT_UPDATED;
@@ -289,7 +298,7 @@ module.exports = {
             const { userId } = req.params;
             if (!utilService.isValidObjectId(userId)) throw global.config.message.BAD_REQUEST;
 
-            const user = await usersService.findOneV2({ _id: userId }, {
+            const user = await userService.findOneV2({ _id: userId }, {
                 useLean: true,
                 projection: '_id workspaceId',
                 populate: { path: 'workspaceId', select: 'userId' }
@@ -299,7 +308,7 @@ module.exports = {
                 throw global.config.message.OPERATION_NOT_PERMITTED;
             }
 
-            const entry = await usersService.findByIdAndDelete(userId);
+            const entry = await userService.findByIdAndDelete(userId);
             if (!entry) throw global.config.message.NOT_UPDATED;
 
             return res.ok(null, global.config.message.USER_DELETED);

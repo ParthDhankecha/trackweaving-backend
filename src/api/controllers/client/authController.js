@@ -1,6 +1,6 @@
 const authService = require('../../services/authService');
 const jwtService = require('../../services/jwtService');
-const usersService = require('../../services/usersService');
+const userService = require('../../services/userService');
 const { log, checkRequiredParams } = require('../../services/utilService');
 
 
@@ -70,7 +70,7 @@ module.exports = {
             checkRequiredParams(['userName', 'password'], reqBody);
 
             const userData = await authService.verifyingUser(reqBody.userName, reqBody.password);
-            const workspace = await usersService.validatePlanForSignIn(userData.workspaceId);
+            const workspace = await userService.validatePlanForSignIn(userData.workspaceId);
             if (!workspace) {
                 throw global.config.message.BAD_REQUEST;
             }
@@ -101,7 +101,7 @@ module.exports = {
 
             checkRequiredParams(['email', 'password'], reqBody);
 
-            const existingUser = await usersService.findOneV2({ 'email': reqBody.email });
+            const existingUser = await userService.findOneV2({ 'email': reqBody.email });
             if (existingUser) {
                 throw global.config.message.EMAIL_ALREADY_REGISTERED;
             }
@@ -140,7 +140,7 @@ module.exports = {
             const reqBody = req.body;
             checkRequiredParams(['email'], reqBody);
 
-            const userDetails = await usersService.findOneV2({ email: reqBody.email });
+            const userDetails = await userService.findOneV2({ email: reqBody.email });
             if (!userDetails) {
                 return res.notFound(null, global.config.message.EMAIL_NOT_FOUND);
             }

@@ -1,9 +1,10 @@
 const router = require('express').Router();
-const reportController = require('../../controllers/device/reportController');
-const isAuth = require('../../middleware/auth');
+
+const auth = require('../../middleware/auth');
+const controller = require('../../controllers/device/reportController');
 
 
-router.post('/', isAuth, reportController.getReport);
+router.post('/', auth, controller.getReport);
 
 
 module.exports = router;

@@ -1,13 +1,18 @@
 const router = require('express').Router();
-const machineController = require('../../controllers/client/machineController');
-const isAuth = require('../../middleware/auth');
+
+const auth = require('../../middleware/auth');
+const requireAccess = require('../../middleware/requireAccess');
+const controller = require('../../controllers/client/machineController');
+
+const { MODULE_KEYS, ACTION_KEYS } = require('../../services/accessService');
 
 
-router.get('/option-list', isAuth, machineController.optionList);
+router.get('/', auth, requireAccess(MODULE_KEYS.MACHINE_CONFIGURE, ACTION_KEYS.READ), controller.getMachineList);
 
-router.get('/', isAuth, machineController.getMachineList);
+// Shared dropdown helper
+router.get('/option-list', auth, controller.optionList);
 
-router.put('/:id', isAuth, machineController.updateMachine);
+router.put('/:id', auth, requireAccess(MODULE_KEYS.MACHINE_CONFIGURE, ACTION_KEYS.UPDATE), controller.updateMachine);
 
 
 module.exports = router;

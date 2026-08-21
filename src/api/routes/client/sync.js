@@ -1,8 +1,9 @@
 const router = require("express").Router();
-const syncController = require('../../controllers/client/syncController');
+
+const controller = require('../../controllers/client/syncController');
 
 
-router.post('/', syncController.getSync);
+router.post('/', controller.getSync);
 
 
 module.exports = router;

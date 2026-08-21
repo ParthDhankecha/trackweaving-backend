@@ -141,20 +141,21 @@ module.exports = {
         const user = await userModel.findOne({ 'userName': { $regex: `^${userName}$`, $options: 'i' }, isDeleted: false }, '+password +userType').lean();
         if (!user) {
             errorObj.notFound = true;
-            if (throwError) throw global.config.message.MOBILE_NOT_FOUND;
+            if (throwError) throw global.config.message.INVALID_CREDENTIALS;
             return errorObj; // return early if not found
         };
-        if (!user.isActive) {
-            errorObj.inactiveAccount = true;
-            if (throwError) throw global.config.message.INACTIVE_ACCOUNT;
-            return errorObj; // return early if inactive account
-        }
 
         const isMatch = await compare(planePassword, user.password);
         if (!isMatch) {
             errorObj.invalidCredentials = true;
             if (throwError) throw global.config.message.INVALID_CREDENTIALS;
             return errorObj; // return early if credentials are invalid
+        }
+
+        if (!user.isActive) {
+            errorObj.inactiveAccount = true;
+            if (throwError) throw global.config.message.INACTIVE_ACCOUNT;
+            return errorObj; // return early if inactive account
         }
 
         const { password, ...result } = user;

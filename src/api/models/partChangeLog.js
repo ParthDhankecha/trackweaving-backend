@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
+
 const partChangeLogSchema = new Schema({
     machineId: {
         type: Schema.Types.ObjectId,
@@ -24,7 +25,7 @@ const partChangeLogSchema = new Schema({
     changedBy: {
         type: String,
         trim: true,
-        required: true
+        default: ''
     },
     changedByContact: {
         type: String,
@@ -44,6 +45,7 @@ const partChangeLogSchema = new Schema({
     versionKey: false,
     timestamps: true
 });
+
 
 const partChangeLog = mongoose.model('partChangeLog', partChangeLogSchema, 'partChangeLog');
 module.exports = partChangeLog;

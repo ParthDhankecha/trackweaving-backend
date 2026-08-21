@@ -4,6 +4,7 @@ const auth = require('../../middleware/auth');
 const controller = require('../../controllers/device/machineGroupController');
 
 
+// Shared dropdown helper — auth only (used by reports, users, etc.)
 router.get('/', auth, controller.getMachineGroupsList);
 
 router.get('/:id', auth, controller.getMachineGroupById);

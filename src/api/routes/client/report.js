@@ -1,9 +1,13 @@
 const router = require('express').Router();
-const reportController = require('../../controllers/client/reportController');
-const isAuth = require('../../middleware/auth');
+
+const auth = require('../../middleware/auth');
+const requireAccess = require('../../middleware/requireAccess');
+const controller = require('../../controllers/client/reportController');
+
+const { MODULE_KEYS, ACTION_KEYS } = require('../../services/accessService');
 
 
-router.post('/', isAuth, reportController.getReport);
+router.post('/', auth, requireAccess(MODULE_KEYS.REPORT, ACTION_KEYS.READ), controller.getReport);
 
 
 module.exports = router;

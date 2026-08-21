@@ -1,5 +1,5 @@
 const machineService = require('../../services/machineService');
-const usersService = require('../../services/usersService');
+const userService = require('../../services/userService');
 const machineEnums = require('../../../config/constant/scoped/machine');
 const utilService = require('../../services/utilService');
 
@@ -228,7 +228,7 @@ module.exports = {
 
             // refresh machine list for master users
             if (String(machine.workspaceId) !== String(result.workspaceId)) {
-                const refreshed = await usersService.updateMany({
+                const refreshed = await userService.updateMany({
                     workspaceId: machine.workspaceId,
                     machineIds: { $in: [machine._id] }
                 }, {
@@ -258,7 +258,7 @@ module.exports = {
             if (!entry) throw global.config.message.RECORD_NOT_FOUND;
 
             if (entry.workspaceId) {
-                const refreshed = await usersService.updateMany({
+                const refreshed = await userService.updateMany({
                     workspaceId: entry.workspaceId,
                     machineIds: { $in: [entry._id] }
                 }, {

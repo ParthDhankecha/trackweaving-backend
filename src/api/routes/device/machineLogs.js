@@ -1,11 +1,12 @@
 const router = require('express').Router();
-const machineLogsController = require('../../controllers/device/machineLogsController');
-const isAuth = require('../../middleware/auth');
+
+const auth = require('../../middleware/auth');
+const controller = require('../../controllers/device/machineLogsController');
 
 
-router.get('/qualities', isAuth, machineLogsController.getQualityList);
+router.get('/qualities', auth, controller.getQualityList);
 
-router.post('/list', isAuth, machineLogsController.getList);
+router.post('/list', auth, controller.getList);
 
 
 module.exports = router;

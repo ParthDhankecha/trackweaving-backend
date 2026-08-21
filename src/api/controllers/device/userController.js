@@ -1,12 +1,13 @@
-const usersService = require('../../services/usersService');
+const userService = require('../../services/userService');
 const appVersionService = require('../../services/appVersionService');
 const machineService = require('../../services/machineService');
 const utilService = require('../../services/utilService');
 
 const _commonProjection = { _id: 1, fullname: 1, userName: 1, email: 1, mobile: 1, userType: 1, isActive: 1, shift: 1, machineIds: 1 };
 
+
 module.exports = {
-    list: async (req, res, next) => {
+    getList: async (req, res, next) => {
         try {
             const user = req.user;
             const conditions = {
@@ -16,7 +17,7 @@ module.exports = {
                 conditions._id = user.id;
             }
 
-            const list = await usersService.findV2(conditions, {
+            const list = await userService.findV2(conditions, {
                 projection: { ..._commonProjection },
                 useLean: true,
             });
@@ -36,13 +37,13 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const userdata = await usersService.findOneV2({ _id: id }, {
+            const userdata = await userService.findOneV2({ _id: id }, {
                 projection: { fullname: 1, userName: 1, mobile: 1, email: 1, userType: 1, workspaceId: 1 },
                 useLean: true
             });
             if (!userdata) throw global.config.message.USER_NOT_FOUND;
 
-            const workspace = await usersService.validatePlanForSignIn(userdata.workspaceId);
+            const workspace = await userService.validatePlanForSignIn(userdata.workspaceId);
             if (!workspace) throw global.config.message.BAD_REQUEST;
 
             userdata.userId = workspace.uid;
@@ -91,11 +92,14 @@ module.exports = {
             const body = req.body;
             const createObj = {
                 fullname: body.fullname?.trim?.(),
-                userName: usersService.validateUserName(body.userName),
+                userName: userService.validateUserName(body.userName),
                 password: body.password?.trim?.(),
             };
-            utilService.checkRequiredParams(['fullname', 'userName', 'password'], createObj);
+            utilService.checkRequiredParams(['fullname', 'password'], createObj);
 
+            if (!createObj.userName?.normalized) {
+                throw global.config.message.BAD_REQUEST;
+            }
             if (typeof body.email === 'string' && body.email.trim()) {
                 if (!utilService.validateEmail(body.email)) {
                     throw global.config.message.BAD_REQUEST;
@@ -112,7 +116,7 @@ module.exports = {
                 createObj.isActive = body.isActive;
             }
 
-            createObj.shift = usersService.validateShift(body.shift);
+            createObj.shift = userService.validateShift(body.shift);
 
             if (!Array.isArray(body.machineIds)) {
                 throw global.config.message.BAD_REQUEST;
@@ -123,11 +127,11 @@ module.exports = {
             if (!machineIds.length) throw global.config.message.MASTER_MACHINES_REQUIRED;
             if (machineIds.length !== body.machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
-            await usersService.getUserPlan(user.workspaceId, true);
+            await userService.getUserPlan(user.workspaceId, true);
 
-            const duplicate = await usersService.findOneV2({
+            const duplicate = await userService.findOneV2({
                 userName: {
-                    $regex: `^${utilService.escapeRegex(body.userName, { throwError: true })}$`,
+                    $regex: `^${createObj.userName.escaped}$`,
                     $options: 'i',
                 }
             }, {
@@ -142,8 +146,9 @@ module.exports = {
             });
             if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
-            await usersService.create({
+            await userService.create({
                 ...createObj,
+                userName: createObj.userName.normalized,
                 machineIds: machineIds,
                 userType: global.config.USERS.TYPE.MASTER,
                 workspaceId: user.workspaceId
@@ -179,7 +184,7 @@ module.exports = {
                 throw global.config.message.UNAUTHORIZED;
             }
 
-            const targetUser = await usersService.findOneV2({ _id: userId, workspaceId: user.workspaceId }, {
+            const targetUser = await userService.findOneV2({ _id: userId, workspaceId: user.workspaceId }, {
                 useLean: true,
                 projection: 'userType'
             });
@@ -190,7 +195,10 @@ module.exports = {
                 updateObj.fullname = body.fullname.trim();
             }
             if (typeof body.userName === 'string' && body.userName.trim()) {
-                updateObj.userName = usersService.validateUserName(body.userName);
+                updateObj.userName = userService.validateUserName(body.userName);
+                if (!updateObj.userName?.normalized) {
+                    throw global.config.message.BAD_REQUEST;
+                }
             }
             if (typeof body.password === 'string' && body.password.trim()) {
                 updateObj.password = body.password.trim();
@@ -219,7 +227,7 @@ module.exports = {
             // Master-only fields: admin updating a master user
             if (isAdmin && targetUser.userType === USERS_TYPE.MASTER) {
                 if (Array.isArray(body.shift)) {
-                    updateObj.shift = usersService.validateShift(body.shift);
+                    updateObj.shift = userService.validateShift(body.shift);
                 }
 
                 if (Array.isArray(body.machineIds)) {
@@ -248,20 +256,19 @@ module.exports = {
             }
 
             if (updateObj.userName) {
-                const duplicate = await usersService.findOneV2({
+                const duplicate = await userService.findOneV2({
                     _id: { $ne: userId },
                     userName: {
-                        $regex: `^${utilService.escapeRegex(updateObj.userName, { throwError: true })}$`,
+                        $regex: `^${updateObj.userName.escaped}$`,
                         $options: 'i'
                     }
-                }, {
-                    useLean: true,
-                    projection: '_id'
-                });
+                }, { useLean: true, projection: '_id' });
                 if (duplicate) throw global.config.message.USER_EXISTS;
+
+                updateObj.userName = updateObj.userName.normalized;
             }
 
-            const entry = await usersService.findByIdAndUpdate(userId, updateObj, {
+            const entry = await userService.findByIdAndUpdate(userId, updateObj, {
                 projection: { ..._commonProjection },
                 useLean: true,
             });

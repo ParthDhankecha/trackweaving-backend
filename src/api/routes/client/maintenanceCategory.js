@@ -1,15 +1,22 @@
 const router = require('express').Router();
-const maintenanceCategoryController = require('../../controllers/client/maintenanceCategoryController');
-const isAuth = require('../../middleware/auth');
+
+const auth = require('../../middleware/auth');
+const requireAccess = require('../../middleware/requireAccess');
+const controller = require('../../controllers/client/maintenanceCategoryController');
+
+const { MODULE_KEYS, ACTION_KEYS } = require('../../services/accessService');
 
 
-router.get('/', isAuth, maintenanceCategoryController.getMaintenanceCategories);
+router.get('/', auth, requireAccess(MODULE_KEYS.MAINTENANCE_CATEGORY, ACTION_KEYS.READ), controller.getList);
 
-router.post('/', isAuth, maintenanceCategoryController.createMaintenanceCategory);
+// Shared dropdown helper
+router.get('/option-list', auth, controller.getOptionList);
 
-router.put('/:id', isAuth, maintenanceCategoryController.updateMaintenanceCategory);
+router.post('/', auth, requireAccess(MODULE_KEYS.MAINTENANCE_CATEGORY, ACTION_KEYS.CREATE), controller.create);
 
-router.delete('/:id', isAuth, maintenanceCategoryController.deleteMaintenanceCategory);
+router.put('/:id', auth, requireAccess(MODULE_KEYS.MAINTENANCE_CATEGORY, ACTION_KEYS.UPDATE), controller.update);
+
+router.delete('/:id', auth, requireAccess(MODULE_KEYS.MAINTENANCE_CATEGORY, ACTION_KEYS.DELETE), controller.delete);
 
 
 module.exports = router;

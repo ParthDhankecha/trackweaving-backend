@@ -1,18 +1,18 @@
 const router = require('express').Router();
 
-const usersController = require('../../controllers/device/userController');
 const auth = require('../../middleware/auth');
+const controller = require('../../controllers/device/userController');
 
 
-router.get('/list', auth, usersController.list);
+router.get('/list', auth, controller.getList);
 
-router.get('/profile', auth, usersController.getProfile);
+router.get('/profile', auth, controller.getProfile);
 
-router.get('/sync/data', usersController.syncData);
+router.get('/sync/data', controller.syncData);
 
-router.post('/', auth, usersController.create);
+router.post('/', auth, controller.create);
 
-router.put('/:id', auth, usersController.update);
+router.put('/:id', auth, controller.update);
 
 
 module.exports = router;

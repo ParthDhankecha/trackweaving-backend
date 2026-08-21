@@ -1,13 +1,17 @@
 const router = require('express').Router();
-const alertController = require('../../controllers/client/alertController');
-const isAuth = require('../../middleware/auth');
+
+const auth = require('../../middleware/auth');
+const requireAccess = require('../../middleware/requireAccess');
+const controller = require('../../controllers/client/alertController');
+
+const { MODULE_KEYS, ACTION_KEYS } = require('../../services/accessService');
 
 
-router.get('/', isAuth, alertController.getAlertList);
+router.get('/', auth, requireAccess(MODULE_KEYS.MAINTENANCE_ENTRY, ACTION_KEYS.READ), controller.getAlertList);
 
-router.get('/history', isAuth, alertController.getMaintenanceHistory);
+router.get('/history', auth, requireAccess(MODULE_KEYS.MAINTENANCE_ENTRY, ACTION_KEYS.HISTORY), controller.getMaintenanceHistory);
 
-router.put('/:id', isAuth, alertController.updateAlert);
+router.put('/:id', auth, requireAccess(MODULE_KEYS.MAINTENANCE_ENTRY, ACTION_KEYS.UPDATE), controller.updateAlert);
 
 
 module.exports = router;

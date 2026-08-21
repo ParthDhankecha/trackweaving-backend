@@ -2,13 +2,16 @@ const machineGroupService = require('../../services/machineGroupService');
 const machineService = require('../../services/machineService');
 const utilService = require('../../services/utilService');
 
+const projection = 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality reed';
+
 
 module.exports = {
-    optionList: async (req, res, next) => {
+    getMachineList: async (req, res, next) => {
         try {
             const { workspaceId } = req.user;
-            const machines = await machineService.find({ workspaceId }, {
-                projection: 'machineCode machineName machineGroupId',
+            const machines = await machineService.find({ workspaceId, isDeleted: false }, {
+                populate: { path: 'machineGroupId', select: 'groupName' },
+                projection: projection,
                 useLean: true,
             });
 
@@ -19,11 +22,13 @@ module.exports = {
         }
     },
 
-    getMachineList: async (req, res, next) => {
+    optionList: async (req, res, next) => {
         try {
-            const workspaceId = req.user.workspaceId;
-            const projection = 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality reed';
-            const machines = await machineService.find({ workspaceId, isDeleted: false }, { populate: 'machineGroupId', projection: projection });
+            const { workspaceId } = req.user;
+            const machines = await machineService.find({ workspaceId }, {
+                projection: 'machineCode machineName machineGroupId',
+                useLean: true,
+            });
 
             return res.ok(machines, global.config.message.OK);
         } catch (error) {
@@ -46,10 +51,10 @@ module.exports = {
             }
 
             const updateObj = {}, body = req.body;
-            if (body.machineCode) {
-                machineService.validateMachineCode(body.machineCode);
-                updateObj.machineCode = body.machineCode;
-            }
+            // if (body.machineCode) {
+            //     machineService.validateMachineCode(body.machineCode);
+            //     updateObj.machineCode = body.machineCode;
+            // }
             if (body.hasOwnProperty('machineGroupId')) {
                 updateObj.machineGroupId = null;
                 if (body.machineGroupId) {
@@ -84,22 +89,22 @@ module.exports = {
                 }
             }
 
-            if (updateObj.machineCode) {
-                const duplicate = await machineService.findOne({
-                    workspaceId,
-                    machineCode: updateObj.machineCode,
-                    _id: { $ne: machineId }
-                }, {
-                    useLean: true,
-                    handleDeleted: false,
-                    projection: '_id'
-                });
-                if (duplicate) throw global.config.message.IS_DUPLICATE;
-            }
+            // if (updateObj.machineCode) {
+            //     const duplicate = await machineService.findOne({
+            //         workspaceId,
+            //         machineCode: updateObj.machineCode,
+            //         _id: { $ne: machineId }
+            //     }, {
+            //         useLean: true,
+            //         handleDeleted: false,
+            //         projection: '_id'
+            //     });
+            //     if (duplicate) throw global.config.message.IS_DUPLICATE;
+            // }
 
             const entry = await machineService.findOneAndUpdate({ _id: machineId, workspaceId }, updateObj, {
-                populate: 'machineGroupId',
-                projection: 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality reed'
+                populate: { path: 'machineGroupId', select: 'groupName' },
+                projection: projection
             });
             if (!entry) throw global.config.message.NOT_UPDATED;
 

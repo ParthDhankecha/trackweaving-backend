@@ -38,22 +38,22 @@ module.exports = {
 
     createMachineGroup: async (req, res, next) => {
         try {
-            const groupName = req.body.groupName?.trim();
-            if (!groupName || typeof groupName !== 'string') {
+            const groupNameObj = utilService.escapeRegex(req.body.groupName, { throwError: true });
+            if (!groupNameObj?.normalized) {
                 throw global.config.message.BAD_REQUEST;
             }
 
             const user = req.user;
             const duplicate = await machineGroupService.findOne({
                 workspaceId: user.workspaceId,
-                groupName: { $regex: `^${utilService.escapeRegex(groupName)}$`, $options: 'i' },
+                groupName: { $regex: `^${groupNameObj.escaped}$`, $options: 'i' },
             }, { useLean: true, projection: { _id: 1 } });
             if (duplicate) {
                 throw global.config.message.MACHINE_GROUP_ALREADY_EXIST;
             }
 
             const entry = await machineGroupService.create({
-                groupName: groupName,
+                groupName: groupNameObj.normalized,
                 createdBy: user.id,
                 workspaceId: user.workspaceId
             });
@@ -68,8 +68,11 @@ module.exports = {
     updateMachineGroup: async (req, res, next) => {
         try {
             const { id } = req.params;
-            const groupName = req.body.groupName?.trim();
-            if (!utilService.isValidObjectId(id) || !groupName) {
+            if (!utilService.isValidObjectId(id)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            const groupNameObj = utilService.escapeRegex(req.body.groupName, { throwError: true });
+            if (!groupNameObj?.normalized) {
                 throw global.config.message.BAD_REQUEST;
             }
 
@@ -78,7 +81,7 @@ module.exports = {
                 workspaceId: user.workspaceId,
                 $or: [{
                     _id: { $ne: id },
-                    groupName: { $regex: `^${utilService.escapeRegex(groupName)}$`, $options: 'i' }
+                    groupName: { $regex: `^${groupNameObj.escaped}$`, $options: 'i' }
                 }, {
                     _id: id,
                 }]
@@ -92,7 +95,7 @@ module.exports = {
             }
 
             const entry = await machineGroupService.findByIdAndUpdate(id, {
-                groupName: groupName
+                groupName: groupNameObj.normalized
             });
 
             return res.ok(entry, global.config.message.OK);

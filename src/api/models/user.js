@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+
 const { USERS } = require('../../config/constant/user');
 const { SHIFT_TYPE } = require('../../config/constant/machineLog');
-
 
 
 const getSubSchema = (subSchema, schemaOptions = {}) => {
@@ -46,7 +46,7 @@ const UserSchema = new Schema({
     userType: {
         type: Number,
         enum: [USERS.TYPE.ADMIN, USERS.TYPE.MASTER],
-        default: USERS.TYPE.ADMIN
+        default: USERS.TYPE.MASTER
     },
     shift: {
         type: [{ type: Number, enum: Object.values(SHIFT_TYPE) }]
@@ -76,6 +76,14 @@ const UserSchema = new Schema({
     receiveWhatsappReport: {
         type: Boolean,
         default: false
+    },
+    // Module-wise CRUD/export access for MASTER users. ADMIN ignores this (full access).
+    access: {
+        type: Schema.Types.Map,
+        of: {
+            type: [String],
+        },
+        select: false
     },
     isDeleted: {
         type: Boolean,

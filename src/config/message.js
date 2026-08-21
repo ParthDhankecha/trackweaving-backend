@@ -121,6 +121,11 @@ module.exports = {
             message: "You already reached maximum user add limit.",
             status: 422
         },
+        INVALID_USER_LIMIT: {
+            code: "UNPROCESSABLE_ENTITY",
+            message: "Invalid user limit. Contact admin to increase the limit.",
+            status: 422
+        },
         ACCESS_DENIED: {
             code: "E_FORBIDDEN",
             message: "Access denied.",
@@ -245,7 +250,7 @@ module.exports = {
         },
         INVALID_USER_NAME: {
             code: "E_BAD_REQUEST",
-            message: "Invalid username. It should be 2-20 characters, start with a letter and contain only letters, numbers, and underscores.",
+            message: "Invalid username. It should be at least 6 characters long.",
             status: 400
         },
         REQUIRED_FIELD_MISSING: {
@@ -330,6 +335,12 @@ module.exports = {
         },
 
 
+
+        DUPLICATE_MAINTENANCE_CATEGORY: {
+            code: "E_DUPLICATE",
+            message: "Maintenance category with this name already exists.",
+            status: 409
+        },
 
         MACHINE_GROUP_ALREADY_EXIST: {
             code: "E_DUPLICATE",

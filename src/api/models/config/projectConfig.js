@@ -14,6 +14,8 @@ const projectConfigSchema = new Schema({
     sacCode: { type: String, default: '' },
     invoicePhone: { type: String, default: '' },
     invoiceAddress: { type: String, default: '' },
+    apiHost: { type: String, default: '' },
+    reportUrl: { type: String, default: '' },
 }, {
     timestamps: true,
     versionKey: false

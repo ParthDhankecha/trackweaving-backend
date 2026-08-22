@@ -10,4 +10,6 @@ module.exports = {
     SAC_CODE: "",
     INVOICE_PHONE: "",
     INVOICE_ADDRESS: "",
+    API_HOST: "",
+    REPORT_URL: "",
 };

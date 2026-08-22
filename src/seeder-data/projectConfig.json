@@ -10,6 +10,8 @@
         "gstNumber": "",
         "sacCode": "",
         "invoicePhone": "",
-        "invoiceAddress": ""
+        "invoiceAddress": "",
+        "apiHost": "",
+        "reportUrl": ""
     }
 ]

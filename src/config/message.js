@@ -347,9 +347,9 @@ module.exports = {
             message: "Machine group with this name already exist.",
             status: 409
         },
-        APP_VERSION_ALREADY_EXIST: {
+        APP_VERSION_HISTORY_ALREADY_EXIST: {
             code: "E_DUPLICATE",
-            message: "App version config already exists. Update the existing entry instead.",
+            message: "A history entry with this build already exists.",
             status: 409
         },
         INVALID_SHIFT: {

@@ -12,28 +12,51 @@ const platformVersionSchema = new Schema({
         type: Number,
         required: true,
         default: 1
-    },
-    updateNote: {
-        type: String,
-        trim: true,
-        default: ''
     }
 }, { _id: false });
 
-const appVersionSchema = new Schema({
+const flavorConfigSchema = new Schema({
     android: {
         type: platformVersionSchema,
         required: true,
-        default: () => ({ min: 1, latest: 1, updateNote: '' })
+        default: () => ({ min: 1, latest: 1 })
     },
     ios: {
         type: platformVersionSchema,
         required: true,
-        default: () => ({ min: 1, latest: 1, updateNote: '' })
+        default: () => ({ min: 1, latest: 1 })
+    }
+}, { _id: false });
+
+const historyEntrySchema = new Schema({
+    build: {
+        type: Number,
+        required: true
     },
-    // snapshot of previous android/ios values whenever config is updated
+    version: {
+        type: String,
+        required: true
+    },
+    updateNote: {
+        type: String,
+        trim: true,
+        default: null
+    },
+    changedAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+const appVersionSchema = new Schema({
+    // flavor name -> { android, ios }. New flavors can be added without a schema change.
+    flavors: {
+        type: Map,
+        of: flavorConfigSchema,
+        default: () => new Map()
+    },
     history: {
-        type: [Schema.Types.Mixed],
+        type: [historyEntrySchema],
         default: []
     },
     isDeleted: {

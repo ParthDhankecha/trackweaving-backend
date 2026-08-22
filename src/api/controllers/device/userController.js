@@ -1,5 +1,4 @@
 const userService = require('../../services/userService');
-const appVersionService = require('../../services/appVersionService');
 const machineService = require('../../services/machineService');
 const utilService = require('../../services/utilService');
 
@@ -58,12 +57,10 @@ module.exports = {
 
     syncData: async (req, res, next) => {
         try {
-            const forceVersion = await appVersionService.getForceVersion();
             const syncData = {
                 refreshInterval: global.config.REFRESH_INTERVAL,
                 efficiencyAveragePer: global.config.EFFICIENCY_AVERAGE_PER,
                 efficiencyGoodPer: global.config.EFFICIENCY_GOOD_PER,
-                forceVersion: forceVersion,
                 beamLeftMin: global.config.BEAM_LEFT_MIN,
 
                 // TODO: Remove this after app update in all devices

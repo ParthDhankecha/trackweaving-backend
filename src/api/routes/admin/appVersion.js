@@ -6,9 +6,13 @@ const controller = require('../../controllers/admin/appVersionController');
 
 router.get('/', auth, controller.get);
 
-router.post('/', auth, controller.create);
-
 router.put('/', auth, controller.update);
+
+router.post('/history', auth, controller.addHistory);
+
+router.put('/history/:id', auth, controller.updateHistory);
+
+router.delete('/history/:id', auth, controller.deleteHistory);
 
 
 module.exports = router;

@@ -1,150 +1,201 @@
-const utilService = require('../services/utilService');
+const { APP_VERSION } = require('../../config/constant/scoped/appVersion');
+const utilService = require('./utilService');
+
+const { FLAVORS, DEFAULT_VERSION } = APP_VERSION;
 
 
-const DEFAULT_PLATFORM = { min: 1, latest: 1, updateNote: '' };
+function badRequest() {
+    throw global.config.message.BAD_REQUEST;
+}
+
+function isPositiveInt(value) {
+    return Number.isInteger(value) && value >= 1;
+}
+
+function toPlain(doc) {
+    if (!doc) return {};
+    return typeof doc.toObject === 'function' ? doc.toObject({ flattenMaps: true }) : { ...doc };
+}
+
+function flavorsObject(flavors) {
+    if (!flavors) return {};
+    if (flavors instanceof Map) return Object.fromEntries(flavors);
+    return { ...flavors };
+}
+
+function readPlatform(data = {}) {
+    return {
+        min: Number(data.min ?? DEFAULT_VERSION.min),
+        latest: Number(data.latest ?? DEFAULT_VERSION.latest)
+    };
+}
 
 function normalizePlatform(data = {}) {
-    const platform = {
-        min: Number(data.min ?? DEFAULT_PLATFORM.min),
-        latest: Number(data.latest ?? DEFAULT_PLATFORM.latest),
-        updateNote: typeof data.updateNote === 'string' ? data.updateNote.trim() : DEFAULT_PLATFORM.updateNote
-    };
-
-    if (!utilService.isNumber(platform.min, { min: 1 })) {
-        throw global.config.message.BAD_REQUEST;
+    const platform = readPlatform(data);
+    if (!isPositiveInt(platform.min) || !isPositiveInt(platform.latest) || platform.min > platform.latest) {
+        badRequest();
     }
-    if (!utilService.isNumber(platform.latest, { min: 1 })) {
-        throw global.config.message.BAD_REQUEST;
-    }
-    if (platform.min > platform.latest) {
-        throw global.config.message.BAD_REQUEST;
-    }
-
     return platform;
 }
-function hasPlatformChanged(current = {}, next = {}) {
-    return current.min !== next.min || current.latest !== next.latest || (current.updateNote || '') !== (next.updateNote || '');
+
+function filledFlavors(doc) {
+    const stored = flavorsObject(toPlain(doc).flavors);
+    const flavors = {};
+    for (const name of FLAVORS) {
+        const config = stored[name] || {};
+        flavors[name] = {
+            android: readPlatform(config.android),
+            ios: readPlatform(config.ios)
+        };
+    }
+    return flavors;
 }
-function toResponse(doc) {
-    if (!doc) return null;
-    const data = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
+
+function normalizeFlavors(input, current = filledFlavors()) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) badRequest();
+
+    const merged = { ...current };
+    let hasValidFlavor = false;
+
+    for (const [name, config] of Object.entries(input)) {
+        const key = String(name).toLowerCase();
+        if (!FLAVORS.includes(key) || !config || typeof config !== 'object' || Array.isArray(config)) continue;
+
+        const prev = merged[key];
+        merged[key] = {
+            android: config.android ? normalizePlatform({ ...prev.android, ...config.android }) : prev.android,
+            ios: config.ios ? normalizePlatform({ ...prev.ios, ...config.ios }) : prev.ios
+        };
+        hasValidFlavor = true;
+    }
+
+    if (!hasValidFlavor) badRequest();
+    return merged;
+}
+
+function historyList(history = []) {
+    return [...history]
+        .map((item) => {
+            const entry = typeof item.toObject === 'function' ? item.toObject() : item;
+            return {
+                _id: entry._id,
+                build: entry.build,
+                version: entry.version,
+                updateNote: entry.updateNote || '',
+                changedAt: entry.changedAt
+            };
+        })
+        .sort((a, b) => b.build - a.build);
+}
+
+function normalizeHistory(data = {}) {
+    const build = Number(data.build);
+    const version = typeof data.version === 'string' ? data.version.trim() : '';
+    if (!isPositiveInt(build) || !version) badRequest();
     return {
-        _id: data._id,
-        android: {
-            min: data.android?.min ?? DEFAULT_PLATFORM.min,
-            latest: data.android?.latest ?? DEFAULT_PLATFORM.latest,
-            updateNote: data.android?.updateNote ?? DEFAULT_PLATFORM.updateNote
-        },
-        ios: {
-            min: data.ios?.min ?? DEFAULT_PLATFORM.min,
-            latest: data.ios?.latest ?? DEFAULT_PLATFORM.latest,
-            updateNote: data.ios?.updateNote ?? DEFAULT_PLATFORM.updateNote
-        },
-        history: data.history || [],
+        build,
+        version,
+        updateNote: typeof data.updateNote === 'string' ? data.updateNote.trim() : '',
+        changedAt: new Date()
     };
+}
+
+function assertUniqueBuild(history, build, excludeId) {
+    const exists = (history || []).some((item) => (
+        Number(item.build) === build && String(item._id) !== String(excludeId || '')
+    ));
+    if (exists) throw global.config.message.APP_VERSION_HISTORY_ALREADY_EXIST;
+}
+
+function toResponse(doc) {
+    const data = toPlain(doc);
+    return {
+        _id: data._id || null,
+        flavors: filledFlavors(data),
+        history: historyList(data.history)
+    };
+}
+
+async function getDoc({ lean = false, required = false } = {}) {
+    const query = appVersionModel.findOne({ isDeleted: false }).sort({ createdAt: -1 });
+    if (lean) query.lean();
+    const doc = await query;
+    if (required && !doc) throw global.config.message.RECORD_NOT_FOUND;
+    return doc;
 }
 
 
 module.exports = {
-    async getConfig(options = {}) {
-        // Prefer the singleton config shape (android/ios). Ignore legacy per-platform docs.
-        const query = appVersionModel.findOne({
-            isDeleted: false,
-            android: { $exists: true },
-            ios: { $exists: true }
-        }).sort({ createdAt: -1 });
-        if (options.useLean) query.lean();
-        return await query;
+    toResponse,
+
+    getConfig(options = {}) {
+        return getDoc({ lean: options.useLean });
     },
 
-    async create(data) {
-        const existing = await this.getConfig({ useLean: true });
-        if (existing) {
-            throw global.config.message.APP_VERSION_ALREADY_EXIST;
-        }
+    async updateFlavors(flavorsInput) {
+        const existing = await getDoc();
+        const flavors = normalizeFlavors(flavorsInput, filledFlavors(existing));
 
-        const payload = {
-            android: normalizePlatform(data.android),
-            ios: normalizePlatform(data.ios),
-            history: []
-        };
-
-        const appVersion = new appVersionModel(payload);
-        const saved = await appVersion.save();
-        return toResponse(saved);
-    },
-
-    async findOne(filter, options = {}) {
-        options = {
-            sort: undefined,
-            projection: undefined,
-            populate: undefined,
-            useLean: false,
-            ...options
-        };
-
-        const query = appVersionModel.findOne({ ...filter, isDeleted: false });
-        if (options.sort) query.sort(options.sort);
-        if (options.projection) query.select(options.projection);
-        if (options.populate) query.populate(options.populate);
-        if (options.useLean) query.lean();
-
-        return await query;
-    },
-
-    async update(data) {
-        const existing = await this.getConfig();
         if (!existing) {
-            throw global.config.message.RECORD_NOT_FOUND;
+            return toResponse(await new appVersionModel({ flavors, history: [] }).save());
         }
 
-        const nextAndroid = data.android ? normalizePlatform({
-            ...existing.android?.toObject?.() || existing.android, ...data.android
-        }) : (
-            existing.android?.toObject?.() || existing.android
-        );
-        const nextIos = data.ios ? normalizePlatform({
-            ...existing.ios?.toObject?.() || existing.ios, ...data.ios
-        }) : (
-            existing.ios?.toObject?.() || existing.ios
-        );
-
-        const androidChanged = hasPlatformChanged(existing.android, nextAndroid);
-        const iosChanged = hasPlatformChanged(existing.ios, nextIos);
-
-        if (!androidChanged && !iosChanged) {
-            return toResponse(existing);
-        }
-
-        const historyEntry = {
-            android: existing.android?.toObject?.() || existing.android,
-            ios: existing.ios?.toObject?.() || existing.ios,
-            changedAt: new Date()
-        };
-
-        existing.android = nextAndroid;
-        existing.ios = nextIos;
-        existing.history = [historyEntry, ...(existing.history || [])];
-
-        const saved = await existing.save();
-        return toResponse(saved);
+        existing.flavors = flavors;
+        return toResponse(await existing.save());
     },
 
-    async getForceVersion() {
-        const config = await this.getConfig({ useLean: true });
-        if (!config) {
-            return {
-                android: { ...DEFAULT_PLATFORM },
-                ios: { ...DEFAULT_PLATFORM }
-            };
-        }
+    async addHistory(data) {
+        const existing = await getDoc({ required: true });
+        const entry = normalizeHistory(data);
+        assertUniqueBuild(existing.history, entry.build);
+        existing.history.push(entry);
+        return toResponse(await existing.save());
+    },
 
-        const response = toResponse(config);
+    async updateHistory(historyId, data) {
+        if (!utilService.isValidObjectId(historyId)) badRequest();
+
+        const existing = await getDoc({ required: true });
+        const entry = existing.history.id(historyId);
+        if (!entry) throw global.config.message.RECORD_NOT_FOUND;
+
+        const next = normalizeHistory({
+            build: data.build ?? entry.build,
+            version: data.version ?? entry.version,
+            updateNote: data.updateNote ?? entry.updateNote
+        });
+        assertUniqueBuild(existing.history, next.build, historyId);
+
+        entry.set(next);
+        return toResponse(await existing.save());
+    },
+
+    async deleteHistory(historyId) {
+        if (!utilService.isValidObjectId(historyId)) badRequest();
+
+        const existing = await getDoc({ required: true });
+        const next = existing.history.filter((item) => String(item._id) !== String(historyId));
+        if (next.length === existing.history.length) throw global.config.message.RECORD_NOT_FOUND;
+
+        existing.history = next;
+        return toResponse(await existing.save());
+    },
+
+    async getForceVersion(params = {}) {
+        const flavor = String(params.flavor ?? '').toLowerCase();
+        const version = Number(params.version ?? 1) || 1;
+        const platform = String(params.platform ?? 'android').toLowerCase();
+
+        const config = await getDoc({ lean: true });
+
+        const versionConfig = config?.flavors?.[flavor]?.[platform] ?? DEFAULT_VERSION;
+        const history = config?.history?.filter(
+            (h) => h.build <= versionConfig.latest && h.build > version
+        );
+
         return {
-            android: response.android,
-            ios: response.ios
+            ...versionConfig,
+            updateNotes: history || []
         };
-    },
-
-    toResponse
+    }
 };

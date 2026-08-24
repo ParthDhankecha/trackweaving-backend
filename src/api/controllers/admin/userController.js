@@ -105,16 +105,10 @@ module.exports = {
                 createObj.isActive = body.isActive;
             }
 
-            createObj.shift = userService.validateShift(body.shift);
-
-            if (!Array.isArray(body.machineIds)) {
+            const USERS = global.config.USERS;
+            if (!USERS || !USERS?.TYPE_OPTIONS?.some?.((type) => type.value === body.userType)) {
                 throw global.config.message.BAD_REQUEST;
             }
-            const machineIds = [...new Set(
-                body.machineIds.filter((id) => typeof id === 'string' && utilService.isValidObjectId(id))
-            )];
-            if (!machineIds.length) throw global.config.message.MASTER_MACHINES_REQUIRED;
-            if (machineIds.length !== body.machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
             const duplicate = await userService.findOneV2({
                 userName: {
@@ -127,17 +121,43 @@ module.exports = {
             });
             if (duplicate) throw global.config.message.USER_EXISTS;
 
-            const machineCount = await machineService.countDocuments({
-                _id: { $in: machineIds },
-                workspaceId: createObj.workspaceId
-            });
-            if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
+            createObj.userType = body.userType;
+            switch (createObj.userType) {
+                case USERS.TYPE.MASTER: {
+                    createObj.shift = userService.validateShift(body.shift);
+
+                    if (!Array.isArray(body.machineIds)) {
+                        throw global.config.message.BAD_REQUEST;
+                    }
+
+                    const machineIds = [...new Set(
+                        body.machineIds.filter((id) => typeof id === 'string' && utilService.isValidObjectId(id))
+                    )];
+                    if (!machineIds.length) throw global.config.message.MASTER_MACHINES_REQUIRED;
+                    if (machineIds.length !== body.machineIds.length) {
+                        throw global.config.message.INVALID_MACHINE_IDS;
+                    }
+
+                    const machineCount = await machineService.countDocuments({
+                        _id: { $in: machineIds },
+                        workspaceId: createObj.workspaceId
+                    });
+                    if (machineCount !== machineIds.length) {
+                        throw global.config.message.INVALID_MACHINE_IDS;
+                    }
+
+                    createObj.machineIds = machineIds;
+                    break;
+                }
+                case USERS.TYPE.ADMIN: {
+                    break;
+                }
+                default: throw global.config.message.BAD_REQUEST;
+            }
 
             await authService.createUser({
                 ...createObj,
                 userName: createObj.userName.normalized,
-                machineIds: machineIds,
-                userType: global.config.USERS.TYPE.MASTER,
             });
 
             return res.created(null, global.config.message.USER_REGISTERED);
@@ -247,7 +267,10 @@ module.exports = {
                     break;
                 }
                 case USERS_TYPE.ADMIN: {
-                    const planBody = body.plan;
+                    const workspace = await workspaceService.findOne({ _id: targetUser.workspaceId, userId: targetUser._id }, {
+                        projection: '_id', useLean: true
+                    });
+                    const planBody = !!workspace?._id ? body.plan : null;
                     if (typeof planBody === 'object') {
                         if (!planBody?.startDate || !planBody?.endDate || typeof planBody?.subUserLimit !== 'number') {
                             updateObj.plan = {
@@ -271,6 +294,7 @@ module.exports = {
                     }
                     break;
                 }
+                default: throw global.config.message.BAD_REQUEST;
             }
 
             if (typeof body.isActive === 'boolean') {

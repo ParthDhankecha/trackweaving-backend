@@ -2,6 +2,7 @@ const authService = require('../../services/authService');
 const jwtService = require('../../services/jwtService');
 const accessService = require('../../services/accessService');
 const userService = require('../../services/userService');
+const workspaceService = require('../../services/workspaceService');
 const utilService = require('../../services/utilService');
 
 
@@ -16,7 +17,9 @@ module.exports = {
                     ADMIN: global.config.USERS.TYPE.ADMIN,
                     MASTER: global.config.USERS.TYPE.MASTER,
                 },
+                userTypeOptions: global.config.USERS.TYPE_OPTIONS,
                 access: null,
+                isOwner: false,
 
                 refreshInterval: global.config.REFRESH_INTERVAL,
                 efficiencyAveragePer: global.config.EFFICIENCY_AVERAGE_PER,
@@ -33,7 +36,15 @@ module.exports = {
                             projection: { access: 1, userType: 1 },
                             useLean: true,
                         });
-                        if (user) syncData.access = accessService.resolveAccess(user);
+                        if (user) {
+                            syncData.access = accessService.resolveAccess(user);
+                            if (tokenUser.workspaceId) {
+                                const workspace = await workspaceService.findOne({
+                                    _id: tokenUser.workspaceId, userId: user._id
+                                }, { projection: 'userId', useLean: true });
+                                syncData.isOwner = !!workspace?._id;
+                            }
+                        }
                     }
                 } catch (error) {
                     utilService.log(error);

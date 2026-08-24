@@ -12,7 +12,7 @@ module.exports = {
             const conditions = {
                 workspaceId: user.workspaceId
             };
-            if (user.type !== global.config.USERS.TYPE.ADMIN) {
+            if (!user.isOwner) {
                 conditions._id = user.id;
             }
 
@@ -82,8 +82,8 @@ module.exports = {
     create: async (req, res, next) => {
         try {
             const user = req.user;
-            if (user.type !== global.config.USERS.TYPE.ADMIN) {
-                throw global.config.message.BAD_REQUEST;
+            if (!user.isOwner) {
+                throw global.config.message.OPERATION_NOT_PERMITTED;
             }
 
             const body = req.body;
@@ -113,16 +113,10 @@ module.exports = {
                 createObj.isActive = body.isActive;
             }
 
-            createObj.shift = userService.validateShift(body.shift);
-
-            if (!Array.isArray(body.machineIds)) {
+            const USERS = global.config.USERS;
+            if (!USERS || !USERS?.TYPE_OPTIONS?.some?.((type) => type.value === body.userType)) {
                 throw global.config.message.BAD_REQUEST;
             }
-            const machineIds = [...new Set(
-                body.machineIds.filter((id) => typeof id === 'string' && utilService.isValidObjectId(id))
-            )];
-            if (!machineIds.length) throw global.config.message.MASTER_MACHINES_REQUIRED;
-            if (machineIds.length !== body.machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
             await userService.getUserPlan(user.workspaceId, true);
 
@@ -137,17 +131,40 @@ module.exports = {
             });
             if (duplicate) throw global.config.message.USER_EXISTS;
 
-            const machineCount = await machineService.countDocuments({
-                _id: { $in: machineIds },
-                workspaceId: user.workspaceId
-            });
-            if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
+            createObj.userType = body.userType;
+            switch (createObj.userType) {
+                case USERS.TYPE.MASTER: {
+                    createObj.shift = userService.validateShift(body.shift);
+
+                    if (!Array.isArray(body.machineIds)) {
+                        throw global.config.message.BAD_REQUEST;
+                    }
+                    const machineIds = [...new Set(
+                        body.machineIds.filter((id) => typeof id === 'string' && utilService.isValidObjectId(id))
+                    )];
+                    if (!machineIds.length) throw global.config.message.MASTER_MACHINES_REQUIRED;
+                    if (machineIds.length !== body.machineIds.length) {
+                        throw global.config.message.INVALID_MACHINE_IDS;
+                    }
+
+                    const machineCount = await machineService.countDocuments({
+                        _id: { $in: machineIds },
+                        workspaceId: user.workspaceId
+                    });
+                    if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
+
+                    createObj.machineIds = machineIds;
+                    break;
+                }
+                case USERS.TYPE.ADMIN: {
+                    break;
+                }
+                default: throw global.config.message.BAD_REQUEST;
+            }
 
             await userService.create({
                 ...createObj,
                 userName: createObj.userName.normalized,
-                machineIds: machineIds,
-                userType: global.config.USERS.TYPE.MASTER,
                 workspaceId: user.workspaceId
             });
 
@@ -173,11 +190,11 @@ module.exports = {
 
             const user = req.user;
             const USERS_TYPE = global.config.USERS.TYPE;
-            const isAdmin = user.type === USERS_TYPE.ADMIN;
+            const isOwner = !!user.isOwner;
             const isSelf = user.id === userId;
 
-            // Non-admin can only update their own profile
-            if (!isAdmin && !isSelf) {
+            // workspace owner can update any user, rest can only update their own record
+            if (!isOwner && !isSelf) {
                 throw global.config.message.UNAUTHORIZED;
             }
 
@@ -221,8 +238,12 @@ module.exports = {
                 }
             }
 
-            // Master-only fields: admin updating a master user
-            if (isAdmin && targetUser.userType === USERS_TYPE.MASTER) {
+            if (isOwner && !isSelf && typeof body.isActive === 'boolean') {
+                updateObj.isActive = body.isActive;
+            }
+
+            // Master-only fields: workspace owner updating a master user
+            if (isOwner && targetUser.userType === USERS_TYPE.MASTER) {
                 if (Array.isArray(body.shift)) {
                     updateObj.shift = userService.validateShift(body.shift);
                 }
@@ -241,10 +262,6 @@ module.exports = {
                     if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
                     updateObj.machineIds = machineIds;
-                }
-
-                if (typeof body.isActive === 'boolean') {
-                    updateObj.isActive = body.isActive;
                 }
             }
 
@@ -272,6 +289,39 @@ module.exports = {
             if (!entry) throw global.config.message.NOT_UPDATED;
 
             return res.ok(entry, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+
+            return res.serverError(error);
+        }
+    },
+
+    delete: async (req, res, next) => {
+        try {
+            const user = req.user;
+            // only workspace owner can delete any user except themselves
+            if (!user.isOwner) {
+                throw global.config.message.OPERATION_NOT_PERMITTED;
+            }
+
+            const { id: userId } = req.params;
+            if (!utilService.isValidObjectId(userId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            if (user.id === userId) {
+                throw global.config.message.OPERATION_NOT_PERMITTED;
+            }
+
+            const targetUser = await userService.findOneV2({ _id: userId, workspaceId: user.workspaceId }, {
+                useLean: true,
+                projection: '_id'
+            });
+            if (!targetUser) throw global.config.message.RECORD_NOT_FOUND;
+
+            const entry = await userService.findByIdAndDelete(userId);
+            if (!entry) throw global.config.message.NOT_DELETED;
+
+            return res.ok(null, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
 

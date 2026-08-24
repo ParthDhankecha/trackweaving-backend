@@ -16,6 +16,12 @@ module.exports = (moduleKey, actionKey) => {
             const user = req.user;
             const ADMIN = global.config.USERS.TYPE.ADMIN;
             if (user.type === ADMIN) {
+                if (!user.isOwner) {
+                    const { MODULE_KEYS, ACTION_KEYS } = accessService;
+                    if (MODULE_KEYS.USER === moduleKey && ![ACTION_KEYS.READ, ACTION_KEYS.UPDATE].includes(actionKey)) {
+                        return res.forbidden(null, global.config.message.ACCESS_DENIED);
+                    }
+                }
                 return next();
             }
 

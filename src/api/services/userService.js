@@ -263,6 +263,9 @@ module.exports = {
             throw global.config.message.INACTIVE_ACCOUNT;
         }
 
+        // Check if the user is the owner of the workspace, if not then it is a sub-admin or master.
+        data.isOwner = String(admin._id) === String(user._id);
+
         let hasAccess = false;
         switch (user.userType) {
             case global.config.USERS.TYPE.MASTER: {
@@ -273,7 +276,7 @@ module.exports = {
                 break;
             }
             case global.config.USERS.TYPE.ADMIN: {
-                hasAccess = String(admin._id) === String(user._id);
+                hasAccess = String(user.workspaceId) === String(workspaceId);
                 break;
             }
         }

@@ -1,0 +1,1 @@
+import{Wa as e,_a as o,lb as r,o as t}from"./chunk-73R5CIZI.js";var A=(a,u)=>{let c=t(e),s=t(r),n=a.data?.accessModule||"default";return s.utils.can(n)?!0:(c.navigateByUrl(`/${o.AUTH.BASE}`),!1)};export{A as a};

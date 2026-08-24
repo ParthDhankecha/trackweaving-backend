@@ -246,6 +246,23 @@ const register = {
             h2: { count: 16, duration: 17 },
             other: { count: 18, duration: 19 }
         }
+    },
+    itema: {
+        shift: 1,
+        stopCode: 2,
+        runTime: 3,
+        efficiencyPercent: 4,
+        currentDensity: 5,
+        pieceLengthM: 6,
+        picksCurrentShift: 7,
+        speedRpm: 18,
+        stopsCount: {
+            warp: { count: 8, duration: 9 },
+            weft: { count: 10, duration: 11 },
+            feeder: { count: 12, duration: 13 },
+            manual: { count: 14, duration: 15 },
+            other: { count: 16, duration: 17 }
+        }
     }
 };
 
@@ -1191,6 +1208,29 @@ module.exports = {
                 };
                 break;
 
+            case "itema": 
+                STOP_REASON = {
+                    0: "--",
+                    1: "Warp stop",
+                    4: "Production end",
+                    5: "Manual stop",
+                    6: "Technical stop",
+                    7: "Cone end stop",
+                    10: "Weft anomaly",
+                    11: "No gripping",
+                    12: "Left gripper",
+                    13: "No exchange",
+                    14: "Right gripper",
+                    15: "Leno stop",
+                    16: "Waste selvedge stop"
+                };
+                break;
+
+        }
+
+        if (displayType === 'itema') {
+            const category = stopCode === 0 ? 0 : Math.floor(stopCode / 1000);
+            return STOP_REASON[category] || "Other stop";
         }
 
         return STOP_REASON[stopCode] || "Unknown stop reason";

@@ -11,5 +11,5 @@ module.exports = {
     },
     RAPIER_DISPLAYS: ["nazon", "chitic", "pickwell"],
     AIRJET_DISPLAYS: ["biana"],
-    DIRECT_DISPLAYS: ["haiwell", "picanolRapier", "picanolAirjet"],
+    DIRECT_DISPLAYS: ["haiwell", "picanolRapier", "picanolAirjet", "itema"],
 };

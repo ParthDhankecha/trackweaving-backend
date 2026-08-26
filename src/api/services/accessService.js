@@ -48,6 +48,9 @@ function getReadOnlyAccess() {
     for (const module in _MODULE_WISE_ACCESS) {
         access[module] = _MODULE_WISE_ACCESS[module].includes(ACTION_KEYS.READ) ? [ACTION_KEYS.READ] : [];
     }
+    if (access[MODULE_KEYS.USER]) {
+        access[MODULE_KEYS.USER].push(ACTION_KEYS.UPDATE);
+    }
     return access;
 }
 

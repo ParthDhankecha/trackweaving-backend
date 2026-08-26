@@ -158,6 +158,7 @@ module.exports = {
                     if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
                     createObj.machineIds = machineIds;
+                    createObj.access = accessService.getReadOnlyAccess();
                     break;
                 }
                 case USERS.TYPE.ADMIN: {

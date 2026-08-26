@@ -71,9 +71,9 @@ module.exports = {
                 iosVersion: '1.0.2',
                 iosShowPopup: false,
                 iosForceUpdate: false,
-                androidVersion: '1.0.2',
-                androidShowPopup: false,
-                androidForceUpdate: false
+                androidVersion: '2.0.0',
+                androidShowPopup: true,
+                androidForceUpdate: true
             };
 
             return res.ok(syncData, global.config.message.OK);

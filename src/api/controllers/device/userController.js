@@ -31,12 +31,12 @@ module.exports = {
 
     getProfile: async (req, res, next) => {
         try {
-            const { id } = req.user;
-            if (!utilService.isValidObjectId(id)) {
+            const { id: userId } = req.user;
+            if (!utilService.isValidObjectId(userId)) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const userdata = await userService.findOneV2({ _id: id }, {
+            const userdata = await userService.findOneV2({ _id: userId }, {
                 projection: { fullname: 1, userName: 1, mobile: 1, email: 1, userType: 1, workspaceId: 1 },
                 useLean: true
             });
@@ -46,6 +46,7 @@ module.exports = {
             if (!workspace) throw global.config.message.BAD_REQUEST;
 
             userdata.userId = workspace.uid;
+            userdata.isOwner = String(workspace.userId._id) === String(userdata._id);
             delete userdata.workspaceId;
 
             return res.ok(userdata, global.config.message.OK);

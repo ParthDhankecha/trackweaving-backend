@@ -6,13 +6,17 @@ admin.initializeApp({
 });
 
 module.exports = {
-    async createNotification(body, users = []) {
+    async createNotification(body, users = [], options = {}) {
+        const { isTestMode = false } = options;
+
         if (!users.length) return;
 
-        for (const user of users) {
-            body.userId = user?._id || user;
-            const notification = new notificationModel(body);
-            await notification.save();
+        if (!isTestMode) {
+            for (const user of users) {
+                body.userId = user?._id || user;
+                const notification = new notificationModel(body);
+                await notification.save();
+            }
         }
 
         let chunks = [];
@@ -40,6 +44,7 @@ module.exports = {
                     },
                 },
             },
+            ...(body.payload ?? {}),
         }));
 
         const results = await Promise.all(messages.map(message => admin.messaging().send(message)));
@@ -47,13 +52,17 @@ module.exports = {
         return results;
     },
 
-    async createAlertNotification(body, userIds = []) {
+    async createAlertNotification(body, userIds = [], options = {}) {
+        const { isTestMode = false } = options;
+
         if (!userIds.length) return;
 
-        for (let userId of userIds) {
-            body.userId = userId;
-            const notification = new notificationModel(body);
-            await notification.save();
+        if (!isTestMode) {
+            for (let userId of userIds) {
+                body.userId = userId;
+                const notification = new notificationModel(body);
+                await notification.save();
+            }
         }
 
         let chunks = [];
@@ -69,6 +78,7 @@ module.exports = {
             condition: chunk.map(t => `'${t}' in topics`).join(' || '),
             data: {
                 sound: "siren.caf",
+                ...(body.payload ?? {}),
             },
             android: {
                 notification: {
@@ -115,8 +125,9 @@ module.exports = {
         return await query;
     },
 
-    async sendTestNotification(payload, title, description, token) {
-        this.createNotification({ title, description }, [token]);
+    async sendTestNotification(payload, title, description, token, playSiren = false) {
+        let cb = playSiren ? this.createAlertNotification : this.createNotification;
+        cb({ title, description, payload }, [token], { isTestMode: true });
     },
 
     async markAsRead(queryFilter) {

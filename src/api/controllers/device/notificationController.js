@@ -73,7 +73,8 @@ module.exports = {
                 req.body.payload,
                 req.body.title,
                 req.body.description,
-                req.body.token
+                req.body.token,
+                req.body.playSiren
             );
 
             return res.ok(data, global.config.message.OK);

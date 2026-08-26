@@ -13,7 +13,7 @@ module.exports = {
                 platform: appplatform,
             });
 
-            data.apiHost = global.config.API_HOST;
+            data.apiHost = global.config.API_HOST || null;
 
             return res.ok(data, global.config.message.OK);
         } catch (error) {
@@ -31,8 +31,8 @@ module.exports = {
                 efficiencyGoodPer: global.config.EFFICIENCY_GOOD_PER,
                 beamLeftMin: global.config.BEAM_LEFT_MIN,
                 // device related configs
-                apiHost: global.config.API_HOST,
-                reportUrl: global.config.REPORT_URL,
+                apiHost: global.config.API_HOST || null,
+                reportUrl: global.config.REPORT_URL || null,
             };
 
             return res.ok(data, global.config.message.OK);

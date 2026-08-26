@@ -180,7 +180,7 @@ module.exports = {
 
             const targetUser = await userService.findOneV2({ _id: userId, workspaceId: user.workspaceId }, {
                 useLean: true,
-                projection: 'userType'
+                projection: { userType: 1, access: 1 }
             });
             if (!targetUser) throw global.config.message.NOT_FOUND;
 
@@ -223,10 +223,25 @@ module.exports = {
                 updateObj.isActive = body.isActive;
             }
 
-            // Master-only fields: workspace owner updating a master user
-            if (isOwner && targetUser.userType === USERS_TYPE.MASTER) {
+            let nextUserType = targetUser.userType;
+            if (isOwner && !isSelf && body.userType !== undefined && body.userType !== null) {
+                if (!global.config.USERS?.TYPE_OPTIONS?.some?.((type) => type.value === body.userType)) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                nextUserType = body.userType;
+                if (nextUserType !== targetUser.userType) {
+                    updateObj.userType = nextUserType;
+                }
+            }
+
+            // Master-only fields: workspace owner updating a master user (including admin → master)
+            if (isOwner && nextUserType === USERS_TYPE.MASTER) {
+                const isBecomingMaster = targetUser.userType !== USERS_TYPE.MASTER;
+
                 if (Array.isArray(body.shift)) {
                     updateObj.shift = userService.validateShift(body.shift);
+                } else if (isBecomingMaster) {
+                    throw global.config.message.INVALID_SHIFT;
                 }
 
                 if (Array.isArray(body.machineIds)) {
@@ -243,11 +258,21 @@ module.exports = {
                     if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
                     updateObj.machineIds = machineIds;
+                } else if (isBecomingMaster) {
+                    throw global.config.message.MASTER_MACHINES_REQUIRED;
                 }
 
                 if (body.access && typeof body.access === 'object') {
                     updateObj.access = accessService.sanitizeAccess(body.access, true);
+                } else if (isBecomingMaster && !targetUser.access) {
+                    updateObj.access = accessService.getReadOnlyAccess();
                 }
+            }
+
+            if (isOwner && updateObj.userType === USERS_TYPE.ADMIN) {
+                updateObj.shift = null;
+                updateObj.machineIds = null;
+                updateObj.access = null;
             }
 
             if (Object.keys(updateObj).length === 0) {

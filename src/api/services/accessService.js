@@ -6,6 +6,7 @@ const MODULE_KEYS = Object.freeze({
     MACHINE_CONFIGURE: 'machine_configure',
     MAINTENANCE_CATEGORY: 'maintenance_category',
     MAINTENANCE_ENTRY: 'maintenance_entry',
+    MAINTENANCE_HISTORY: 'maintenance_history',
     PART_CHANGE_ENTRY: 'part_change_entry',
     USER: 'user',
     REPORT: 'report',
@@ -15,17 +16,16 @@ const ACTION_KEYS = Object.freeze({
     CREATE: 'create',
     UPDATE: 'update',
     DELETE: 'delete',
-    HISTORY: 'history',
-    EXPORT: 'export',
 });
 const _MODULE_WISE_ACCESS = Object.freeze({
     [MODULE_KEYS.MACHINE_GROUP]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.CREATE, ACTION_KEYS.UPDATE]),
     [MODULE_KEYS.MACHINE_CONFIGURE]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.UPDATE]),
     [MODULE_KEYS.MAINTENANCE_CATEGORY]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.CREATE, ACTION_KEYS.UPDATE, ACTION_KEYS.DELETE]),
-    [MODULE_KEYS.MAINTENANCE_ENTRY]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.UPDATE, ACTION_KEYS.HISTORY]),
+    [MODULE_KEYS.MAINTENANCE_ENTRY]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.UPDATE]),
+    [MODULE_KEYS.MAINTENANCE_HISTORY]: Object.freeze([ACTION_KEYS.READ]),
     [MODULE_KEYS.PART_CHANGE_ENTRY]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.CREATE, ACTION_KEYS.UPDATE, ACTION_KEYS.DELETE]),
     [MODULE_KEYS.USER]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.UPDATE]),
-    [MODULE_KEYS.REPORT]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.EXPORT]),
+    [MODULE_KEYS.REPORT]: Object.freeze([ACTION_KEYS.READ]),
 });
 
 
@@ -36,6 +36,17 @@ function getFullAccess() {
     const access = {};
     for (const module in _MODULE_WISE_ACCESS) {
         access[module] = [..._MODULE_WISE_ACCESS[module]];
+    }
+    return access;
+}
+
+/**
+ * All modules with read only. Used when promoting a user to MASTER with no access set.
+ */
+function getReadOnlyAccess() {
+    const access = {};
+    for (const module in _MODULE_WISE_ACCESS) {
+        access[module] = _MODULE_WISE_ACCESS[module].includes(ACTION_KEYS.READ) ? [ACTION_KEYS.READ] : [];
     }
     return access;
 }
@@ -117,6 +128,7 @@ module.exports = {
 
 
     getFullAccess,
+    getReadOnlyAccess,
     sanitizeAccess,
     resolveAccess,
     hasAccess,

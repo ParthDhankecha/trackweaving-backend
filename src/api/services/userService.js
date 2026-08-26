@@ -248,6 +248,9 @@ module.exports = {
         if (!user?.isActive) {
             throw global.config.message.INACTIVE_ACCOUNT;
         }
+        if (user.userType !== data.type) {
+            throw global.config.message.UNAUTHORIZED;
+        }
 
         const workspace = await workspaceModel.findById(
             { _id: workspaceId, isDeleted: false },

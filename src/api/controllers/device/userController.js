@@ -1,5 +1,6 @@
 const userService = require('../../services/userService');
 const machineService = require('../../services/machineService');
+const accessService = require('../../services/accessService');
 const utilService = require('../../services/utilService');
 
 const _commonProjection = { _id: 1, fullname: 1, userName: 1, email: 1, mobile: 1, userType: 1, isActive: 1, shift: 1, machineIds: 1 };
@@ -37,7 +38,7 @@ module.exports = {
             }
 
             const userdata = await userService.findOneV2({ _id: userId }, {
-                projection: { fullname: 1, userName: 1, mobile: 1, email: 1, userType: 1, workspaceId: 1 },
+                projection: { fullname: 1, userName: 1, mobile: 1, email: 1, userType: 1, workspaceId: 1, access: 1 },
                 useLean: true
             });
             if (!userdata) throw global.config.message.USER_NOT_FOUND;
@@ -45,9 +46,11 @@ module.exports = {
             const workspace = await userService.validatePlanForSignIn(userdata.workspaceId);
             if (!workspace) throw global.config.message.BAD_REQUEST;
 
+            userdata.access = accessService.resolveAccess(userdata);
             userdata.userId = workspace.uid;
             userdata.isOwner = String(workspace.userId._id) === String(userdata._id);
             delete userdata.workspaceId;
+
 
             return res.ok(userdata, global.config.message.OK);
         } catch (error) {

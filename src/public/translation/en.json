@@ -45,6 +45,7 @@
     "createPartChangeEntry": "Create Part Change Entry",
     "editPartChangeEntry": "Edit Part Change Entry",
     "picks": "Picks",
+    "pick": "Pick",
     "runTime": "Run Time",
     "speed": "Speed",
     "beamLeft": "Beam Left",

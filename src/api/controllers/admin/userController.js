@@ -4,6 +4,7 @@ const authService = require('../../services/authService');
 const userService = require('../../services/userService');
 const workspaceService = require('../../services/workspaceService');
 const machineService = require('../../services/machineService');
+const accessService = require('../../services/accessService');
 const utilService = require('../../services/utilService');
 
 
@@ -147,6 +148,7 @@ module.exports = {
                     }
 
                     createObj.machineIds = machineIds;
+                    createObj.access = accessService.getReadOnlyAccess();
                     break;
                 }
                 case USERS.TYPE.ADMIN: {

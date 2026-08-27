@@ -913,7 +913,13 @@ module.exports = {
                 setPicks: get16(body, register[displayType].currentDensity),
                 shift: get16(body, register[displayType].shift),
                 stopsCount: stopsCount,
-                runTime: get16(body, register[displayType].runTime) ? `${Math.floor(get16(body, register[displayType].runTime) / 60).toString().padStart(2, '0')}:${(get16(body, register[displayType].runTime) % 60).toString().padStart(2, '0')}` : ''
+                runTime: get16(body, register[displayType].runTime)
+                ? `${Math.floor(get16(body, register[displayType].runTime) / 60)
+                    .toString()
+                    .padStart(2, '0')}:${Math.floor(get16(body, register[displayType].runTime) % 60)
+                    .toString()
+                    .padStart(2, '0')}`
+                : ''            
             }
         }
     },

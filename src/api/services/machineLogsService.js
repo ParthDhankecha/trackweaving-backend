@@ -266,6 +266,42 @@ const register = {
     }
 };
 
+function getPowerOffStopCode() {
+    return global.config.POWER_OFF_STOP_CODE || 9999;
+}
+
+function getPowerOffStopReason() {
+    return global.config.POWER_OFF_STOP_REASON || 'Power Off';
+}
+
+function isPowerOffStop(stopCode) {
+    return Number(stopCode) === getPowerOffStopCode();
+}
+
+function resolveShiftDate(shift, updatedTime) {
+    if (shift == 0) {
+        return moment(updatedTime).startOf('day');
+    }
+    if (shift == 1) {
+        return moment().hour() < 11 ? moment().subtract(1, 'day').startOf('day') : moment().startOf('day');
+    }
+    return null;
+}
+
+function buildPowerOffFields(body) {
+    const fields = {
+        powerOff: true,
+        stop: getPowerOffStopCode(),
+        speedRpm: 0
+    };
+    if (body.lastStopTime) fields.lastStopTime = body.lastStopTime;
+    if (body.lastStartTime) fields.lastStartTime = body.lastStartTime;
+    if (body.stopsData) fields.stopsData = body.stopsData;
+    if (body.stopCount != null) fields.stopCount = body.stopCount;
+    if (body.workspaceId) fields.workspaceId = body.workspaceId;
+    return fields;
+}
+
 async function upsertShiftLog(body, shiftDate, options = {}) {
     const { updateMachineQuality = true } = options;
     if (updateMachineQuality) {
@@ -290,18 +326,71 @@ async function upsertShiftLog(body, shiftDate, options = {}) {
     }, update, { upsert: true });
 }
 
+/**
+ * Power-off must not rewrite latest logs from stale/empty HMI rawData
+ * (that restores the last live snapshot and can zero production fields).
+ * Only mark the machine stopped with stop code 9999.
+ */
+async function applyPowerOffLog(body) {
+    const powerOffFields = buildPowerOffFields(body);
+
+    const machineLog = await machineLatestLogsModel.findOneAndUpdate(
+        { machineId: body.machineId },
+        {
+            $set: powerOffFields,
+            $setOnInsert: {
+                machineId: body.machineId,
+                shift: body.shift ?? 0
+            }
+        },
+        { upsert: true, returnDocument: 'before' }
+    );
+
+    const shift = machineLog?.shift ?? body.shift;
+    const shiftDate = resolveShiftDate(shift, body.updatedTime || machineLog?.updatedAt);
+
+    if (shift != null && shiftDate) {
+        const shiftLogUpdate = {
+            machineId: body.machineId,
+            workspaceId: body.workspaceId,
+            shift,
+            stop: getPowerOffStopCode(),
+            powerOff: true
+        };
+        if (body.lastStopTime) shiftLogUpdate.lastStopTime = body.lastStopTime;
+        if (body.lastStartTime) shiftLogUpdate.lastStartTime = body.lastStartTime;
+        await upsertShiftLog(shiftLogUpdate, shiftDate, { updateMachineQuality: false });
+    }
+
+    if (machineLog) {
+        await module.exports.checkAlertNotification(machineLog, {
+            machineId: body.machineId,
+            workspaceId: body.workspaceId,
+            displayType: body.displayType,
+            updatedTime: body.updatedTime,
+            lastStopTime: body.lastStopTime || machineLog.lastStopTime,
+            stop: getPowerOffStopCode(),
+            speedRpm: 0,
+            powerOff: true
+        });
+    }
+}
+
 module.exports = {
     async create(body) {
+        if (body.powerOff === true) {
+            await applyPowerOffLog(body);
+            return;
+        }
+
+        body.powerOff = false;
+
         let machineLog = await machineLatestLogsModel.findOneAndUpdate({ machineId: body.machineId }, body, { upsert: true, returnDocument: 'before' });
         let shiftDate;
         if (body.displayType == 'biana' && body.speedRpm == 0) {
             return;
         }
-        if (body.shift == 0) {
-            shiftDate = moment(body.updatedTime).startOf('day');
-        } else if (body.shift == 1) {
-            shiftDate = moment().hour() < 11 ? moment().subtract(1, 'day').startOf('day') : moment().startOf('day');
-        }
+        shiftDate = resolveShiftDate(body.shift, body.updatedTime);
         if (machineLog) {
             if (machineLog.shift != body.shift) {
                 if (body.prevData && body.prevData.speedRpm != 0 && body.prevData.efficiencyPercent != 0) {
@@ -386,6 +475,10 @@ module.exports = {
             alarmsActive: [],
             runTime: ''
         });
+        await machineLatestLogsModel.updateMany(
+            { _id: { $in: logIds }, powerOff: true },
+            { $set: { stop: getPowerOffStopCode(), speedRpm: 0 } }
+        );
         console.log("Night shift logs updated to day shift successfully.");
     },
 
@@ -429,6 +522,10 @@ module.exports = {
             alarmsActive: [],
             runTime: ''
         });
+        await machineLatestLogsModel.updateMany(
+            { _id: { $in: logIds }, powerOff: true },
+            { $set: { stop: getPowerOffStopCode(), speedRpm: 0 } }
+        );
     },
 
     async checkAlertNotification(machineLog, body) {
@@ -952,6 +1049,10 @@ module.exports = {
         let running = 0;
         let stopped = 0;
         for (let machineLog of data) {
+            if (machineLog.powerOff === true) {
+                machineLog.stop = getPowerOffStopCode();
+                machineLog.speedRpm = 0;
+            }
             efficiency += machineLog.efficiencyPercent;
             pick += machineLog.picksCurrentShift;
             speed += machineLog.speedRpm;
@@ -1080,6 +1181,10 @@ module.exports = {
     },
 
     getStopReason(stopCode, displayType = 'nazon') {
+        if (isPowerOffStop(stopCode)) {
+            return getPowerOffStopReason();
+        }
+
         let STOP_REASON = {};
         switch(displayType) {
             case 'nazon':
@@ -1193,7 +1298,8 @@ module.exports = {
                     1200: "Warp servo failure",
                     1201: "Fuzzing servo failure",
                     1202: "Tension servo failure",
-                    1203: "The fuzzing rod does not return to the original point"   
+                    1203: "The fuzzing rod does not return to the original point",
+                    9999: "Power Off"
                 };
                 break;
 

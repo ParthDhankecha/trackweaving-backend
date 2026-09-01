@@ -207,6 +207,10 @@ const machineLogsSchema = new Schema({
         type: Date,
         default: null
     },
+    powerOff: {
+        type: Boolean,
+        default: false
+    },
     isDeleted: {
         type: Boolean,
         default: false

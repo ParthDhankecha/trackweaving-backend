@@ -29,7 +29,10 @@ module.exports = {
             }
             let logs = req.body.logs;
             for (let machineId in logs) {
-                let body = machineLogsService.parseBlock(logs[machineId].rawData, logs[machineId].displayType);
+                const powerOff = logs[machineId].powerOff === true;
+                let body = powerOff
+                    ? {}
+                    : (machineLogsService.parseBlock(logs[machineId].rawData, logs[machineId].displayType) || {});
                 let record = {
                     ...body,
                     stopsData: logs[machineId].stopsData,
@@ -37,8 +40,14 @@ module.exports = {
                     machineId,
                     workspaceId: req.body.workspaceId,
                     rawData: logs[machineId].rawData,
-                    displayType: logs[machineId].displayType
+                    displayType: logs[machineId].displayType,
+                    powerOff,
+                    updatedTime: logs[machineId].updatedTime,
                 };
+                if (powerOff) {
+                    record.stop = global.config.POWER_OFF_STOP_CODE || 9999;
+                    record.speedRpm = 0;
+                }
                 if (logs[machineId].lastStartTime) {
                     record.lastStartTime = logs[machineId].lastStartTime;
                 }
@@ -82,7 +91,7 @@ module.exports = {
 
             return m;
         });
-        let machineLogs = await machineLogsService.findLatestLogs({ machineId: { $in: machineIds }, updatedAt: { $gte: moment().startOf('day') } }, { projection: { stopsData: 1, machineId: 1, lastStopTime: 1, lastStartTime: 1, stop: 1, shift: 1, rawData: 1 }, useLean: true });
+        let machineLogs = await machineLogsService.findLatestLogs({ machineId: { $in: machineIds }, updatedAt: { $gte: moment().startOf('day') } }, { projection: { stopsData: 1, machineId: 1, lastStopTime: 1, lastStartTime: 1, stop: 1, shift: 1, rawData: 1, powerOff: 1 }, useLean: true });
         let machineData = {};
         for (let machine of machines) {
             let log = machineLogs.find(l => l.machineId.toString() == machine.id.toString());
@@ -99,6 +108,7 @@ module.exports = {
                 lastStopTime: log?.lastStopTime || null,
                 lastStartTime: log?.lastStartTime || null,
                 stop: log?.stop || 0,
+                powerOff: log?.powerOff === true,
                 rawData: log?.rawData || [],
             };
         }

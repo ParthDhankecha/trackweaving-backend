@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 const Types = mongoose.Types;
 
+
 const NotificationSchema = new Schema({
     machineId: {
         type: Schema.Types.ObjectId,
@@ -17,17 +18,25 @@ const NotificationSchema = new Schema({
         ref: 'user',
         required: true
     },
+    category: {
+        type: String,
+        default: null
+    },
     title: {
         type: String,
         required: true
     },
-    isRead: {
-        type: Boolean,
-        default: false
-    },
     description: {
         type: String,
         default: ''
+    },
+    data: {
+        type: Schema.Types.Mixed,
+        default: {}
+    },
+    isRead: {
+        type: Boolean,
+        default: false
     },
     isDeleted: {
         type: Boolean,
@@ -40,8 +49,8 @@ const NotificationSchema = new Schema({
 
 // Best index for notification queries (example: unread notifications for a user)
 NotificationSchema.index({ userId: 1, isRead: 1 });
-
 NotificationSchema.index({ userId: 1, createdAt: -1 });
+
 
 const Notification = mongoose.model('notification', NotificationSchema, 'notifications');
 module.exports = Notification;

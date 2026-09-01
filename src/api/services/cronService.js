@@ -64,9 +64,9 @@ module.exports = {
     removeOldNotifications: async function () {
         var job = new CronJob("0 2 * * *", async function () {
             utilService.log("Starting cron job to remove notifications older than 3 months...");
-            const cutoffDate = moment().subtract(3, 'months').toDate();
+            const cutoffDate = moment().subtract(15, 'days').toDate();
             const result = await notificationService.deleteOlderThan(cutoffDate);
-            utilService.log(`Removed ${result.deletedCount} notifications older than 3 months.`);
+            utilService.log(`Removed ${result.deletedCount} notifications older than 15 days.`);
         }, null, false);
         job.start();
         utilService.log("Cron job scheduled for removing old notifications at 02:00 successfully.");

@@ -76,11 +76,6 @@ WorkspaceSchema.pre('save', async function (next) {
         }));
 
         await maintenanceCategoryModel.insertMany(categories);
-        let machineGroup = new machineGroupModel({
-            groupName: 'Jacquard',
-            workspaceId: this._id,
-        });
-        await machineGroup.save();
 
         await alertConfigModel.create({
             workspaceId: this._id,

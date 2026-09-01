@@ -576,6 +576,11 @@ module.exports = {
                                 workspaceId: body.workspaceId,
                                 title: `Picks changed on ${machine.machineCode}`,
                                 description: `Picks changed from ${machineLog.setPicks} to ${body.setPicks}`,
+                                data: {
+                                    category: 'pick_changed',
+                                    previous: machineLog.setPicks,
+                                    current: body.setPicks
+                                },
                                 recipients
                             });
                         }
@@ -592,6 +597,10 @@ module.exports = {
                                 workspaceId: body.workspaceId,
                                 title: `Max speed alert on ${machine.machineCode}`,
                                 description: `Machine speed ${body.speedRpm} RPM exceeded the limit of ${alertConfig.speedLimit} RPM`,
+                                data: {
+                                    category: 'max_speed',
+                                    speed: body.speedRpm
+                                },
                                 recipients
                             });
                             global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
@@ -609,6 +618,10 @@ module.exports = {
                                 workspaceId: body.workspaceId,
                                 title: `Low speed alert on ${machine.machineCode}`,
                                 description: `Machine speed ${body.speedRpm} RPM is below the limit of ${alertConfig.speedLimit} RPM`,
+                                data: {
+                                    category: 'low_speed',
+                                    speed: body.speedRpm
+                                },
                                 recipients
                             });
                             global.config.MACHINE_ALERT_CONFIG[body.machineId].lastSpeedAlertTime = moment();
@@ -687,6 +700,10 @@ module.exports = {
                                     workspaceId: body.workspaceId,
                                     title: `Beam Left Alert — ${machine.machineCode}`,
                                     description: `Beam left has reached ${newBeam} meters`,
+                                    data: {
+                                        category: 'beam_left',
+                                        beamLeft: newBeam
+                                    },
                                     recipients
                                 });
                             }
@@ -766,6 +783,11 @@ module.exports = {
                                         workspaceId: body.workspaceId,
                                         title: `Machine stopped for ${minutes}+ minutes — ${machine.machineCode}`,
                                         description: `${machine.machineCode} has been stopped for ${stoppedMinutes} minutes. Reason: ${stopReason}`,
+                                        data: {
+                                            category: 'machine_stopped',
+                                            duration: stoppedMinutes,
+                                            reason: stopReason
+                                        },
                                         recipients
                                     });
                                 }
@@ -976,8 +998,8 @@ module.exports = {
                 stopsCount[key] = { count, duration };
             }
             let beamCompletionDate = get16(body, register[displayType].beamCompletionDate) || null;
-            if(beamCompletionDate) {
-                if(displayType == "haiwell") {
+            if (beamCompletionDate) {
+                if (displayType == "haiwell") {
                     beamCompletionDate = moment(
                         `${beamCompletionDate} +05:30`,
                         'YYYY-MM-DD HH:mm Z'
@@ -1173,7 +1195,7 @@ module.exports = {
         }
 
         let STOP_REASON = {};
-        switch(displayType) {
+        switch (displayType) {
             case 'nazon':
                 STOP_REASON = {
                     0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Hand stop", 5: "Full piece",
@@ -1307,7 +1329,7 @@ module.exports = {
                 };
                 break;
 
-            case "itema": 
+            case "itema":
                 STOP_REASON = {
                     0: "--",
                     1: "Warp stop",

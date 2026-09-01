@@ -513,13 +513,16 @@ module.exports = {
         return recipientsByType;
     },
 
-    async dispatchAlert({ title, description, machineId, workspaceId, recipients }) {
+    async dispatchAlert({ machineId, workspaceId, title, description, data, recipients }) {
         try {
+            const { category, ...restData } = data || {};
             await notificationService.createNotification({
                 machineId,
                 workspaceId,
                 title,
-                description
+                description,
+                category: category,
+                data: restData
             }, recipients.notification);
         } catch (error) {
             utilService.log(error);

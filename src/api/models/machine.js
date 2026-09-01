@@ -142,6 +142,10 @@ const machineSchema = new Schema({
         trim: true,
         default: ''
     },
+    panna: {
+        type: Number,
+        default: 1
+    },
     manufacturerId: {
         type: Schema.Types.ObjectId,
         ref: 'manufacturer',

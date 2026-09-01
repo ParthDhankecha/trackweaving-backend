@@ -4,8 +4,6 @@ const auth = require('../../middleware/auth');
 const controller = require('../../controllers/device/machineLogsController');
 
 
-router.get('/qualities', auth, controller.getQualityList);
-
 router.post('/list', auth, controller.getList);
 
 

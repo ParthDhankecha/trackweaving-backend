@@ -1052,7 +1052,7 @@ module.exports = {
             condition.machineId = { $in: machineIds };
         }
         let data = await machineLatestLogsModel.find(condition).sort({ machineId: 1 }).lean(); // .skip(skip).limit(limit).sort({ machineId: 1 }).populate('machineId').lean();
-        let efficiency = 0;
+        let efficiency = 0, efficiencyCount = 0;
         let pick = 0;
         let speed = 0, runningCount = 0;
         let running = 0;
@@ -1062,7 +1062,10 @@ module.exports = {
                 machineLog.stop = getPowerOffStopCode();
                 machineLog.speedRpm = 0;
             }
-            efficiency += machineLog.efficiencyPercent;
+            if (machineLog.efficiencyPercent > 0) {
+                efficiency += machineLog.efficiencyPercent;
+                efficiencyCount += 1;
+            }
             pick += machineLog.picksCurrentShift;
             speed += machineLog.speedRpm;
             runningCount += (machineLog.speedRpm > 0 ? 1 : 0);
@@ -1099,7 +1102,7 @@ module.exports = {
         }
 
         const aggregateReport = {
-            efficiency: totalMachines ? Math.round(efficiency / totalMachines) : 0,
+            efficiency: efficiencyCount ? Math.round(efficiency / efficiencyCount) : 0,
             pick: pick,
             avgSpeed: totalMachines ? Math.round(speed / runningCount) : 0,
             avgPicks: totalMachines ? Math.round(pick / totalMachines) : 0,

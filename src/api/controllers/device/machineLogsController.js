@@ -1,24 +1,53 @@
 const moment = require("moment");
+
 const machineLogsService = require("../../services/machineLogsService");
+const machineGroupService = require("../../services/machineGroupService");
+const operatorService = require("../../services/operatorService");
 const utilService = require("../../services/utilService");
 
 
 module.exports = {
-    getQualityList: async (req, res, next) => {
-        try {
-            const qualities = await machineLogsService.getDistinctQualities(req.user.workspaceId);
-            return res.ok(qualities, global.config.message.OK);
-        } catch (error) {
-            utilService.log(error);
-            return res.serverError(error);
-        }
-    },
-
     getList: async (req, res, next) => {
         try {
             const body = req.body || {};
             body.workspaceId = req.user.workspaceId;
             const machineLogsData = await machineLogsService.getMachineLogsWithPagination(body);
+
+            const groupingConfig = {};
+            const matchObj = machineLogsData.data.reduce((acc, log) => {
+                if (log?.machineId?.machineGroupId) {
+                    acc.machineGroupIds.add(log.machineId.machineGroupId);
+                }
+                if (log?.machineId?._id) {
+                    acc.operatorMachineIds.add(log.machineId._id);
+                }
+                return acc;
+            }, { machineGroupIds: new Set(), operatorMachineIds: new Set() });
+            if (matchObj.machineGroupIds.size > 0) {
+                const machineGroups = await machineGroupService.find({
+                    _id: { $in: Array.from(matchObj.machineGroupIds) }
+                }, {
+                    useLean: true,
+                    projection: { groupName: 1 }
+                });
+                groupingConfig.machineGroups = machineGroups.reduce((acc, group) => {
+                    acc[group._id.toString()] = group.groupName;
+                    return acc;
+                }, {});
+            }
+            if (matchObj.operatorMachineIds.size > 0) {
+                const operators = await operatorService.find({
+                    machineIds: { $in: Array.from(matchObj.operatorMachineIds) }
+                }, {
+                    projection: { operatorName: 1, machineIds: 1, shift: 1 }
+                });
+                groupingConfig.machineOperatorObj = operators.reduce((acc, operator) => {
+                    operator.machineIds.forEach(mId => {
+                        acc[String(mId).concat('-', operator.shift)] = operator.operatorName;
+                    });
+                    return acc;
+                }, {});
+            }
 
             const machineData = [];
             for (let logData of machineLogsData.data) {
@@ -31,6 +60,12 @@ module.exports = {
                 data.quality = logData.machineId.quality || '';
                 data.machineType = logData.machineId.machineType || 'rapier';
                 data.machineGroupId = logData.machineId?.machineGroupId || '';
+
+                data.machineGroup = groupingConfig.machineGroups?.[data.machineGroupId];
+                if (!data.machineGroup) { delete data.machineGroup; }
+                data.operator = groupingConfig.machineOperatorObj?.[String(logData.machineId._id).concat('-', logData.shift)];
+                if (!data.operator) { delete data.operator; }
+
                 data.efficiency = logData.efficiencyPercent;
                 data.picks = logData.picksCurrentShift;
                 data.speed = logData.speedRpm;

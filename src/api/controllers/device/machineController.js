@@ -2,7 +2,7 @@ const machineGroupService = require("../../services/machineGroupService");
 const machineService = require("../../services/machineService");
 const utilService = require("../../services/utilService");
 
-const projection = 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality reed';
+const projection = 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality reed panna';
 
 
 module.exports = {
@@ -82,6 +82,9 @@ module.exports = {
             }
             if (typeof body.reed === 'string') {
                 updateObj.reed = body.reed.trim();
+            }
+            if (body.hasOwnProperty('panna')) {
+                updateObj.panna = utilService.parsePanna(body.panna);
             }
             if (userType === global.config.USERS.TYPE.ADMIN) {
                 if (typeof body.isAlertActive === 'boolean') {

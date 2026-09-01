@@ -208,6 +208,14 @@ module.exports = {
         return true;
     },
 
+    parsePanna(value) {
+        const panna = parseInt(value, 10);
+        if (!this.isNumber(panna, { min: 1, max: 3 })) {
+            throw global.config.message.BAD_REQUEST;
+        }
+        return panna;
+    },
+
     /**
      * Escapes special characters in a string to be used in a regular expression.
      * @param {string} str - The string to escape.

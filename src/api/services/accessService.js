@@ -9,6 +9,7 @@ const MODULE_KEYS = Object.freeze({
     MAINTENANCE_HISTORY: 'maintenance_history',
     PART_CHANGE_ENTRY: 'part_change_entry',
     USER: 'user',
+    OPERATOR: 'operator',
     REPORT: 'report',
 });
 const ACTION_KEYS = Object.freeze({
@@ -25,6 +26,7 @@ const _MODULE_WISE_ACCESS = Object.freeze({
     [MODULE_KEYS.MAINTENANCE_HISTORY]: Object.freeze([ACTION_KEYS.READ]),
     [MODULE_KEYS.PART_CHANGE_ENTRY]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.CREATE, ACTION_KEYS.UPDATE, ACTION_KEYS.DELETE]),
     [MODULE_KEYS.USER]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.UPDATE]),
+    [MODULE_KEYS.OPERATOR]: Object.freeze([ACTION_KEYS.READ, ACTION_KEYS.CREATE, ACTION_KEYS.UPDATE, ACTION_KEYS.DELETE]),
     [MODULE_KEYS.REPORT]: Object.freeze([ACTION_KEYS.READ]),
 });
 

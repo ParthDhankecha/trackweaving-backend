@@ -134,6 +134,12 @@ function getStopReasonForEvent(category, stopEvent, displayType) {
     return machineLogsService.getStopReason(stopCode, displayType);
 }
 
+function calculatePannaWithPieceLengthM(pieceLengthM, panna = null) {
+    panna = parseInt(panna) || null;
+    if (!panna || !pieceLengthM) return pieceLengthM;
+    return Math.round((Number(pieceLengthM) || 0) * panna * 100) / 100;
+}
+
 function buildProductionReportData(reportData, machines, workspace, options = {}) {
     const finalData = {};
     const availableMinutesCache = {};
@@ -144,7 +150,9 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
         totalProdMeter: 0,
         avgPicks: 0,
         avgCount: 0,
-        avgSpeed: 0
+        avgSpeed: 0,
+        efficiencyCount: 0,
+        realEfficiencyCount: 0
     };
 
     const isQualityReport = options.isQualityReport ?? false;
@@ -172,6 +180,7 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
         data.machineType = machine?.machineType || 'rapier';
         if (!isQualityReport) data.quality = data?.quality || machine?.quality || '';
         data.reed = machine?.reed || '';
+        data.pieceLengthM = calculatePannaWithPieceLengthM(data.pieceLengthM, machine?.panna);
         data.stopsData = {};
 
         let totalStopCount = 0;
@@ -225,14 +234,21 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             const dayShift = finalData[date].dayShift;
             const dayCount = dayShift.list.length;
             dayShift.avgPicks = dayCount ? Math.round(dayShift.totalPicks / dayCount) : 0;
-            dayShift.efficiency = dayCount ? Math.round(dayShift.efficiency / dayCount) : 0;
-            dayShift.realEfficiency = dayCount ? Math.round((dayShift.realEfficiency / dayCount) * 10) / 10 : 0;
+            const efficiencyCounts = list.reduce((acc, obj) => {
+                acc.count += obj.efficiencyPercent > 0 ? 1 : 0;
+                acc.realCount += obj.realEfficiencyPercent > 0 ? 1 : 0;
+                return acc;
+            }, { count: 0, realCount: 0 });
+            dayShift.efficiency = efficiencyCounts.count > 0 ? Math.round(dayShift.efficiency / efficiencyCounts.count) : 0;
+            dayShift.realEfficiency = efficiencyCounts.realCount > 0 ? Math.round((dayShift.realEfficiency / efficiencyCounts.realCount) * 10) / 10 : 0;
             const speedCount = dayShift.list.filter(({ speedRpm }) => speedRpm > 0).length;
             dayShift.avgSpeed = speedCount ? Math.round(dayShift.avgSpeed / speedCount) : 0;
 
             totalNumbers.totalPicks += dayShift.totalPicks;
             totalNumbers.totalEfficiency += dayShift.efficiency;
+            totalNumbers.efficiencyCount += efficiencyCounts.count > 0 ? 1 : 0;
             totalNumbers.totalRealEfficiency += dayShift.realEfficiency;
+            totalNumbers.realEfficiencyCount += efficiencyCounts.realCount > 0 ? 1 : 0;
             totalNumbers.totalProdMeter += dayShift.prodMeter;
             totalNumbers.avgCount += 1;
             totalNumbers.avgPicks += dayShift.avgPicks;
@@ -242,14 +258,21 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             const nightShift = finalData[date].nightShift;
             const nightCount = nightShift.list.length;
             nightShift.avgPicks = nightCount ? Math.round(nightShift.totalPicks / nightCount) : 0;
-            nightShift.efficiency = nightCount ? Math.round(nightShift.efficiency / nightCount) : 0;
-            nightShift.realEfficiency = nightCount ? Math.round((nightShift.realEfficiency / nightCount) * 10) / 10 : 0;
+            const efficiencyCounts = nightShift.list.reduce((acc, obj) => {
+                acc.count += obj.efficiencyPercent > 0 ? 1 : 0;
+                acc.realCount += obj.realEfficiencyPercent > 0 ? 1 : 0;
+                return acc;
+            }, { count: 0, realCount: 0 });
+            nightShift.efficiency = efficiencyCounts.count > 0 ? Math.round(nightShift.efficiency / efficiencyCounts.count) : 0;
+            nightShift.realEfficiency = efficiencyCounts.realCount > 0 ? Math.round((nightShift.realEfficiency / efficiencyCounts.realCount) * 10) / 10 : 0;
             const speedCount = nightShift.list.filter(({ speedRpm }) => speedRpm > 0).length;
             nightShift.avgSpeed = speedCount ? Math.round(nightShift.avgSpeed / speedCount) : 0;
 
             totalNumbers.totalPicks += nightShift.totalPicks;
             totalNumbers.totalEfficiency += nightShift.efficiency;
+            totalNumbers.efficiencyCount += efficiencyCounts.count > 0 ? 1 : 0;
             totalNumbers.totalRealEfficiency += nightShift.realEfficiency;
+            totalNumbers.realEfficiencyCount += efficiencyCounts.realCount > 0 ? 1 : 0;
             totalNumbers.totalProdMeter += nightShift.prodMeter;
             totalNumbers.avgCount += 1;
             totalNumbers.avgPicks += nightShift.avgPicks;
@@ -264,8 +287,8 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
     return {
         list: parsedData,
         totalPicks: totalNumbers.totalPicks,
-        totalEfficiency: Math.round((totalNumbers.totalEfficiency / totalNumbers.avgCount) || 0),
-        totalRealEfficiency: Math.round(((totalNumbers.totalRealEfficiency / totalNumbers.avgCount) || 0) * 10) / 10,
+        totalEfficiency: Math.round((totalNumbers.totalEfficiency / totalNumbers.efficiencyCount) || 0),
+        totalRealEfficiency: Math.round(((totalNumbers.totalRealEfficiency / totalNumbers.realEfficiencyCount) || 0) * 10) / 10,
         avgSpeed: Math.round((totalNumbers.avgSpeed / totalNumbers.avgCount) || 0),
         avgProdMeter: totalNumbers.totalProdMeter,
         avgPicks: Math.round((totalNumbers.avgPicks / totalNumbers.avgCount) || 0)
@@ -309,7 +332,7 @@ module.exports = {
         const [machines, workspace] = await Promise.all([
             machineService.find(
                 { _id: { $in: machineIds }, workspaceId },
-                { projection: { machineCode: 1, machineType: 1, quality: 1, reed: 1 }, useLean: true }
+                { projection: { machineCode: 1, machineType: 1, quality: 1, reed: 1, panna: 1 }, useLean: true }
             ),
             workspaceService.findOne(
                 { _id: workspaceId },
@@ -358,7 +381,7 @@ module.exports = {
         const machineIds = [...new Set(reportData.map(log => log.machineId?.toString()).filter(Boolean))];
         const machines = machineIds.length ? await machineService.find(
             { _id: { $in: machineIds }, workspaceId },
-            { projection: { machineCode: 1, machineType: 1, quality: 1, reed: 1 }, useLean: true }
+            { projection: { machineCode: 1, machineType: 1, quality: 1, reed: 1, panna: 1 }, useLean: true }
         ) : [];
 
         const data = buildProductionReportData(reportData, machines, workspace, { isQualityReport: true })
@@ -457,7 +480,7 @@ module.exports = {
         const [machines, beamRecords] = await Promise.all([
             machineService.find(
                 { _id: { $in: machineIds }, workspaceId },
-                { projection: { machineCode: 1, machineName: 1 }, useLean: true }
+                { projection: { machineCode: 1, machineName: 1, reed: 1, panna: 1 }, useLean: true }
             ),
             beamLeftModel.find({
                 machineId: { $in: machineIds },
@@ -506,7 +529,11 @@ module.exports = {
         const [machines, latestLogs, recentLogs] = await Promise.all([
             machineService.find(
                 { _id: { $in: machineIds }, workspaceId },
-                { projection: { machineCode: 1, machineName: 1 }, useLean: true, sort: { _id: 1 }, }
+                {
+                    projection: { machineCode: 1, machineName: 1, quality: 1, reed: 1, panna: 1 },
+                    useLean: true,
+                    sort: { _id: 1 }
+                }
             ),
             machineLogsService.findLatestLogs(
                 { machineId: { $in: machineIds }, workspaceId },
@@ -547,7 +574,7 @@ module.exports = {
                 productionByMachine[machineId] = 0;
                 productionByMachineShiftCount[machineId] = 0;
             }
-            productionByMachine[machineId] += log.pieceLengthM || 0;
+            productionByMachine[machineId] += calculatePannaWithPieceLengthM(log.pieceLengthM, machineMap[machineId]?.panna) || 0;
             productionByMachineShiftCount[machineId] += 1;
         });
 
@@ -559,31 +586,32 @@ module.exports = {
             const deviceCompletionDate = latestLog.beamCompletionDate || null;
 
             let beamCompletionDate = deviceCompletionDate;
-            let completionSource = deviceCompletionDate ? 'device' : null;
             let avgDailyProduction = null;
             let estimatedDaysRemaining = null;
 
             if (!deviceCompletionDate) {
                 const totalProduction = productionByMachine[machineIdStr] || 0;
-                avgDailyProduction = Math.round((totalProduction / (productionByMachineShiftCount[machineIdStr]/2)) * 100) / 100;
+                avgDailyProduction = Math.round((totalProduction / (productionByMachineShiftCount[machineIdStr] / 2)) * 100) / 100;
 
                 if (beamLeft <= 0) {
                     beamCompletionDate = moment().startOf('day').toDate();
-                    completionSource = 'completed';
                 } else if (avgDailyProduction > 0) {
                     estimatedDaysRemaining = Math.floor(beamLeft / avgDailyProduction);
                     beamCompletionDate = moment().startOf('day').add(estimatedDaysRemaining, 'days').toDate();
-                    completionSource = 'estimated';
                 }
+            }
+
+            if (estimatedDaysRemaining == null && beamCompletionDate) {
+                estimatedDaysRemaining = Math.max(0, moment(beamCompletionDate).startOf('day').diff(moment().startOf('day'), 'days'));
             }
 
             return {
                 machineCode: machine.machineCode || '',
                 machineName: machine.machineName || '',
+                quality: machine.quality || '',
+                reed: machine.reed || '',
                 beamLeft,
                 beamCompletionDate,
-                completionSource,
-                avgDailyProduction,
                 estimatedDaysRemaining
             };
         });

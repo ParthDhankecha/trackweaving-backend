@@ -347,6 +347,11 @@ module.exports = {
             message: "Machine group with this name already exist.",
             status: 409
         },
+        OPERATOR_ALREADY_EXIST: {
+            code: "E_DUPLICATE",
+            message: "Operator with this name already exists.",
+            status: 409
+        },
         APP_VERSION_HISTORY_ALREADY_EXIST: {
             code: "E_DUPLICATE",
             message: "A history entry with this build already exists.",
@@ -371,6 +376,11 @@ module.exports = {
             code: "E_BAD_REQUEST",
             message: "One or more selected machines are invalid or do not belong to this workspace.",
             status: 400
+        },
+        MACHINE_ALREADY_ASSIGNED_TO_OPERATOR: {
+            code: "E_DUPLICATE",
+            message: "One or more selected machines are already assigned to another operator for this shift.",
+            status: 409
         },
         INVALID_INVOICE_DETAILS_CHANGE: {
             code: "UNPROCESSABLE_ENTITY",

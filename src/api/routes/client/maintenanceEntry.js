@@ -2,7 +2,7 @@ const router = require('express').Router();
 
 const auth = require('../../middleware/auth');
 const requireAccess = require('../../middleware/requireAccess');
-const controller = require('../../controllers/client/alertController');
+const controller = require('../../controllers/client/maintenanceEntryController');
 
 const { MODULE_KEYS, ACTION_KEYS } = require('../../services/accessService');
 

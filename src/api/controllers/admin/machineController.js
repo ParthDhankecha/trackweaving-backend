@@ -4,6 +4,8 @@ const machineEnums = require('../../../config/constant/scoped/machine');
 const utilService = require('../../services/utilService');
 
 
+const _projection = { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1, deviceType: 1, displayType: 1, machineType: 1, quality: 1, reed: 1, panna: 1 };
+
 module.exports = {
     getConfigurations: async (req, res, next) => {
         try {
@@ -35,8 +37,8 @@ module.exports = {
 
             return res.ok({ machineCode }, global.config.message.OK);
         } catch (error) {
-            utilService.log(error)
-            return res.serverError(error)
+            utilService.log(error);
+            return res.serverError(error);
         }
     },
 
@@ -54,8 +56,8 @@ module.exports = {
 
             return res.ok({ list: machines }, global.config.message.OK);
         } catch (error) {
-            utilService.log(error)
-            return res.serverError(error)
+            utilService.log(error);
+            return res.serverError(error);
         }
     },
 
@@ -81,6 +83,8 @@ module.exports = {
                 }
             }
 
+            body.panna = utilService.parsePanna(body.panna);
+
             const duplicate = await machineService.findOne({
                 workspaceId: body.workspaceId,
                 $or: [
@@ -94,8 +98,8 @@ module.exports = {
 
             return res.created(null, global.config.message.CREATED);
         } catch (error) {
-            utilService.log(error)
-            return res.serverError(error)
+            utilService.log(error);
+            return res.serverError(error);
         }
     },
 
@@ -131,15 +135,15 @@ module.exports = {
                 data.list = await machineService.find(searchQuery, {
                     ...pagination,
                     populate: { path: 'workspaceId', select: 'firmName' },
-                    projection: { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1, deviceType: 1, displayType: 1, machineType: 1, quality: 1, reed: 1 },
+                    projection: { ..._projection },
                     useLean: true,
                 });
             }
 
             return res.ok(data, global.config.message.OK);
         } catch (error) {
-            utilService.log(error)
-            return res.serverError(error)
+            utilService.log(error);
+            return res.serverError(error);
         }
     },
 
@@ -157,8 +161,8 @@ module.exports = {
 
             return res.ok(machine, global.config.message.OK);
         } catch (error) {
-            utilService.log(error)
-            return res.serverError(error)
+            utilService.log(error);
+            return res.serverError(error);
         }
     },
 
@@ -195,6 +199,10 @@ module.exports = {
                 }
             }
 
+            if (body.hasOwnProperty('panna')) {
+                body.panna = utilService.parsePanna(body.panna);
+            }
+
             if (body.machineCode || body.ip) {
                 if (!body.workspaceId) throw global.config.message.BAD_REQUEST;
 
@@ -219,7 +227,7 @@ module.exports = {
             }
 
             const result = await machineService.findByIdAndUpdate(machineId, body, {
-                projection: { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1, deviceType: 1, displayType: 1, machineType: 1, quality: 1, reed: 1 },
+                projection: { ..._projection },
                 populate: { path: 'workspaceId', select: 'firmName' },
             });
             if (!result) {
@@ -239,8 +247,8 @@ module.exports = {
 
             return res.ok(result, global.config.message.UPDATED);
         } catch (error) {
-            utilService.log(error)
-            return res.serverError(error)
+            utilService.log(error);
+            return res.serverError(error);
         }
     },
 
@@ -269,8 +277,8 @@ module.exports = {
 
             return res.ok(entry, global.config.message.OK);
         } catch (error) {
-            utilService.log(error)
-            return res.serverError(error)
+            utilService.log(error);
+            return res.serverError(error);
         }
     }
 }

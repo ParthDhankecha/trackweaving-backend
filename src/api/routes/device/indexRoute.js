@@ -22,6 +22,10 @@ router.use('/reports', require('./report'));
 
 router.use('/part-change-logs', require('./partChangeLog'));
 
+router.use('/operators', require('./operator'));
+
+router.use('/alert-config', require('./alertConfig'));
+
 router.use('/notifications', require('./notification'));
 
 router.use('/util', require('./util'));

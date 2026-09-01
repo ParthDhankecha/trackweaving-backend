@@ -15,11 +15,15 @@ router.use('/machines', require('./machine'));
 
 router.use('/maintenance-categories', require('./maintenanceCategory'));
 
-router.use('/alerts', require('./alert'));
+router.use('/maintenance-entry', require('./maintenanceEntry'));
 
 router.use('/reports', require('./report'));
 
 router.use('/part-change-logs', require('./partChangeLog'));
+
+router.use('/alert-config', require('./alertConfig'));
+
+router.use('/operators', require('./operator'));
 
 
 module.exports = router;

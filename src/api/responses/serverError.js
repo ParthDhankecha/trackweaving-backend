@@ -28,5 +28,9 @@ exports.serverError = function serverError(config = {}, data = null) {
     }
 
     const statusCode = config.status || 500;
-    return this.status(statusCode).json(response);
+    const payload = { ...response };
+    if (data != null) {
+        payload.data = data;
+    }
+    return this.status(statusCode).json(payload);
 };

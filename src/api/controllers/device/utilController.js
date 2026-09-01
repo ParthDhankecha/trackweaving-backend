@@ -35,6 +35,14 @@ module.exports = {
                 reportUrl: global.config.REPORT_URL || null,
             };
 
+            const { appflavor = 'base' } = req.headers;
+            if (String(appflavor).toLowerCase() === 'pickwell' && data.apiHost) {
+                const replacePart = data.apiHost.match(/:\/\/([^/]+)\/?/)?.[1];
+                if (replacePart) {
+                    data.reportUrl = data.apiHost.replace(replacePart, 'monitor.pickwell.in');
+                }
+            }
+
             return res.ok(data, global.config.message.OK);
         } catch (error) {
             utilService.log(error);

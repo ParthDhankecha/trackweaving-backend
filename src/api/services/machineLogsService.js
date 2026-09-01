@@ -66,6 +66,31 @@ async function recordBeamCycleChange(body, machine, newBeam) {
 
 const toUint32 = (hi, lo) => (((hi << 16) >>> 0) + (lo >>> 0)) >>> 0;
 const get16 = (r, csvRegister) => { return r[csvRegister - 1] ?? 0; }
+
+function decodePickwellAlarms(at) {
+    const bitMap = global.config.PICKWELL_ALARM_BITS || {};
+    const alarms = [];
+    for (const [registerId, labels] of Object.entries(bitMap)) {
+        const word = Number(at(Number(registerId))) || 0;
+        if (!word || !Array.isArray(labels)) continue;
+        for (let bit = 0; bit < labels.length; bit++) {
+            const label = labels[bit];
+            if (label && ((word >>> bit) & 1) === 1) {
+                alarms.push(label);
+            }
+        }
+    }
+    return alarms;
+}
+
+function parseAlarmsActive(displayType, at) {
+    const alarmRegisters = register[displayType]?.alarms || [];
+    if (!alarmRegisters.length) return [];
+    if (displayType === 'pickwell') {
+        return decodePickwellAlarms(at);
+    }
+    return alarmRegisters.map(lw => at(lw)).filter(code => code !== 0);
+}
 const register = {
     nazon: {
         speedRpm: 5010,
@@ -317,7 +342,15 @@ async function upsertShiftLog(body, shiftDate, options = {}) {
     delete body.totalSpeed;
     delete body.totalSpeedCount;
 
+    const alarmsActive = Array.isArray(body.alarmsActive)
+        ? body.alarmsActive.filter(Boolean)
+        : [];
+    delete body.alarmsActive;
+
     const update = { $set: body };
+    if (alarmsActive.length) {
+        update.$addToSet = { alarmsActive: { $each: alarmsActive } };
+    }
     if (body.stop === 0 && speedRpm > 0) {
         update.$inc = { totalSpeed: speedRpm, totalSpeedCount: 1 };
     }
@@ -940,7 +973,7 @@ module.exports = {
 
             const beamLeft = register[displayType].beamLeft ? at(register[displayType].beamLeft) : 0;
 
-            const alarms = register[displayType].alarms.length ? register[displayType].alarms.map(lw => at(lw)).filter(code => code !== 0) : [];
+            const alarms = parseAlarmsActive(displayType, at);
             let stopsCount = {};
             for (const [key, value] of Object.entries(register[displayType].stopsCount)) {
                 const count = value.count ? at(value.count) : 0;

@@ -202,6 +202,10 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
         };
         delete data.stopsCount;
 
+        data.alarmsActive = Array.isArray(data.alarmsActive)
+            ? data.alarmsActive.filter(Boolean)
+            : [];
+
         if (data.machineType === 'rapier') {
             const runTime = data.runTime?.split(':') || [];
             if (runTime.length > 1) {
@@ -303,7 +307,6 @@ const LOG_PROJECTION = {
     picksTotal: false,
     setPicks: false,
     stop: false,
-    alarmsActive: false,
     loomStateCode: false,
     isDeleted: false
 };

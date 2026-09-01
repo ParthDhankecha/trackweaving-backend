@@ -361,19 +361,6 @@ async function applyPowerOffLog(body) {
         if (body.lastStartTime) shiftLogUpdate.lastStartTime = body.lastStartTime;
         await upsertShiftLog(shiftLogUpdate, shiftDate, { updateMachineQuality: false });
     }
-
-    if (machineLog) {
-        await module.exports.checkAlertNotification(machineLog, {
-            machineId: body.machineId,
-            workspaceId: body.workspaceId,
-            displayType: body.displayType,
-            updatedTime: body.updatedTime,
-            lastStopTime: body.lastStopTime || machineLog.lastStopTime,
-            stop: getPowerOffStopCode(),
-            speedRpm: 0,
-            powerOff: true
-        });
-    }
 }
 
 module.exports = {

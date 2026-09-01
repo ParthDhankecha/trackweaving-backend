@@ -1,1 +1,0 @@
-import{Ya as e,ab as o,nb as r,p as t}from"./chunk-VFDFVIQ5.js";var v=(a,u)=>{let s=t(e),c=t(r);return(a.data?.accessModules||["default"]).some(n=>c.utils.can(n,"read"))?!0:(s.navigateByUrl(`/${o.AUTH.BASE}`),!1)};export{v as a};

@@ -611,6 +611,7 @@ module.exports = {
                                 description: `Picks changed from ${machineLog.setPicks} to ${body.setPicks}`,
                                 data: {
                                     category: 'pick_changed',
+                                    machineCode: machine.machineCode,
                                     previous: machineLog.setPicks,
                                     current: body.setPicks
                                 },
@@ -632,6 +633,7 @@ module.exports = {
                                 description: `Machine speed ${body.speedRpm} RPM exceeded the limit of ${alertConfig.speedLimit} RPM`,
                                 data: {
                                     category: 'max_speed',
+                                    machineCode: machine.machineCode,
                                     speed: body.speedRpm
                                 },
                                 recipients
@@ -653,6 +655,7 @@ module.exports = {
                                 description: `Machine speed ${body.speedRpm} RPM is below the limit of ${alertConfig.speedLimit} RPM`,
                                 data: {
                                     category: 'low_speed',
+                                    machineCode: machine.machineCode,
                                     speed: body.speedRpm
                                 },
                                 recipients
@@ -735,6 +738,7 @@ module.exports = {
                                     description: `Beam left has reached ${newBeam} meters`,
                                     data: {
                                         category: 'beam_left',
+                                        machineCode: machine.machineCode,
                                         beamLeft: newBeam
                                     },
                                     recipients
@@ -818,6 +822,7 @@ module.exports = {
                                         description: `${machine.machineCode} has been stopped for ${stoppedMinutes} minutes. Reason: ${stopReason}`,
                                         data: {
                                             category: 'machine_stopped',
+                                            machineCode: machine.machineCode,
                                             duration: stoppedMinutes,
                                             reason: stopReason
                                         },

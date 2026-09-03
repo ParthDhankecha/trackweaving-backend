@@ -288,6 +288,26 @@ const register = {
             manual: { count: 14, duration: 15 },
             other: { count: 16, duration: 17 }
         }
+    },
+    tsudakoma: {
+        shift: 1,
+        quality: 2,
+        stopCode: 3,
+        runTime: 4,
+        efficiencyPercent: 5,
+        currentDensity: 6,
+        pieceLengthM: 7,
+        picksCurrentShift: 8,
+        beamLeft: 9,
+        initialBeamLeft: 10,
+        beamCompletionDate: 11,
+        speedRpm: 20,
+        stopsCount: {
+            warp: { count: 12, duration: 13 },
+            h1: { count: 14, duration: 15 },
+            h2: { count: 16, duration: 17 },
+            other: { count: 18, duration: 19 }
+        }
     }
 };
 
@@ -1362,6 +1382,26 @@ module.exports = {
                     8: "Service stop",
                     9: "Other stop",
                     10: "Other stop",
+                };
+                break;
+
+            case "tsudokuma":
+                STOP_REASON = {
+                    0: "--",
+                    11: "Stop button",
+                    20: "H1 feeler (C1)",
+                    21: "H1 feeler (C2)",
+                    25: "H2 feeler (C1)",
+                    26: "H2 feeler (C2)",
+                    31: "Dropper",
+                    41: "Leno (left)",
+                    42: "Leno (right)",
+                    43: "CC",
+                    50: "Package sensor (C1)",
+                    51: "Package sensor (C2)",
+                    71: "Counter",
+                    9998: "Unknown stop",
+                    9999: "Power Off"
                 };
                 break;
 

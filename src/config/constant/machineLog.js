@@ -11,7 +11,7 @@ module.exports = {
     },
     RAPIER_DISPLAYS: ["nazon", "chitic", "pickwell"],
     AIRJET_DISPLAYS: ["biana"],
-    DIRECT_DISPLAYS: ["haiwell", "picanolRapier", "picanolAirjet", "itema"],
+    DIRECT_DISPLAYS: ["haiwell", "picanolRapier", "picanolAirjet", "itema", "tsudakoma"],
     POWER_OFF_STOP_CODE: 9999,
     POWER_OFF_STOP_REASON: "Power Off",
     // Pickwell PRL50 LW5014-LW5019 bitfields. Empty string = reserved bit.

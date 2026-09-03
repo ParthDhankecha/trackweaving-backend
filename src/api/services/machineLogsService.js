@@ -1390,7 +1390,7 @@ module.exports = {
                 };
                 break;
 
-            case "tsudokuma":
+            case "tsudakoma":
                 STOP_REASON = {
                     0: "--",
                     11: "Stop button",

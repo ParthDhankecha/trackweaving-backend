@@ -86,7 +86,6 @@ module.exports = {
             const data = {
                 workspaceName: workspace.firmName,
                 workspaceAlerts,
-                defaultAlerts: toClientAlerts(alertConfigService.defaultAlerts({ readOnly: false })),
                 userConfigs
             };
 

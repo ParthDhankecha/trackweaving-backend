@@ -3,9 +3,10 @@ const { ObjectId } = require('mongoose').Types;
 
 const machineLogsService = require('../../services/machineLogsService');
 const machineGroupService = require('../../services/machineGroupService');
+const operatorService = require('../../services/operatorService');
 const reportService = require('../../services/reportService');
-const utilService = require('../../services/utilService');
 const machineService = require('../../services/machineService');
+const utilService = require('../../services/utilService');
 
 
 module.exports = {
@@ -201,30 +202,69 @@ module.exports = {
 
             const machineLogsData = await machineLogsService.getMachineLogsWithPagination(body);
 
+            const groupingConfig = {};
+            const matchObj = machineLogsData.data.reduce((acc, log) => {
+                if (log?.machineId?.machineGroupId) {
+                    acc.machineGroupIds.add(log.machineId.machineGroupId);
+                }
+                if (log?.machineId?._id) {
+                    acc.operatorMachineIds.add(log.machineId._id);
+                }
+                return acc;
+            }, { machineGroupIds: new Set(), operatorMachineIds: new Set() });
+            if (matchObj.machineGroupIds.size > 0) {
+                const machineGroups = await machineGroupService.find({
+                    _id: { $in: Array.from(matchObj.machineGroupIds) }
+                }, {
+                    useLean: true,
+                    projection: { groupName: 1 }
+                });
+                groupingConfig.machineGroups = machineGroups.reduce((acc, group) => {
+                    acc[group._id.toString()] = group.groupName;
+                    return acc;
+                }, {});
+            }
+            if (matchObj.operatorMachineIds.size > 0) {
+                const operators = await operatorService.find({
+                    machineIds: { $in: Array.from(matchObj.operatorMachineIds) }
+                }, {
+                    projection: { operatorName: 1, machineIds: 1, shift: 1 }
+                });
+                groupingConfig.machineOperatorObj = operators.reduce((acc, operator) => {
+                    operator.machineIds.forEach(mId => {
+                        acc[String(mId).concat('-', operator.shift)] = operator.operatorName;
+                    });
+                    return acc;
+                }, {});
+            }
+
             const machineData = [];
             for (let logData of machineLogsData.data) {
                 if (!logData.machineId.lastStartTime) logData.machineId.lastStartTime = new Date();
                 if (!logData.machineId.lastStopTime) logData.machineId.lastStopTime = new Date();
+                let data = {};
+                data.machineCode = logData.machineId.machineCode;
+                data.machineName = logData.machineId.machineName;
+                data.reed = logData.machineId.reed || '';
+                data.quality = logData.machineId.quality || '';
+                data.machineType = logData.machineId.machineType || 'rapier';
+                data.machineGroupId = logData.machineId?.machineGroupId || '';
 
-                const data = {
-                    machineCode: logData.machineId.machineCode,
-                    machineName: logData.machineId.machineName,
-                    quality: logData.machineId.quality || '',
-                    machineType: logData.machineId.machineType || 'rapier',
-                    machineGroupId: logData.machineId?.machineGroupId || '',
-                    efficiency: logData.efficiencyPercent,
-                    picks: logData.picksCurrentShift,
-                    speed: logData.speedRpm,
-                    currentStop: logData.stop,
-                    stopReason: machineLogsService.getStopReason(logData.stop, logData.machineId.displayType),
-                    pieceLengthM: logData.pieceLengthM,
-                    beamLeft: logData.beamLeft,
-                    setPicks: logData.setPicks,
-                    stopsData: {},
-                    totalDuration: moment.utc((moment().diff(moment(
-                        new Date(logData.machineId[logData.stop === 0 ? 'lastStartTime' : 'lastStopTime']).toISOString()
-                    ), 'seconds')) * 1000).format('HH:mm') || '00:00',
-                };
+                data.machineGroup = groupingConfig.machineGroups?.[data.machineGroupId];
+                if (!data.machineGroup) { delete data.machineGroup; }
+                data.operator = groupingConfig.machineOperatorObj?.[String(logData.machineId._id).concat('-', logData.shift)];
+                if (!data.operator) { delete data.operator; }
+
+                data.efficiency = logData.efficiencyPercent;
+                data.picks = logData.picksCurrentShift;
+                data.speed = logData.speedRpm;
+                data.currentStop = logData.stop;
+                data.stopReason = machineLogsService.getStopReason(logData.stop, logData.machineId.displayType);
+                data.pieceLengthM = logData.pieceLengthM;
+                data.beamLeft = logData.beamLeft;
+                data.setPicks = logData.setPicks;
+                data.stopsData = {};
+                data.totalDuration = logData.stop === 0 ? (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStartTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00') : (moment.utc((moment().diff(moment(new Date(logData.machineId.lastStopTime).toISOString()), 'seconds')) * 1000).format('HH:mm') || '00:00');
 
                 let totalStopDuration = 0;
                 let totalStops = 0;
@@ -245,7 +285,7 @@ module.exports = {
                         data.runTime = `${Math.floor(runMins / 60).toString().padStart(2, '0')}:${(runMins % 60).toString().padStart(2, '0')}`;
                     }
                 } else {
-                    data.runTime = logData.runTime || '-';
+                    data.runTime = logData.runTime;
                 }
                 data.stopsData.total = {
                     duration: moment.utc(totalStopDuration * 1000).format('HH:mm'),
@@ -263,7 +303,7 @@ module.exports = {
 
             return res.ok(response, global.config.message.OK);
         } catch (error) {
-            log(error);
+            utilService.log(error);
             return res.serverError(error);
         }
     },
@@ -271,16 +311,21 @@ module.exports = {
     getReport: async (req, res, next) => {
         try {
             const body = req.body;
-            const fields = ['reportType', 'startDate', 'endDate'];
+            const fields = ['reportType'];
+            if (body.reportType !== 'beamCompletionDateReport') {
+                fields.push('startDate', 'endDate');
+            }
             utilService.checkRequiredParams(fields, body);
             if (!utilService.isValidObjectId(body.workspaceId)) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const startDate = moment(body.startDate);
-            const endDate = moment(body.endDate);
-            if (!startDate.isValid() || !endDate.isValid() || startDate.isAfter(endDate)) {
-                throw global.config.message.BAD_REQUEST;
+            if (body.reportType !== 'beamCompletionDateReport') {
+                const startDate = moment(body.startDate);
+                const endDate = moment(body.endDate);
+                if (!startDate.isValid() || !endDate.isValid() || startDate.isAfter(endDate)) {
+                    throw global.config.message.BAD_REQUEST;
+                }
             }
 
             if (body.reportType === 'qualityProductionReport') {
@@ -335,6 +380,13 @@ module.exports = {
                         machineIds: body.machineIds,
                         startDate: body.startDate,
                         endDate: body.endDate,
+                    });
+                    break;
+
+                case 'beamCompletionDateReport':
+                    resObj = await reportService.generateBeamCompletionDateReport({
+                        workspaceId: body.workspaceId,
+                        machineIds: body.machineIds,
                     });
                     break;
 

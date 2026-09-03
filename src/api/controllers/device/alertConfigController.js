@@ -1,6 +1,7 @@
 const alertConfigService = require('../../services/alertConfigService');
-const utilService = require('../../services/utilService');
 const workspaceService = require('../../services/workspaceService');
+const { ALERT_CONFIG_SCHEMA } = require('../../../config/constant/alert');
+const utilService = require('../../services/utilService');
 
 const { ALERT_KEYS } = alertConfigService;
 const CONFIG_FIELDS = {
@@ -84,9 +85,8 @@ module.exports = {
             });
 
             const data = {
-                workspaceName: workspace.firmName,
+                schema: ALERT_CONFIG_SCHEMA,
                 workspaceAlerts,
-                defaultAlerts: toClientAlerts(alertConfigService.defaultAlerts({ readOnly: false })),
                 userConfigs
             };
 
@@ -96,7 +96,6 @@ module.exports = {
             return res.serverError(error);
         }
     },
-
     upsertWorkspace: async (req, res) => {
         try {
             const alerts = pickAlertBody(req.body);

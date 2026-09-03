@@ -39,7 +39,7 @@ module.exports = {
             if (String(appflavor).toLowerCase() === 'pickwell' && data.apiHost) {
                 const replacePart = data.apiHost.match(/:\/\/([^/]+)\/?/)?.[1];
                 if (replacePart) {
-                    data.reportUrl = data.apiHost.replace(replacePart, 'monitor.pickwell.in');
+                    data.reportUrl = data.reportUrl.replace(replacePart, 'monitor.pickwell.in');
                 }
             }
 

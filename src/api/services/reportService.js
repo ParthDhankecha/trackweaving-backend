@@ -238,7 +238,7 @@ function buildProductionReportData(reportData, machines, workspace, options = {}
             const dayShift = finalData[date].dayShift;
             const dayCount = dayShift.list.length;
             dayShift.avgPicks = dayCount ? Math.round(dayShift.totalPicks / dayCount) : 0;
-            const efficiencyCounts = list.reduce((acc, obj) => {
+            const efficiencyCounts = dayShift.list.reduce((acc, obj) => {
                 acc.count += obj.efficiencyPercent > 0 ? 1 : 0;
                 acc.realCount += obj.realEfficiencyPercent > 0 ? 1 : 0;
                 return acc;

@@ -1433,7 +1433,7 @@ module.exports = {
         if (displayType === 'itema') {
             const category = stopCode === 0 ? 0 : Math.floor(stopCode / 1000);
             return STOP_REASON[category] || "Other stop";
-        } else if(displayType === "tsudokuma") {
+        } else if(displayType === "tsudakoma") {
             return STOP_REASON[stopCode] || "--";
         }
 

@@ -1078,12 +1078,12 @@ module.exports = {
                 shift: get16(body, register[displayType].shift),
                 stopsCount: stopsCount,
                 runTime: get16(body, register[displayType].runTime)
-                ? `${Math.floor(get16(body, register[displayType].runTime) / 60)
-                    .toString()
-                    .padStart(2, '0')}:${Math.floor(get16(body, register[displayType].runTime) % 60)
-                    .toString()
-                    .padStart(2, '0')}`
-                : ''            
+                    ? `${Math.floor(get16(body, register[displayType].runTime) / 60)
+                        .toString()
+                        .padStart(2, '0')}:${Math.floor(get16(body, register[displayType].runTime) % 60)
+                            .toString()
+                            .padStart(2, '0')}`
+                    : ''
             }
         }
     },
@@ -1248,6 +1248,58 @@ module.exports = {
          ])
 
          return data[0];*/
+    },
+
+    async customDashboardView(options = {}) {
+        const { findMachineGroup } = options;
+        if (typeof findMachineGroup !== 'function') {
+            throw global.config.message.BAD_REQUEST;
+        }
+
+        const { workspaceId } = options;
+
+        const machines = await machineService.find({
+            workspaceId: workspaceId,
+        }, { useLean: true });
+        const machineMap = {};
+        machines.reduce((acc, m) => {
+            acc[String(m._id)] = m;
+            return acc;
+        }, machineMap);
+
+        const machineLogs = await machineLatestLogsModel.find({
+            workspaceId: workspaceId,
+            isDeleted: false,
+        }).sort({ machineId: 1 }).lean();
+
+        for (const log of machineLogs) {
+            if (log.powerOff === true) {
+                log.stop = getPowerOffStopCode();
+                log.speedRpm = 0;
+            }
+            log.machineId = {
+                ...machineMap[String(log.machineId)],
+                stopsCount: log.stopsCount,
+                lastStartTime: log.lastStartTime,
+                lastStopTime: log.lastStopTime,
+                stopsData: log.stopsData
+            };
+        }
+
+        const machineGroups = await findMachineGroup({ workspaceId: workspaceId }, {
+            projection: { groupName: 1 },
+            useLean: true,
+        });
+        const machineGroupMap = {};
+        machineGroups.reduce((acc, cv) => {
+            const [, sectionMatch, lineMatch] = String(cv.groupName).match(/^([A-Z])-(line [0-9]+).*/) ?? [];// destructure matched group only
+            cv.sectionKey = sectionMatch || 'None';
+            cv.lineKey = lineMatch || 'None';
+            acc[String(cv._id)] = cv;
+            return acc;
+        }, machineGroupMap);
+
+        return { machineLogs, machineGroupMap };
     },
 
     getStopReason(stopCode, displayType = 'nazon') {
@@ -1433,7 +1485,7 @@ module.exports = {
         if (displayType === 'itema') {
             const category = stopCode === 0 ? 0 : Math.floor(stopCode / 1000);
             return STOP_REASON[category] || "Other stop";
-        } else if(displayType === "tsudakoma") {
+        } else if (displayType === "tsudakoma") {
             return STOP_REASON[stopCode] || "--";
         }
 

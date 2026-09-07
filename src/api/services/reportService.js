@@ -406,8 +406,8 @@ module.exports = {
             machineId: { $in: machineIds },
             workspaceId,
             shiftDate: {
-                $gte: moment(new Date(startDate).toISOString()).startOf('day'),
-                $lte: moment(new Date(endDate).toISOString()).endOf('day')
+                $gte: moment(new Date(startDate).toISOString()).startOf('day').toISOString(),
+                $lte: moment(new Date(endDate).toISOString()).endOf('day').toISOString()
             },
             shift: { $in: shiftFilter }
         };

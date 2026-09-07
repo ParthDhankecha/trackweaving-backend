@@ -1292,9 +1292,11 @@ module.exports = {
         });
         const machineGroupMap = {};
         machineGroups.reduce((acc, cv) => {
-            const [, sectionMatch, lineMatch] = String(cv.groupName).match(/^([A-Z])-(line [0-9]+).*/) ?? [];// destructure matched group only
-            cv.sectionKey = sectionMatch || 'None';
-            cv.lineKey = lineMatch || 'None';
+            const [, sectionMatch, lineMatch] = String(cv.groupName).replace(/ /g, '')
+                .trim().match(/^([A-Z])-(line [0-9]+).*/i) ?? [];// destructure matched group only
+
+            cv.sectionKey = (sectionMatch || 'na').toUpperCase();
+            cv.lineKey = (lineMatch || 'na').toLowerCase();
             acc[String(cv._id)] = cv;
             return acc;
         }, machineGroupMap);

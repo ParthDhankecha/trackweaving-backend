@@ -7,6 +7,8 @@ router.use('/user', require('./user'));
 
 router.use('/sync', require('./sync'));
 
+router.use('/dashboard', require('./dashboard'));
+
 router.use('/machine-logs', require('./machineLogs'));
 
 router.use('/machine-group', require('./machineGroup'));

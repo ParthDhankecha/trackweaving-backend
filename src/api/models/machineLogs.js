@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+const { ObjectId } = Schema.Types;
 
 const getSubSchema = (subSchema, schemaOptions = {}) => {
     return new Schema(subSchema, { _id: false, ...schemaOptions });
@@ -37,10 +38,19 @@ const machineStopsCountSubSchema = getSubSchema({
 });
 
 const machineLogsSchema = new Schema({
+    workspaceId: {
+        type: ObjectId,
+        ref: 'workspace',
+        required: true
+    },
     machineId: {
-        type: Schema.Types.ObjectId,
+        type: ObjectId,
         ref: 'machine',
         required: true
+    },
+    operatorId: {
+        type: ObjectId,
+        ref: 'operator',
     },
     quality: {
         type: String,
@@ -50,11 +60,6 @@ const machineLogsSchema = new Schema({
     rawData: {
         type: Schema.Types.Mixed,
         default: []
-    },
-    workspaceId: {
-        type: Schema.Types.ObjectId,
-        ref: 'workspace',
-        required: true
     },
     shift: {
         type: Number,

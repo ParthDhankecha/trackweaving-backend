@@ -146,6 +146,10 @@ const machineSchema = new Schema({
         type: Number,
         default: 1
     },
+    cards: {
+        type: Number,
+        default: null
+    },
     manufacturerId: {
         type: Schema.Types.ObjectId,
         ref: 'manufacturer',

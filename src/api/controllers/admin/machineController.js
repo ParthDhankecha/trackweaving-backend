@@ -4,7 +4,7 @@ const machineEnums = require('../../../config/constant/scoped/machine');
 const utilService = require('../../services/utilService');
 
 
-const _projection = { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1, deviceType: 1, displayType: 1, machineType: 1, quality: 1, reed: 1, panna: 1 };
+const _projection = { machineCode: 1, machineName: 1, workspaceId: 1, ip: 1, deviceType: 1, displayType: 1, machineType: 1, quality: 1, reed: 1, panna: 1, cards: 1 };
 
 module.exports = {
     getConfigurations: async (req, res, next) => {
@@ -84,6 +84,11 @@ module.exports = {
             }
 
             body.panna = utilService.parsePanna(body.panna);
+            if (body.hasOwnProperty('cards')) {
+                if (!utilService.isNumber(body.cards, { min: 0 })) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+            }
 
             const duplicate = await machineService.findOne({
                 workspaceId: body.workspaceId,
@@ -201,6 +206,11 @@ module.exports = {
 
             if (body.hasOwnProperty('panna')) {
                 body.panna = utilService.parsePanna(body.panna);
+            }
+            if (body.hasOwnProperty('cards')) {
+                if (!utilService.isNumber(body.cards, { min: 0 })) {
+                    body.cards = 0;
+                }
             }
 
             if (body.machineCode || body.ip) {

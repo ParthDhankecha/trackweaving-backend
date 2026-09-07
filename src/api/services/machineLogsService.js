@@ -1292,8 +1292,8 @@ module.exports = {
         });
         const machineGroupMap = {};
         machineGroups.reduce((acc, cv) => {
-            const [, sectionMatch, lineMatch] = String(cv.groupName).replace(/ /g, '')
-                .trim().match(/^([A-Z])-(line [0-9]+).*/i) ?? [];// destructure matched group only
+            const [, sectionMatch, lineMatch] = String(cv.groupName).replace(/\s+/g, ' ')
+                .trim().match(/^([A-Z])\s*-\s*(line\s*[0-9]+).*/i) ?? [];// destructure matched group only
 
             cv.sectionKey = (sectionMatch || 'na').toUpperCase();
             cv.lineKey = (lineMatch || 'na').toLowerCase();

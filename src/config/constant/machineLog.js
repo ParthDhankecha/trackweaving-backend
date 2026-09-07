@@ -9,7 +9,7 @@ module.exports = {
         "waterjet": ["warp", "weft", "feeder", "manual", "other"],
         "circular": ["warp", "weft", "feeder", "manual", "other"]
     },
-    RAPIER_DISPLAYS: ["nazon", "chitic", "pickwell"],
+    RAPIER_DISPLAYS: ["nazon", "chitic", "pickwell", "sultex"],
     AIRJET_DISPLAYS: ["biana"],
     DIRECT_DISPLAYS: ["haiwell", "picanolRapier", "picanolAirjet", "itema", "tsudakoma"],
     POWER_OFF_STOP_CODE: 9999,

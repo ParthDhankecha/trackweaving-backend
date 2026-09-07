@@ -83,6 +83,10 @@ function decodePickwellAlarms(at) {
     return alarms;
 }
 
+function parseSultexDecimal(whole, decimals) {
+    return Number((Number(whole || 0) + Number(decimals || 0) / 100).toFixed(2));
+}
+
 function parseAlarmsActive(displayType, at) {
     const alarmRegisters = register[displayType]?.alarms || [];
     if (!alarmRegisters.length) return [];
@@ -308,6 +312,26 @@ const register = {
             h2: { count: 16, duration: 17 },
             other: { count: 18, duration: 19 }
         }
+    },
+    sultex: {
+        shift: 5005,
+        speedRpm: 5003,
+        stopCode: 5012,
+        stateCode: 5012,
+        efficiency: 5044,
+        pieceLenHi: 5045,
+        pieceLenDecimals: 5046,
+        beamLeftHi: 5006,
+        beamLeftDecimals: 5007,
+        shiftWeftCount: 5049,
+        currentDensity: 5002,
+        alarms: [],
+        stopsCount: {
+            warp: { count: 5034, duration: 5038 },
+            weft: { count: 5035, duration: 5039 },
+            other: { count: 5036, duration: 5040 }
+        },
+        runTime: 5042,
     }
 };
 
@@ -976,7 +1000,12 @@ module.exports = {
             }
 
             let pieceLenMeters = 0;
-            if (register[displayType].pieceLenHi && register[displayType].pieceLenLo) {
+            if (displayType === 'sultex' && register[displayType].pieceLenDecimals != null) {
+                pieceLenMeters = parseSultexDecimal(
+                    at(register[displayType].pieceLenHi),
+                    at(register[displayType].pieceLenDecimals)
+                );
+            } else if (register[displayType].pieceLenHi && register[displayType].pieceLenLo) {
                 const wovenLen = toUint32(at(register[displayType].pieceLenHi), at(register[displayType].pieceLenLo));
                 const decimals = register[displayType].pieceLenDecimals || 2;
                 pieceLenMeters = parseFloat((wovenLen / Math.pow(10, decimals)).toFixed(2));
@@ -988,27 +1017,46 @@ module.exports = {
                 pieceLenMeters = parseFloat((pieceLenCm / 100).toFixed(2));
             }
 
-            let shiftWeftCount = register[displayType].shiftWeftCountHi && register[displayType].shiftWeftCountLo ? toUint32(at(register[displayType].shiftWeftCountHi), at(register[displayType].shiftWeftCountLo)) : 0;
+            let shiftWeftCount = 0;
+            if (displayType === 'sultex' && register[displayType].shiftWeftCount != null) {
+                shiftWeftCount = at(register[displayType].shiftWeftCount);
+            } else if (register[displayType].shiftWeftCountHi && register[displayType].shiftWeftCountLo) {
+                shiftWeftCount = toUint32(at(register[displayType].shiftWeftCountHi), at(register[displayType].shiftWeftCountLo));
+            }
             if (displayType == "pickwell") {
                 shiftWeftCount = shiftWeftCount * 10;
             }
             const totalWeftHundreds = register[displayType].totalWeftHundredsHi && register[displayType].totalWeftHundredsLo ? toUint32(at(register[displayType].totalWeftHundredsHi), at(register[displayType].totalWeftHundredsLo)) : 0;
             const totalWeftCount = totalWeftHundreds * 100;
-            const currentDensity = register[displayType].currentDensity ? at(register[displayType].currentDensity) : 0;
+            let currentDensity = register[displayType].currentDensity ? at(register[displayType].currentDensity) : 0;
 
-            const beamLeft = register[displayType].beamLeft ? at(register[displayType].beamLeft) : 0;
+            let beamLeft = 0;
+            if (displayType === 'sultex' && register[displayType].beamLeftHi != null && register[displayType].beamLeftDecimals != null) {
+                beamLeft = parseSultexDecimal(
+                    at(register[displayType].beamLeftHi),
+                    at(register[displayType].beamLeftDecimals)
+                );
+            } else if (register[displayType].beamLeft) {
+                beamLeft = at(register[displayType].beamLeft);
+            }
 
             const alarms = parseAlarmsActive(displayType, at);
             let stopsCount = {};
             for (const [key, value] of Object.entries(register[displayType].stopsCount)) {
                 const count = value.count ? at(value.count) : 0;
                 let duration = value.duration ? at(value.duration) : 0;
-                if (["chitic", "pickwell"].includes(displayType)) {
+                if (["chitic", "pickwell", "sultex"].includes(displayType)) {
                     duration = duration * 60;
                 }
                 stopsCount[key] = { count, duration };
             }
-
+            let runTime = '';
+            if (typeof register[displayType].runTime === 'number') {
+                let seconds = Number(at(register[displayType].runTime)) || 0;
+                runTime = `${Math.floor(seconds / 3600).toString().padStart(2, '0')}:${Math.floor((seconds % 3600) / 60).toString().padStart(2, '0')}`;
+            } else if (register[displayType].runTime && typeof register[displayType].runTime.hours === 'number' && typeof register[displayType].runTime.minutes === 'number') {
+                runTime = `${at(register[displayType].runTime.hours).toString().padStart(2, '0')}:${at(register[displayType].runTime.minutes).toString().padStart(2, '0')}`;
+            }
             return {
                 speedRpm: speedRpm,
                 efficiencyPercent: efficiency,
@@ -1022,7 +1070,7 @@ module.exports = {
                 alarmsActive: alarms,
                 shift: at(register[displayType].shift),
                 stopsCount: stopsCount,
-                runTime: register[displayType].runTime && typeof at(register[displayType].runTime.hours) === 'number' && typeof at(register[displayType].runTime.minutes) === 'number' ? `${at(register[displayType].runTime.hours).toString().padStart(2, '0')}:${at(register[displayType].runTime.minutes).toString().padStart(2, '0')}` : ''
+                runTime: runTime
             };
         } else if (global.config.AIRJET_DISPLAYS.includes(displayType)) {
             let shift = get16(body, register[displayType].shift);
@@ -1407,6 +1455,16 @@ module.exports = {
                     71: "Counter",
                     9998: "Unknown stop",
                     9999: "Power Off"
+                };
+                break;
+
+            case "sultex":
+                STOP_REASON = {
+                    0: "--", 1: "Warp stop", 2: "Weft stop", 3: "Double weft", 4: "Manual stop", 5: "Full piece",
+                    6: "Emergency stop", 7: "Weft feeder lacks yarn", 8: "Loom failure", 9: "Power outage during fast driving",
+                    10: "ETU-ELO failure", 11: "Empty weft with weft yarn", 12: "Double weft with broken weft",
+                    13: "Driver board alarm", 14: "Main board instruction error", 15: "Safety light curtain action",
+                    16: "Jacquard quantitative parking"
                 };
                 break;
 

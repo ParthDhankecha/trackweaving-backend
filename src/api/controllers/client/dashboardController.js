@@ -36,7 +36,7 @@ const getPerformanceLabel = (efficiency) => {
     if (efficiency >= 90) return 'excellent';
     else if (efficiency >= 88) return 'very_good';
     else if (efficiency >= 86) return 'good';
-    else if (efficiency >= 83) return 'average';
+    else if (efficiency >= 85) return 'average';
     else return 'poor';
 }
 

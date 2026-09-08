@@ -2,7 +2,7 @@ const machineGroupService = require("../../services/machineGroupService");
 const machineService = require("../../services/machineService");
 const utilService = require("../../services/utilService");
 
-const projection = 'serialNumber machineCode machineName ip machineGroupId isAlertActive maxSpeedLimit quality reed panna';
+const projection = 'serialNumber machineCode machineName machineType ip machineGroupId isAlertActive maxSpeedLimit quality reed panna cards';
 
 
 module.exports = {
@@ -85,6 +85,12 @@ module.exports = {
             }
             if (body.hasOwnProperty('panna')) {
                 updateObj.panna = utilService.parsePanna(body.panna);
+            }
+            if (body.hasOwnProperty('cards')) {
+                updateObj.cards = 0;
+                if (utilService.isNumber(body.cards, { min: 0 })) {
+                    updateObj.cards = body.cards;
+                }
             }
             if (userType === global.config.USERS.TYPE.ADMIN) {
                 if (typeof body.isAlertActive === 'boolean') {

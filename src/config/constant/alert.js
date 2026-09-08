@@ -16,9 +16,8 @@ const ALERT_CONFIG_SCHEMA = {
         fields: {
             thresholds: {
                 title: "beamLeftThreshold",
-                placeholder: "meters, comma separated (e.g. 100,200,300)",
-                required: false,
-                validation: "commaSeparatedInt"
+                placeholder: "beamLeftThresholdPlaceholder",
+                required: false
             }
         }
     },
@@ -27,9 +26,8 @@ const ALERT_CONFIG_SCHEMA = {
         fields: {
             minutes: {
                 title: "stopAlertMinutes",
-                placeholder: "minutes, comma separated (e.g. 10,20)",
-                required: false,
-                validation: "commaSeparatedInt"
+                placeholder: "stopAlertMinutesPlaceholder",
+                required: false
             }
         }
     }

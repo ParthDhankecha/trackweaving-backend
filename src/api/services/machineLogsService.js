@@ -398,9 +398,11 @@ async function upsertShiftLog(body, shiftDate, options = {}) {
     if (body.stop === 0 && speedRpm > 0) {
         update.$inc = { totalSpeed: speedRpm, totalSpeedCount: 1 };
     }
-    await machineLogsModel.findOneAndUpdate({
-        machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate
-    }, update, { upsert: true });
+
+    const updateObj = { machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate };
+    if (body.operatorId) updateObj.operatorId = body.operatorId;
+
+    await machineLogsModel.findOneAndUpdate(updateObj, update, { upsert: true });
 }
 
 /**

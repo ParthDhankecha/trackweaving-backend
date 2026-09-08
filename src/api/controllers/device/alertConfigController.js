@@ -71,9 +71,9 @@ module.exports = {
 
             const overrideMap = new Map(userOverrides.map(o => [String(o.userId), o]));
             const workspaceAlerts = toClientAlerts(workspaceConfig.alerts);
-            const userConfigs = users.map(user => {
+            const userConfigs = users.reduce((acc, user) => {
                 const override = overrideMap.get(String(user._id));
-                return {
+                acc[user._id] = {
                     user,
                     hasOverride: !!override,
                     alerts: toClientAlerts(alertConfigService.resolveEffectiveAlerts(
@@ -82,7 +82,8 @@ module.exports = {
                         { readOnly: false }
                     ))
                 };
-            });
+                return acc;
+            }, {});
 
             const data = {
                 schema: ALERT_CONFIG_SCHEMA,

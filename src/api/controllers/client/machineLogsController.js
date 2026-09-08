@@ -9,27 +9,27 @@ const utilService = require('../../services/utilService');
 
 
 module.exports = {
-    createInovanceLog: async (req, res, next) => {
-        try {
-            utilService.checkRequiredParams(['apiKey', 'logs'], req.body);
-            if (req.body.apiKey !== global.config.API_KEY) {
-                throw global.config.message.UNAUTHORIZED;
-            }
-            const records = await inovanceModel.insertMany(req.body.logs);
-            return res.ok(records);
-        } catch (error) {
-            utilService.log(error);
-            return res.serverError(error);
-        }
-    },
-
     createLog: async (req, res, next) => {
         try {
             utilService.checkRequiredParams(['apiKey', 'workspaceId', 'logs'], req.body);
             if (req.body.apiKey !== global.config.API_KEY) {
                 throw global.config.message.UNAUTHORIZED;
             }
-            let logs = req.body.logs;
+            let { logs, workspaceId } = req.body;
+
+            const machineIds = Object.keys(logs);
+            const operators = await operatorService.find({
+                workspaceId: workspaceId,
+                machineIds: { $in: machineIds }
+            }, { projection: { machineIds: 1, shift: 1 } });
+            // Map operator id by machine id and shift
+            const operatorByMachineShift = {};
+            for (const operator of operators) {
+                for (const mId of operator.machineIds || []) {
+                    operatorByMachineShift[String(mId).concat('-', operator.shift)] = operator._id;
+                }
+            }
+
             for (let machineId in logs) {
                 const powerOff = logs[machineId].powerOff === true;
                 let body = powerOff
@@ -40,7 +40,7 @@ module.exports = {
                     stopsData: logs[machineId].stopsData,
                     stopCount: logs[machineId].stopCount,
                     machineId,
-                    workspaceId: req.body.workspaceId,
+                    workspaceId: workspaceId,
                     rawData: logs[machineId].rawData,
                     displayType: logs[machineId].displayType,
                     powerOff,
@@ -63,10 +63,13 @@ module.exports = {
                         machineId,
                         stopsData: prevData.stopsData,
                         stopCount: prevData.stopCount,
-                        workspaceId: req.body.workspaceId,
+                        workspaceId: workspaceId,
                         rawData: logs[machineId].prevData.rawData
                     }
                     record.prevData = prevData;
+                }
+                if (Number.isInteger(record.shift)) {
+                    record.operatorId = operatorByMachineShift[String(machineId).concat('-', record.shift)] || null;
                 }
                 await machineLogsService.create(record);
             }

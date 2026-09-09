@@ -56,18 +56,6 @@ module.exports = {
                 if (logs[machineId].lastStopTime) {
                     record.lastStopTime = logs[machineId].lastStopTime;
                 }
-                if (logs[machineId].prevData) {
-                    let prevData = machineLogsService.parseBlock(logs[machineId].prevData.rawData, logs[machineId].prevData.displayType);
-                    prevData = {
-                        ...prevData,
-                        machineId,
-                        stopsData: prevData.stopsData,
-                        stopCount: prevData.stopCount,
-                        workspaceId: workspaceId,
-                        rawData: logs[machineId].prevData.rawData
-                    }
-                    record.prevData = prevData;
-                }
                 if (Number.isInteger(record.shift)) {
                     record.operatorId = operatorByMachineShift[String(machineId).concat('-', record.shift)] || null;
                 }
@@ -79,6 +67,73 @@ module.exports = {
             utilService.log(error);
 
             return res.serverError(error)
+        }
+    },
+
+    createShiftLogs: async (req, res, next) => {
+        try {
+            utilService.checkRequiredParams(['apiKey', 'workspaceId', 'logs'], req.body);
+            if (req.body.apiKey !== global.config.API_KEY) {
+                throw global.config.message.UNAUTHORIZED;
+            }
+
+            const { logs, workspaceId } = req.body;
+            if (!Array.isArray(logs) || !logs.length) {
+                return res.ok({ saved: 0 });
+            }
+
+            const machineIds = [...new Set(logs.map((log) => String(log.machineId)).filter(Boolean))];
+            const operators = await operatorService.find({
+                workspaceId: workspaceId,
+                machineIds: { $in: machineIds }
+            }, { projection: { machineIds: 1, shift: 1 } });
+            const operatorByMachineShift = {};
+            for (const operator of operators) {
+                for (const mId of operator.machineIds || []) {
+                    operatorByMachineShift[String(mId).concat('-', operator.shift)] = operator._id;
+                }
+            }
+
+            for (const log of logs) {
+                if (!log || !log.machineId) {
+                    continue;
+                }
+
+                const machineId = String(log.machineId);
+                const body = machineLogsService.parseBlock(log.rawData, log.displayType) || {};
+                const record = {
+                    ...body,
+                    stopsData: log.stopsData,
+                    stopCount: log.stopCount,
+                    machineId,
+                    workspaceId,
+                    rawData: log.rawData,
+                    displayType: log.displayType,
+                    powerOff: false,
+                    updatedTime: log.updatedTime,
+                };
+
+                if (log.lastStartTime) {
+                    record.lastStartTime = log.lastStartTime;
+                }
+                if (log.lastStopTime) {
+                    record.lastStopTime = log.lastStopTime;
+                }
+                if (!Number.isInteger(record.shift) && Number.isInteger(log.shift)) {
+                    record.shift = log.shift;
+                }
+                if (Number.isInteger(record.shift)) {
+                    record.operatorId = operatorByMachineShift[String(machineId).concat('-', record.shift)] || null;
+                }
+
+                await machineLogsService.createClosedShiftLog(record);
+            }
+
+            return res.ok({ saved: logs.length });
+        } catch (error) {
+            utilService.log(error);
+
+            return res.serverError(error);
         }
     },
 

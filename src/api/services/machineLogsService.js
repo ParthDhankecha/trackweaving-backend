@@ -348,11 +348,12 @@ function isPowerOffStop(stopCode) {
 }
 
 function resolveShiftDate(shift, updatedTime) {
+    const at = moment(updatedTime);
     if (shift == 0) {
-        return moment(updatedTime).startOf('day');
+        return at.clone().startOf('day');
     }
     if (shift == 1) {
-        return moment().hour() < 11 ? moment().subtract(1, 'day').startOf('day') : moment().startOf('day');
+        return at.hour() < 11 ? at.clone().subtract(1, 'day').startOf('day') : at.clone().startOf('day');
     }
     return null;
 }
@@ -372,7 +373,7 @@ function buildPowerOffFields(body) {
 }
 
 async function upsertShiftLog(body, shiftDate, options = {}) {
-    const { updateMachineQuality = true } = options;
+    const { updateMachineQuality = true, incrementSpeed = true } = options;
     if (updateMachineQuality) {
         const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
         body.quality = machine?.quality || null;
@@ -395,7 +396,7 @@ async function upsertShiftLog(body, shiftDate, options = {}) {
     if (alarmsActive.length) {
         update.$addToSet = { alarmsActive: { $each: alarmsActive } };
     }
-    if (body.stop === 0 && speedRpm > 0) {
+    if (incrementSpeed && body.stop === 0 && speedRpm > 0) {
         update.$inc = { totalSpeed: speedRpm, totalSpeedCount: 1 };
     }
 
@@ -459,12 +460,6 @@ module.exports = {
         shiftDate = resolveShiftDate(body.shift, body.updatedTime);
         if (machineLog) {
             if (machineLog.shift != body.shift) {
-                if (body.prevData && body.prevData.speedRpm != 0 && body.prevData.efficiencyPercent != 0) {
-                    if (!body.prevData.speedRpm || body.prevData.speedRpm == 0) {
-                        delete body.prevData.speedRpm;
-                    }
-                    await machineLogsModel.findOneAndUpdate({ machineId: body.machineId, workspaceId: body.workspaceId }, body.prevData, { sort: { createdAt: -1 } });
-                }
                 body.shiftDate = shiftDate;
                 body.stopsData = {
                     warp: [],
@@ -475,11 +470,16 @@ module.exports = {
                     h1: [],
                     h2: []
                 };
+                body.stopCount = 0;
                 if (body.displayType == 'biana' && body.beamLeft == 0) {
                     console.log(JSON.stringify(body));
                     return;
                 }
 
+                await machineLatestLogsModel.updateOne(
+                    { machineId: body.machineId },
+                    { $set: { stopsData: body.stopsData, stopCount: 0 } }
+                );
                 await upsertShiftLog(body, shiftDate);
             } else {
                 await upsertShiftLog(body, shiftDate, { updateMachineQuality: false });
@@ -499,6 +499,22 @@ module.exports = {
 
             await upsertShiftLog(body, shiftDate);
         }
+    },
+
+    async createClosedShiftLog(body) {
+        body.powerOff = false;
+
+        if (!Number.isInteger(body.shift)) {
+            return;
+        }
+
+        const shiftDate = resolveShiftDate(body.shift, body.updatedTime);
+        if (!shiftDate) {
+            return;
+        }
+
+        body.shiftDate = shiftDate;
+        await upsertShiftLog(body, shiftDate, { incrementSpeed: false });
     },
 
     async updateNightShiftLogs() {

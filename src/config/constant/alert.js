@@ -2,10 +2,6 @@ const enTranslation = require('../../public/translation/en.json');
 
 const DEFAULT_BEAM_THRESHOLDS = '1000,900,800,700,600,500,400,300,200,100,50,25,0';
 const DEFAULT_MACHINE_STOPPED_MINUTES = '10,20';
-const DEFAULT_MACHINE_STOPPED_WARP_MINUTES = '2,5';
-const DEFAULT_MACHINE_STOPPED_WEFT_MINUTES = '2,5';
-const DEFAULT_MACHINE_STOPPED_FEEDER_MINUTES = '2,5';
-const DEFAULT_MACHINE_STOPPED_OTHER_MINUTES = '2,5';
 
 
 const ALERT_CONFIG_SCHEMA = {
@@ -121,10 +117,10 @@ module.exports = {
             notification: true,
             whatsapp: false,
             minutes: DEFAULT_MACHINE_STOPPED_MINUTES,
-            warpMinutes: DEFAULT_MACHINE_STOPPED_WARP_MINUTES,
-            weftMinutes: DEFAULT_MACHINE_STOPPED_WEFT_MINUTES,
-            feederMinutes: DEFAULT_MACHINE_STOPPED_FEEDER_MINUTES,
-            otherMinutes: DEFAULT_MACHINE_STOPPED_OTHER_MINUTES
+            warpMinutes: '',
+            weftMinutes: '',
+            feederMinutes: '',
+            otherMinutes: ''
         }
     }
 };

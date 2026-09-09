@@ -22,8 +22,10 @@ function normalizeCommaSeparated(value, fallback, { readOnly = true } = {}) {
             return [...(value || fallback)];
         }
 
-        return [...(new Set(String(value || fallback)
-            .split(',')
+        const source = String(value || fallback);
+        if (!source.trim()) return [];
+
+        return [...(new Set(source.split(',')
             .map(part => Number(part.trim()))
             .filter(num => Number.isFinite(num))
         ))].sort((a, b) => b - a);

@@ -4,6 +4,7 @@ const machineService = require('./machineService');
 const alertConfigService = require('./alertConfigService');
 const utilService = require('./utilService');
 
+
 /**
  * On beam replenishment (beamLeft increased), close the open beamLeft record
  * and open a new cycle for the freshly loaded beam.
@@ -443,6 +444,91 @@ async function applyPowerOffLog(body) {
     }
 }
 
+/* Stop reason groups for machine stopped alert */
+const STOP_REASON_GROUPS = {
+    nazon: {
+        warp: [1, 19, 20],
+        weft: [2, 3, 11, 12, 15, 16, 17, 18],
+        feeder: [7],
+        other: [4, 5, 6, 8, 9, 10, 13, 14]
+    },
+    chitic: {
+        warp: [1],
+        weft: [2, 3, 11, 12],
+        feeder: [7],
+        other: [4, 5, 6, 8, 9, 10, 13, 14, 15, 16]
+    },
+    pickwell: {
+        warp: [1],
+        weft: [2, 3, 11, 12],
+        feeder: [7],
+        other: [4, 5, 6, 8, 9, 10, 13, 14, 15, 16]
+    },
+    biana: {
+        warp: [2],
+        weft: [8, 9, 10, 11],
+        feeder: [6, 7, 12, 13, 14, 15],
+        other: [1]
+    },
+    haiwell: {
+        warp: [
+            2, 3, 6, 16, 17, 18,
+            1000, 1001, 1002, 1003,
+            1112, 1113, 1200, 1202
+        ],
+        weft: [
+            901, 903, 905, 907,
+            909, 911, 913, 915
+        ],
+        feeder: [
+            902, 904, 906, 908,
+            910, 912, 914, 916
+        ],
+        other: [
+            1, 4, 5, 10, 11, 12, 13, 14, 15, 19, 20,
+            21, 22, 23, 24,
+            798, 799, 800, 801,
+            1012,
+            1036, 1037, 1038, 1039, 1040, 1041, 1042, 1043,
+            1100, 1101, 1102, 1103, 1104, 1105, 1106, 1107,
+            1108, 1109, 1111,
+            1201, 1203,
+            9999
+        ]
+    },
+    picanolRapier: {
+        warp: [1],
+        weft: [2, 3],
+        feeder: [4],
+        other: [5, 6, 7, 8, 9, 10]
+    },
+    picanolAirjet: {
+        warp: [1],
+        weft: [2, 3],
+        feeder: [4],
+        other: [5, 6, 7, 8, 9, 10]
+    },
+    tsudakoma: {
+        warp: [31, 41, 42],
+        weft: [20, 21, 25, 26],
+        feeder: [50, 51],
+        other: [11, 43, 71, 9998, 9999]
+    },
+    sultex: {
+        warp: [1],
+        weft: [2, 3, 11, 12],
+        feeder: [7],
+        other: [4, 5, 6, 8, 9, 10, 13, 14, 15, 16]
+    },
+    itema: {
+        warp: [1, 15],
+        weft: [10, 11, 12, 13, 14],
+        feeder: [7],
+        other: [4, 5, 6, 16]
+    }
+};
+
+
 module.exports = {
     async create(body) {
         if (body.powerOff === true) {
@@ -475,7 +561,7 @@ module.exports = {
                     console.log(JSON.stringify(body));
                     return;
                 }
-
+        
                 await machineLatestLogsModel.updateOne(
                     { machineId: body.machineId },
                     { $set: { stopsData: body.stopsData, stopCount: 0 } }
@@ -500,7 +586,7 @@ module.exports = {
             await upsertShiftLog(body, shiftDate);
         }
     },
-
+    
     async createClosedShiftLog(body) {
         body.powerOff = false;
 
@@ -822,7 +908,8 @@ module.exports = {
             }
         }
 
-        // ── Machine stopped duration alerts (10 min / 20 min) ─────────────────
+        // ── Machine stopped duration alerts ───────────────────────────────────
+        // Generic `minutes` plus warp/weft/feeder/other minutes from stopreasongroup.
         // Each threshold fires at most once per stop cycle. State resets when the
         // machine starts running again, or when a new stop begins after running.
         const wasRunning = machineLog.stop === 0;
@@ -846,14 +933,21 @@ module.exports = {
             const stopSince = body.lastStopTime || machineLog.lastStopTime || body.updatedTime;
 
             if (stopSince) {
-                const stopMinutes = await alertConfigService.getUnionStopMinutes(body.workspaceId);
-                const stoppedMinutes = moment().diff(moment(stopSince), 'minutes');
-                const minutesToNotify = stopMinutes.filter(
-                    minutes => stoppedMinutes >= minutes && !stopNotified.has(minutes)
-                );
+                try {
+                    const stoppedMinutes = moment().diff(moment(stopSince), 'minutes', true);
+                    const displayType = body.displayType || machine.displayType || 'nazon';
+                    const stopGroup = this.getStopReasonGroup(body.stop, displayType);
+                    const alertSpecs = [{ field: 'minutes', group: null }];
+                    if (stopGroup) alertSpecs.push({ field: `${stopGroup}Minutes`, group: stopGroup });
 
-                if (minutesToNotify.length) {
-                    try {
+                    for (const { field, group } of alertSpecs) {
+                        const dueMinutes = (await alertConfigService.getUnionStopMinutes(body.workspaceId, field))
+                            .filter(minutes => {
+                                const key = group ? `${group}:${minutes}` : minutes;
+                                return stoppedMinutes >= minutes && !stopNotified.has(key);
+                            });
+                        if (!dueMinutes.length) continue;
+
                         if (!machine) {
                             machine = await machineService.findOne(
                                 { _id: body.machineId },
@@ -865,39 +959,37 @@ module.exports = {
                                 workspaceId: body.workspaceId
                             });
                         }
+                        if (!users.length || !machine) break;
 
-                        if (users.length && machine) {
-                            const stopReason = this.getStopReason(body.stop, body.displayType || machine.displayType);
+                        const stopReason = this.getStopReason(body.stop, displayType);
+                        const label = group ? `${group.charAt(0).toUpperCase()}${group.slice(1)} stop` : 'Machine stopped';
 
-                            for (const minutes of minutesToNotify) {
-                                const recipients = await alertConfigService.filterUsersForStopMinute(
-                                    body.workspaceId,
-                                    users,
-                                    minutes,
-                                    stoppedMinutes
-                                );
-                                if (recipients.notification.length || recipients.whatsapp.length) {
-                                    await alertConfigService.dispatchAlert({
-                                        machineId: body.machineId,
-                                        workspaceId: body.workspaceId,
-                                        title: `Machine stopped for ${minutes}+ minutes — ${machine.machineCode}`,
-                                        description: `${machine.machineCode} has been stopped for ${stoppedMinutes} minutes. Reason: ${stopReason}`,
-                                        data: {
-                                            category: 'machine_stopped',
-                                            machineCode: machine.machineCode,
-                                            duration: stoppedMinutes,
-                                            reason: stopReason
-                                        },
-                                        recipients
-                                    });
-                                }
-                                stopNotified.add(minutes);
-                                stopStateChanged = true;
+                        for (const minutes of dueMinutes) {
+                            const recipients = await alertConfigService.filterUsersForStopMinute(
+                                body.workspaceId, users, minutes, stoppedMinutes, field
+                            );
+                            if (recipients.notification.length || recipients.whatsapp.length) {
+                                await alertConfigService.dispatchAlert({
+                                    machineId: body.machineId,
+                                    workspaceId: body.workspaceId,
+                                    title: `${label} for ${minutes}+ minutes — ${machine.machineCode}`,
+                                    description: `${machine.machineCode} has been stopped for ${stoppedMinutes} minutes. Reason: ${stopReason}`,
+                                    data: {
+                                        category: 'machine_stopped',
+                                        machineCode: machine.machineCode,
+                                        duration: stoppedMinutes,
+                                        reason: stopReason,
+                                        stopGroup: group
+                                    },
+                                    recipients
+                                });
                             }
+                            stopNotified.add(group ? `${group}:${minutes}` : minutes);
+                            stopStateChanged = true;
                         }
-                    } catch (err) {
-                        utilService.errLog(`Stop duration alert error: ${err.message}`);
                     }
+                } catch (err) {
+                    utilService.errLog(`Stop duration alert error: ${err.message}`);
                 }
             }
         }
@@ -914,6 +1006,7 @@ module.exports = {
             );
         }
     },
+
 
     async find(condition, queryOptions = {}) {
         queryOptions = {
@@ -993,17 +1086,18 @@ module.exports = {
         return await machineLogsModel.countDocuments({ ...filter, isDeleted: false });
     },
 
-    async getDistinctQualities(workspaceId) {
+    async getDistinctQualities(filter = {}) {
         const qualities = await machineLogsModel.distinct('quality', {
-            workspaceId,
+            ...filter,
             isDeleted: false,
-            quality: { $nin: [null, ''] }
+            quality: { $nin: [null, ''] },
         });
         return (qualities || [])
             .map(q => String(q).trim())
             .filter(Boolean)
             .sort((a, b) => a.localeCompare(b));
     },
+
 
     parseBlock(body, displayType = 'nazon') {
         if (global.config.RAPIER_DISPLAYS.includes(displayType)) {
@@ -1155,14 +1249,15 @@ module.exports = {
     },
 
     async getMachineLogsWithPagination(options = {}) {
-        const page = parseInt(options.page) || 1;
-        const limit = parseInt(options.limit) || 100;
+        const page = parseInt(options.page, 10) || 1;
+        const limit = parseInt(options.limit, 10) || 100;
         const skip = (page - 1) * limit;
         const status = options.status || 'all'; // all, running, stopped
 
         let condition = { workspaceId: options.workspaceId, isDeleted: false };
         const machineMap = {};
         let machineIds = [];
+        // only for manufacturer user
         if (options.machineType) {
             const machines = await machineService.find({
                 workspaceId: options.workspaceId,
@@ -1174,7 +1269,11 @@ module.exports = {
                 return acc;
             }, {}));
             condition.machineId = { $in: machineIds };
+        } else if (options?.masterMachineIds?.length > 0) {
+            condition.machineId = { $in: [...options.masterMachineIds] };
+            machineIds = [...options.masterMachineIds];
         }
+
         let data = await machineLatestLogsModel.find(condition).sort({ machineId: 1 }).lean(); // .skip(skip).limit(limit).sort({ machineId: 1 }).populate('machineId').lean();
         let efficiency = 0, efficiencyCount = 0;
         let pick = 0;
@@ -1208,7 +1307,7 @@ module.exports = {
 
         let machineLogs = data.slice(skip, skip + limit);
         if (!options?.machineType) {
-            machineIds = [...new Set(machineLogs.map(log => log.machineId))];
+            machineIds = [...new Set(machineIds.length ? machineIds : machineLogs.map(log => log.machineId))];
             const machines = await machineService.find({ _id: { $in: machineIds } }, { useLean: true });
             Object.assign(machineMap, machines.reduce((acc, m) => {
                 acc[m._id.toString()] = m;
@@ -1368,6 +1467,28 @@ module.exports = {
         }, machineGroupMap);
 
         return { machineLogs, machineGroupMap };
+    },
+
+
+    getStopReasonGroup(stopCode, displayType = 'nazon') {
+        const byGroup = STOP_REASON_GROUPS[displayType] || STOP_REASON_GROUPS.nazon;
+        if (!byGroup) return null;
+
+        let code = Number(stopCode);
+        if (!Number.isFinite(code)) return null;
+
+        if (displayType === 'itema' && code !== 0) {
+            code = Math.floor(code / 1000);
+        }
+
+        const stopAlertGroups = ['warp', 'weft', 'feeder', 'other'];
+        for (const group of stopAlertGroups) {
+            const codes = byGroup[group];
+            if (Array.isArray(codes) && codes.includes(code)) {
+                return group;
+            }
+        }
+        return null;
     },
 
     getStopReason(stopCode, displayType = 'nazon') {

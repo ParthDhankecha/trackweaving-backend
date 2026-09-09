@@ -1,12 +1,12 @@
 const alertConfigService = require('../../services/alertConfigService');
-const utilService = require('../../services/utilService');
 const workspaceService = require('../../services/workspaceService');
+const { ALERT_CONFIG_SCHEMA_WEB } = require('../../../config/constant/alert');
+const utilService = require('../../services/utilService');
 
 const { ALERT_KEYS } = alertConfigService;
-const CONFIG_FIELDS = {
-    beamLeft: ['thresholds'],
-    machineStopped: ['minutes']
-};
+const CONFIG_FIELDS = Object.fromEntries(
+    Object.entries(ALERT_CONFIG_SCHEMA_WEB).map(([key, obj]) => [key, Object.keys(obj.fields || {})])
+);
 
 function pickAlertBody(body = {}) {
     const alerts = body.alerts && typeof body.alerts === 'object' ? body.alerts : body;
@@ -84,6 +84,7 @@ module.exports = {
             });
 
             const data = {
+                schema: ALERT_CONFIG_SCHEMA_WEB,
                 workspaceName: workspace.firmName,
                 workspaceAlerts,
                 userConfigs
@@ -119,9 +120,9 @@ module.exports = {
                 alerts,
                 { returnNormalized: false }
             );
-            const updated = await alertConfigService.upsertWorkspaceConfig(workspaceId, merged);
+            await alertConfigService.upsertWorkspaceConfig(workspaceId, merged);
 
-            return res.ok({ alerts: toClientAlerts(updated.alerts) }, global.config.message.OK);
+            return res.ok(null, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
             return res.serverError(error);
@@ -158,12 +159,9 @@ module.exports = {
                 alerts,
                 { returnNormalized: false }
             );
-            const updated = await alertConfigService.upsertUserConfig(workspaceId, userId, merged);
+            await alertConfigService.upsertUserConfig(workspaceId, userId, merged);
 
-            return res.ok(
-                { alerts: toClientAlerts(updated.alerts) },
-                global.config.message.OK
-            );
+            return res.ok(null, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
             return res.serverError(error);

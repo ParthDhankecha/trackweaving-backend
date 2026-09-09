@@ -184,7 +184,7 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const qualities = await machineLogsService.getDistinctQualities(workspaceId);
+            const qualities = await machineLogsService.getDistinctQualities({ workspaceId });
             return res.ok(qualities, global.config.message.OK);
         } catch (error) {
             utilService.log(error);

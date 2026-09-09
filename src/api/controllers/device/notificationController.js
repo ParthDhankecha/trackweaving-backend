@@ -38,25 +38,6 @@ module.exports = {
         }
     },
 
-    getNotifications: async (req, res, next) => {
-        try {
-            let page = req.body.page ? parseInt(req.body.page) : 1;
-            let limit = req.body.limit ? parseInt(req.body.limit) : 20;
-            let skip = (page - 1) * limit;
-
-            const notifications = await notificationService.find({ userId: req.user.id }, {
-                skip, limit,
-                useLean: true,
-                sort: { createdAt: -1 }
-            });
-
-            return res.ok(notifications, global.config.message.OK);
-        } catch (error) {
-            utilService.log(error);
-            return res.serverError(error);
-        }
-    },
-
     readNotification: async (req, res, next) => {
         try {
             const { id: userId } = req.user;

@@ -1,11 +1,11 @@
 const alertConfigService = require('../../services/alertConfigService');
+const { ALERT_CONFIG_SCHEMA_WEB, CHANNEL_SCHEMA } = require('../../../config/constant/alert');
 const utilService = require('../../services/utilService');
 
 const { ALERT_KEYS, CHANNEL_KEYS } = alertConfigService;
-const CONFIG_FIELDS = {
-    beamLeft: ['thresholds'],
-    machineStopped: ['minutes']
-};
+const CONFIG_FIELDS = Object.fromEntries(
+    Object.entries(ALERT_CONFIG_SCHEMA_WEB).map(([key, obj]) => [key, Object.keys(obj.fields || {})])
+);
 
 function pickAlertBody(body = {}) {
     const alerts = body.alerts && typeof body.alerts === 'object' ? body.alerts : body;
@@ -87,18 +87,18 @@ module.exports = {
                 };
             });
 
-            return res.ok({
+            const data = {
+                schema: ALERT_CONFIG_SCHEMA_WEB,
                 workspace,
                 workspaceConfig: {
                     _id: workspaceConfig._id,
                     alerts: alertConfigService.normalizeAlerts(workspaceConfig.alerts, { readOnly })
                 },
-                defaultAlerts: alertConfigService.defaultAlerts({ readOnly }),
-                alertTypes: global.config.ALERT_TYPES,
-                alertKeys: ALERT_KEYS,
-                channelKeys: CHANNEL_KEYS,
+                channelKeys: CHANNEL_SCHEMA,
                 userConfigs
-            }, global.config.message.OK);
+            };
+
+            return res.ok(data, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
             return res.serverError(error);
@@ -137,8 +137,9 @@ module.exports = {
                 { returnNormalized: false }
             );
 
-            const updated = await alertConfigService.upsertWorkspaceConfig(workspaceId, merged);
-            return res.ok(updated, global.config.message.OK);
+            await alertConfigService.upsertWorkspaceConfig(workspaceId, merged);
+
+            return res.ok(null, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
             return res.serverError(error);
@@ -178,13 +179,13 @@ module.exports = {
                 alerts,
                 { returnNormalized: false }
             );
-            const updated = await alertConfigService.upsertUserConfig(
+            await alertConfigService.upsertUserConfig(
                 user.workspaceId,
                 userId,
                 merged
             );
 
-            return res.ok(updated, global.config.message.OK);
+            return res.ok(null, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
             return res.serverError(error);

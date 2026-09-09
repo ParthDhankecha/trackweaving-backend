@@ -199,7 +199,7 @@ const machineLatestLogsSchema = new Schema({
         default: []
     },
     stopAlertNotifiedMinutes: {
-        type: [Number],
+        type: [Schema.Types.Mixed],
         default: []
     },
     beamCompletionDate: {

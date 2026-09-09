@@ -40,6 +40,8 @@ const getPerformanceLabel = (efficiency) => {
     else return 'poor';
 }
 
+const toOneDecimal = (value) => Math.round((Number(value) || 0) * 10) / 10;
+
 
 module.exports = {
     getList: async (req, res, next) => {
@@ -201,7 +203,7 @@ module.exports = {
                             lineKey: machineGroup.lineKey,
                             stopTime: moment.utc(duration * 1000).format('HH:mm:ss'),
                             stopSeconds: duration,
-                            efficiency: Math.round(mLog.efficiencyPercent || 0),
+                            efficiency: toOneDecimal(mLog.efficiencyPercent),
                             stopReason: stopObj.key,
                         });
                     }
@@ -220,7 +222,7 @@ module.exports = {
                     sectionEfficiencyCount += lineObj.count;
 
                     if (secKey === targetSection && lineObj.count > 0) {
-                        const efficiency = Math.round(lineObj.value / lineObj.count);
+                        const efficiency = toOneDecimal(lineObj.value / lineObj.count);
                         data.efficiencyChartList.push({
                             lineKey: lineKey,
                             efficiency: efficiency,
@@ -229,11 +231,11 @@ module.exports = {
                     }
                 }
 
-                data[`section${secKey}`] = Math.round(sectionEfficiency / (sectionEfficiencyCount || 1));
+                data[`section${secKey}`] = toOneDecimal(sectionEfficiency / (sectionEfficiencyCount || 1));
                 overallEfficiency += sectionEfficiency;
                 overallEfficiencyCount += sectionEfficiencyCount;
             }
-            data.overallEfficiency = Math.round(overallEfficiency / (overallEfficiencyCount || 1));
+            data.overallEfficiency = toOneDecimal(overallEfficiency / (overallEfficiencyCount || 1));
             data.efficiencyChartList.sort((a, b) => String(a.lineKey).localeCompare(String(b.lineKey), undefined, { numeric: true }));
 
 

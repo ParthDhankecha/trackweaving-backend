@@ -8,8 +8,12 @@ const projection = 'serialNumber machineCode machineName machineType ip machineG
 module.exports = {
     getMachineList: async (req, res, next) => {
         try {
-            const { workspaceId } = req.user;
-            const machines = await machineService.find({ workspaceId, isDeleted: false }, {
+            const user = req.user;
+            const { workspaceId, isMaster } = user;
+            const query = { workspaceId };
+            if (isMaster && user.machineIds) query._id = { $in: [...user.machineIds] };
+
+            const machines = await machineService.find(query, {
                 populate: { path: 'machineGroupId', select: 'groupName' },
                 projection: projection,
                 useLean: true,
@@ -24,8 +28,12 @@ module.exports = {
 
     optionList: async (req, res, next) => {
         try {
-            const { workspaceId } = req.user;
-            const machines = await machineService.find({ workspaceId }, {
+            const user = req.user;
+            const { workspaceId } = user;
+            const query = { workspaceId };
+            if (user.isMaster && user.machineIds) query._id = { $in: [...user.machineIds] };
+
+            const machines = await machineService.find(query, {
                 projection: 'machineCode machineName',
                 useLean: true,
             });
@@ -44,7 +52,12 @@ module.exports = {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const { workspaceId, type: userType } = req.user;
+            const user = req.user;
+            if (user.isMaster && user.machineIds && !user.machineIds.some(mId => String(mId) === machineId)) {
+                throw global.config.message.ACCESS_DENIED;
+            }
+
+            const { workspaceId, type: userType } = user;
             const machine = await machineService.findOne({ _id: machineId, workspaceId }, { useLean: true });
             if (!machine) {
                 throw global.config.message.RECORD_NOT_FOUND;

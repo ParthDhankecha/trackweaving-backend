@@ -243,7 +243,7 @@ module.exports = {
 
         const user = await userModel.findOne(
             { _id: id, isDeleted: false },
-            { isActive: 1, userType: 1, workspaceId: 1, access: 1 }
+            { isActive: 1, userType: 1, workspaceId: 1, access: 1, machineIds: 1 }
         ).lean();
         if (!user?.isActive) {
             throw global.config.message.INACTIVE_ACCOUNT;
@@ -273,7 +273,9 @@ module.exports = {
         switch (user.userType) {
             case global.config.USERS.TYPE.MASTER: {
                 if (!user?.access) throw global.config.message.ACCESS_DENIED;
+                data.isMaster = true;
                 data.access = user.access;
+                data.machineIds = user.machineIds;
 
                 hasAccess = String(user.workspaceId) === String(workspaceId);
                 break;

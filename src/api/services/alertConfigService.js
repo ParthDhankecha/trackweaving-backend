@@ -6,7 +6,7 @@ const ALERT_KEYS = ['pickChange', 'maxSpeed', 'lowSpeed', 'beamLeft', 'machineSt
 const CHANNEL_KEYS = ['notification', 'whatsapp'];
 const CONFIG_FIELDS = {
     beamLeft: ['thresholds'],
-    machineStopped: ['minutes']
+    machineStopped: ['minutes', 'warpMinutes', 'weftMinutes', 'feederMinutes', 'otherMinutes']
 };
 
 /** workspaceId -> { workspaceAlerts, userAlerts: Map<userId, alerts> } */
@@ -228,14 +228,14 @@ module.exports = {
         return [...thresholds].sort((a, b) => b - a);// descending order: 20, 10, 1
     },
 
-    async getUnionStopMinutes(workspaceId) {
+    async getUnionStopMinutes(workspaceId, field = 'minutes') {
         const cache = await this.ensureWorkspaceCache(workspaceId);
         const workspaceAlerts = cache?.workspaceAlerts || this.defaultAlerts();
-        const minutes = new Set(workspaceAlerts?.machineStopped?.minutes);
+        const minutes = new Set(workspaceAlerts?.machineStopped?.[field]);
 
         for (const userAlerts of (cache?.userAlerts || new Map()).values()) {
             const effectiveAlerts = this.resolveEffectiveAlerts(workspaceAlerts, userAlerts);
-            effectiveAlerts?.machineStopped?.minutes?.forEach(
+            effectiveAlerts?.machineStopped?.[field]?.forEach(
                 value => minutes.add(value)
             );
         }
@@ -254,12 +254,12 @@ module.exports = {
         });
     },
 
-    async filterUsersForStopMinute(workspaceId, users, tierMinute, stoppedMinutes) {
+    async filterUsersForStopMinute(workspaceId, users, tierMinute, stoppedMinutes, field = 'minutes') {
         return this.filterUsersForConfigMatch({
             workspaceId: workspaceId,
             users: users,
             alertType: 'machineStopped',
-            field: 'minutes',
+            field: field,
         }, {
             thresholdValue: stoppedMinutes,
             tierMinute: tierMinute,

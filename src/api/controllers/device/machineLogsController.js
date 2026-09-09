@@ -9,8 +9,11 @@ const utilService = require("../../services/utilService");
 module.exports = {
     getList: async (req, res, next) => {
         try {
-            const body = req.body || {};
-            body.workspaceId = req.user.workspaceId;
+            const body = req.body;
+            const { workspaceId, isMaster } = req.user;
+            body.workspaceId = workspaceId;
+            if (isMaster) body.masterMachineIds = req.user.machineIds;
+
             const machineLogsData = await machineLogsService.getMachineLogsWithPagination(body);
 
             const groupingConfig = {};

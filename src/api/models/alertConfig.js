@@ -41,6 +41,22 @@ const alertFlagsSubSchema = getSubSchema({
         minutes: {
             type: String,
             default: '10,20'
+        },
+        warpMinutes: {
+            type: String,
+            default: '2,5'
+        },
+        weftMinutes: {
+            type: String,
+            default: '2,5'
+        },
+        feederMinutes: {
+            type: String,
+            default: '2,5'
+        },
+        otherMinutes: {
+            type: String,
+            default: '2,5'
         }
     })
 });

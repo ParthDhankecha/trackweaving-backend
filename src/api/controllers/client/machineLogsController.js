@@ -178,7 +178,11 @@ module.exports = {
 
     getQualityList: async (req, res, next) => {
         try {
-            const qualities = await machineLogsService.getDistinctQualities(req.user.workspaceId);
+            const user = req.user;
+            const filter = { workspaceId: user.workspaceId };
+            if (user.isMaster && user.machineIds) filter.machineId = { $in: user.machineIds };
+
+            const qualities = await machineLogsService.getDistinctQualities(filter);
             return res.ok(qualities, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
@@ -188,8 +192,11 @@ module.exports = {
 
     getList: async (req, res, next) => {
         try {
-            const body = req.body || {};
-            body.workspaceId = req.user.workspaceId;
+            const body = req.body;
+            const { workspaceId, isMaster } = req.user;
+            body.workspaceId = workspaceId;
+            if (isMaster) body.masterMachineIds = req.user.machineIds;
+
             const machineLogsData = await machineLogsService.getMachineLogsWithPagination(body);
 
             const groupingConfig = {};

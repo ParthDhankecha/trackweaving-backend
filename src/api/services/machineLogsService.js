@@ -934,7 +934,8 @@ module.exports = {
 
             if (stopSince) {
                 try {
-                    const stoppedMinutes = moment().diff(moment(stopSince), 'minutes', true);
+                    const actualStoppedMinutes = parseFloat(moment().diff(moment(stopSince), 'minutes', true).toFixed(2));// e.x: 4.5 minutes
+                    const stoppedMinutes = Math.floor(actualStoppedMinutes);// e.x: 4 minutes
                     const displayType = body.displayType || machine.displayType || 'nazon';
                     const stopGroup = this.getStopReasonGroup(body.stop, displayType);
                     const alertSpecs = [{ field: 'minutes', group: null }];
@@ -944,7 +945,7 @@ module.exports = {
                         const dueMinutes = (await alertConfigService.getUnionStopMinutes(body.workspaceId, field))
                             .filter(minutes => {
                                 const key = group ? `${group}:${minutes}` : minutes;
-                                return stoppedMinutes >= minutes && !stopNotified.has(key);
+                                return actualStoppedMinutes >= minutes && !stopNotified.has(key);
                             });
                         if (!dueMinutes.length) continue;
 

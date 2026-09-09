@@ -191,7 +191,7 @@ module.exports = {
         const versionConfig = config?.flavors?.[flavor]?.[platform] ?? DEFAULT_VERSION;
         const history = config?.history?.filter(
             (h) => h.build <= versionConfig.latest && h.build > version
-        );
+        ).sort((a, b) => b.build - a.build);// latest version first
 
         return {
             ...versionConfig,

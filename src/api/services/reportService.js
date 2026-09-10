@@ -315,6 +315,11 @@ module.exports = {
     STOP_KEY_LABELS,
     getStopColumnsForTypes,
     hasStopKey,
+    calculatePannaWithPieceLengthM,
+    parseDurationToMinutes,
+    resolveDisplaySpeedRpm,
+    getAvailableShiftMinutes,
+    calculateRealEfficiencyPercent,
 
     async generateProductionShiftWiseReport({ workspaceId, machineIds, startDate, endDate, shift }) {
         if (!Array.isArray(machineIds) || machineIds.length === 0) {

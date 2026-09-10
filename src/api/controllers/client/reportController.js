@@ -1,6 +1,9 @@
 const moment = require('moment');
 
 const reportService = require('../../services/reportService');
+const monthlySummaryService = require('../../services/monthlySummaryService');
+const productionIntelligenceService = require('../../services/productionIntelligenceService');
+const machineService = require('../../services/machineService');
 const utilService = require('../../services/utilService');
 
 
@@ -95,6 +98,73 @@ module.exports = {
         } catch (error) {
             utilService.log(error);
 
+            return res.serverError(error);
+        }
+    },
+
+    getMonthlySummary: async (req, res) => {
+        try {
+            utilService.checkRequiredParams(['year', 'month'], req.body || {});
+            const year = Number(req.body.year);
+            const month = Number(req.body.month);
+            if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12 || year < 2000) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const machineQuery = { workspaceId: req.user.workspaceId };
+            if (req.user.isMaster) {
+                machineQuery._id = { $in: req.user.machineIds || [] };
+            }
+
+            const machines = await machineService.find(machineQuery, {
+                projection: { _id: 1 },
+                useLean: true
+            });
+
+            const data = await monthlySummaryService.build({
+                workspaceId: req.user.workspaceId,
+                machineIds: machines.map((machine) => machine._id),
+                year,
+                month
+            });
+
+            return res.ok(data, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
+    getProductionIntelligence: async (req, res) => {
+        try {
+            utilService.checkRequiredParams(['startDate', 'endDate', 'machineIds'], req.body || {});
+            const startDate = moment(req.body.startDate);
+            const endDate = moment(req.body.endDate);
+            if (!startDate.isValid() || !endDate.isValid() || startDate.isAfter(endDate)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            if (!Array.isArray(req.body.machineIds) || req.body.machineIds.length === 0) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            let machineIds = req.body.machineIds;
+            if (req.user.isMaster) {
+                const allowed = new Set((req.user.machineIds || []).map((id) => String(id)));
+                machineIds = machineIds.filter((id) => allowed.has(String(id)));
+            }
+
+            const data = await productionIntelligenceService.build({
+                workspaceId: req.user.workspaceId,
+                machineIds,
+                startDate: req.body.startDate,
+                endDate: req.body.endDate,
+                shifts: req.body.shift,
+                trendDays: req.body.trendDays
+            });
+
+            return res.ok(data, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
             return res.serverError(error);
         }
     }

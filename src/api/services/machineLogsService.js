@@ -1647,6 +1647,8 @@ module.exports = {
                     50: "Package sensor (C1)",
                     51: "Package sensor (C2)",
                     71: "Counter",
+                    85: 'Other stop',
+                    121: 'Other stop',
                     9998: "Unknown stop",
                     9999: "Power Off"
                 };

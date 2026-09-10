@@ -197,7 +197,7 @@ module.exports = {
                 const stopObj = !!mLog.machineId?.lastStopTime && getStopObj(mLog);
                 if (stopObj && machineGroup?.sectionKey === targetSection) {
                     const duration = moment().diff(moment(mLog.machineId.lastStopTime), 'seconds');
-                    if (stopObj.duration >= duration) {
+                    if (stopObj.duration <= duration) {
                         data.stoppedMachineList.push({
                             machineCode: mLog.machineId.machineCode,
                             lineKey: machineGroup.lineKey,

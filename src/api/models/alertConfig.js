@@ -83,6 +83,10 @@ const alertConfigSchema = new Schema({
         type: alertFlagsSubSchema,
         default: () => ({})
     },
+    machineAttention: {
+        type: Schema.Types.Mixed,
+        default: undefined
+    },
     isDeleted: {
         type: Boolean,
         default: false,

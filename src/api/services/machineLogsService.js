@@ -1331,7 +1331,7 @@ module.exports = {
         const aggregateReport = {
             efficiency: efficiencyCount ? Math.round(efficiency / efficiencyCount) : 0,
             pick: pick,
-            avgSpeed: totalMachines ? Math.round(speed / runningCount) : 0,
+            avgSpeed: runningCount ? Math.round(speed / runningCount) : 0,
             avgPicks: totalMachines ? Math.round(pick / totalMachines) : 0,
             running: running,
             stopped: stopped,
@@ -1650,6 +1650,8 @@ module.exports = {
                     50: "Package sensor (C1)",
                     51: "Package sensor (C2)",
                     71: "Counter",
+                    85: 'Other stop',
+                    121: 'Other stop',
                     9998: "Unknown stop",
                     9999: "Power Off"
                 };

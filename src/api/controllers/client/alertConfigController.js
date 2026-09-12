@@ -1,6 +1,8 @@
 const alertConfigService = require('../../services/alertConfigService');
+const machineAttentionService = require('../../services/machineAttentionService');
 const workspaceService = require('../../services/workspaceService');
 const { ALERT_CONFIG_SCHEMA_WEB } = require('../../../config/constant/alert');
+const { MACHINE_ATTENTION_SCHEMA_WEB } = require('../../../config/constant/machineAttention');
 const utilService = require('../../services/utilService');
 
 const { ALERT_KEYS } = alertConfigService;
@@ -85,8 +87,12 @@ module.exports = {
 
             const data = {
                 schema: ALERT_CONFIG_SCHEMA_WEB,
+                machineAttentionSchema: MACHINE_ATTENTION_SCHEMA_WEB,
                 workspaceName: workspace.firmName,
                 workspaceAlerts,
+                workspaceMachineAttention: machineAttentionService.normalizeMachineAttentionConfig(
+                    workspaceConfig.machineAttention
+                ),
                 userConfigs
             };
 
@@ -100,7 +106,9 @@ module.exports = {
     upsertWorkspace: async (req, res) => {
         try {
             const alerts = pickAlertBody(req.body);
-            if (!Object.keys(alerts).length) {
+            const machineAttention = req.body?.machineAttention;
+            const restoreMachineAttentionDefaults = req.body?.restoreMachineAttentionDefaults === true;
+            if (!Object.keys(alerts).length && !machineAttention && !restoreMachineAttentionDefaults) {
                 throw global.config.message.BAD_REQUEST;
             }
 
@@ -111,16 +119,34 @@ module.exports = {
             );
             if (!workspace) throw global.config.message.RECORD_NOT_FOUND;
 
-            const existing = await alertConfigService.findOne(
-                { workspaceId, userId: null },
-                { useLean: true }
-            );
-            const merged = alertConfigService.mergeAlertUpdates(
-                existing?.alerts || alertConfigService.defaultAlerts({ readOnly: false }),
-                alerts,
-                { returnNormalized: false }
-            );
-            await alertConfigService.upsertWorkspaceConfig(workspaceId, merged);
+            if (Object.keys(alerts).length) {
+                const existing = await alertConfigService.findOne(
+                    { workspaceId, userId: null },
+                    { useLean: true }
+                );
+                const merged = alertConfigService.mergeAlertUpdates(
+                    existing?.alerts || alertConfigService.defaultAlerts({ readOnly: false }),
+                    alerts,
+                    { returnNormalized: false }
+                );
+                await alertConfigService.upsertWorkspaceConfig(workspaceId, merged);
+            }
+
+            try {
+                if (restoreMachineAttentionDefaults) {
+                    await machineAttentionService.upsertWorkspaceMachineAttention(
+                        workspaceId,
+                        machineAttentionService.cloneDefaults()
+                    );
+                } else if (machineAttention) {
+                    await machineAttentionService.upsertWorkspaceMachineAttention(workspaceId, machineAttention);
+                }
+            } catch (attentionError) {
+                if (attentionError?.statusCode === 400) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                throw attentionError;
+            }
 
             return res.ok(null, global.config.message.OK);
         } catch (error) {

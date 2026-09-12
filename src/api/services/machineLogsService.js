@@ -1328,7 +1328,7 @@ module.exports = {
         const aggregateReport = {
             efficiency: efficiencyCount ? Math.round(efficiency / efficiencyCount) : 0,
             pick: pick,
-            avgSpeed: totalMachines ? Math.round(speed / runningCount) : 0,
+            avgSpeed: runningCount ? Math.round(speed / runningCount) : 0,
             avgPicks: totalMachines ? Math.round(pick / totalMachines) : 0,
             running: running,
             stopped: stopped,

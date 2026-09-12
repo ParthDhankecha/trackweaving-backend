@@ -1,6 +1,7 @@
 const moment = require("moment");
 
 const machineLogsService = require("../../services/machineLogsService");
+const machineAttentionService = require("../../services/machineAttentionService");
 const machineGroupService = require("../../services/machineGroupService");
 const operatorService = require("../../services/operatorService");
 const utilService = require("../../services/utilService");
@@ -107,6 +108,14 @@ module.exports = {
                 };
 
                 machineData.push(data);
+            }
+
+            if (machineAttentionService.shouldIncludeAttention(body)) {
+                await machineAttentionService.attachAttentionGroups(
+                    machineData,
+                    machineLogsData.data,
+                    workspaceId
+                );
             }
 
             const response = {

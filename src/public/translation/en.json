@@ -186,5 +186,17 @@
     "stopAlertMinutesPlaceholder": "minutes, comma separated (e.g. 10,20)",
     "cards": "Cards",
     "enterCards": "Enter Cards",
-    "enterValidNumber": "Enter valid number"
+    "enterValidNumber": "Enter valid number",
+    "readAccess": "Read",
+    "createAccess": "Create",
+    "updateAccess": "Update",
+    "deleteAccess": "Delete",
+    "user": "User",
+    "operator": "Operator",
+    "report": "Report",
+    "access": "Access",
+    "nOfMActions": "{n} of {m} Actions",
+    "moduleAccess": "Module Access",
+    "allModules": "All Modules",
+    "manageModulesDescription": "Manage what this user can access in each module."
 }

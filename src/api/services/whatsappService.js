@@ -167,10 +167,10 @@ module.exports = {
                 },
                 components: [{
                     type: 'header',
-                    parameters: [{ type: 'text', text: title }]
+                    parameters: [{ type: 'text', text: title, parameter_name: 'title' }]
                 }, {
                     type: 'body',
-                    parameters: [{ type: 'text', text: description }]
+                    parameters: [{ type: 'text', text: description, parameter_name: 'description' }]
                 }]
             }
         });

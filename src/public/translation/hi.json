@@ -186,5 +186,17 @@
     "stopAlertMinutesPlaceholder": "मिनट, कॉमा से अलग किए गए (जैसे 10,20)",
     "cards": "कार्ड्स",
     "enterCards": "कार्ड्स दर्ज करें",
-    "enterValidNumber": "कृपया मान्य नंबर दर्ज करें"
+    "enterValidNumber": "कृपया मान्य नंबर दर्ज करें",
+    "readAccess": "देखने की अनुमति",
+    "createAccess": "नया बनाने की अनुमति",
+    "updateAccess": "बदलने की अनुमति",
+    "deleteAccess": "हटाने की अनुमति",
+    "user": "यूज़र",
+    "operator": "ओपरेटर",
+    "report": "रिपोर्ट",
+    "access": "परवानगी",
+    "nOfMActions": "{n} में से {m} एक्शन्स",
+    "moduleAccess": "मॉड्यूल परवानगी",
+    "allModules": "सभी मॉड्यूल्स",
+    "manageModulesDescription": "प्रत्येक मॉड्यूल में यह उपयोगकर्ता क्या एक्सेस कर सकता है, इसे प्रबंधित करें।"
 }

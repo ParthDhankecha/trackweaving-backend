@@ -154,7 +154,7 @@ module.exports = {
 
         if (!user.isActive) {
             errorObj.inactiveAccount = true;
-            if (throwError) throw global.config.message.INACTIVE_ACCOUNT;
+            if (throwError) throw global.config.message.INACTIVE_ACCOUNT_SIGNIN;
             return errorObj; // return early if inactive account
         }
 

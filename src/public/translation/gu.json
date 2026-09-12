@@ -186,5 +186,17 @@
     "stopAlertMinutesPlaceholder": "મિનિટ, અલ્પવિરામથી અલગ કરેલ (જેમ કે 10,20)",
     "cards": "કાર્ડ્સ",
     "enterCards": "કાર્ડ્સ દાખલ કરો",
-    "enterValidNumber": "કૃપા કરીને માન્ય નંબર દાખલ કરો"
+    "enterValidNumber": "કૃપા કરીને માન્ય નંબર દાખલ કરો",
+    "readAccess": "જોવાની પરવાનગી",
+    "createAccess": "ઉમેરવાની પરવાનગી",
+    "updateAccess": "ફેરફાર કરવાની પરવાનગી",
+    "deleteAccess": "ડિલીટ કરવાની પરવાનગી",
+    "user": "યુઝર",
+    "operator": "ઓપરેટર",
+    "report": "રિપોર્ટ",
+    "access": "પરવાનગી",
+    "nOfMActions": "{n} માંથી {m} એક્શન્સ",
+    "moduleAccess": "મોડ્યૂલ પરવાનગી",
+    "allModules": "બધા મોડ્યૂલ્સ",
+    "manageModulesDescription": "દરેક મોડ્યુલમાં આ વપરાશકર્તા શું ઍક્સેસ કરી શકે છે તે મેનેજ કરો."
 }

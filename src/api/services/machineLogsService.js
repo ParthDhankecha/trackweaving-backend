@@ -982,6 +982,9 @@ module.exports = {
                                         reason: stopReason,
                                         stopGroup: group
                                     },
+                                    extraData: {
+                                        lastStopTime: moment.utc(stopSince).format('hh:mm:ss A'),
+                                    },
                                     recipients
                                 });
                             }

@@ -3,7 +3,7 @@ const machineService = require('../../services/machineService');
 const accessService = require('../../services/accessService');
 const utilService = require('../../services/utilService');
 
-const _commonProjection = { _id: 1, fullname: 1, userName: 1, email: 1, mobile: 1, userType: 1, isActive: 1, shift: 1, machineIds: 1 };
+const _commonProjection = { _id: 1, fullname: 1, userName: 1, email: 1, mobile: 1, userType: 1, isActive: 1, shift: 1, machineIds: 1, access: 1 };
 
 
 module.exports = {
@@ -22,7 +22,14 @@ module.exports = {
                 useLean: true,
             });
 
-            return res.ok(list, global.config.message.OK);
+            // Return stored access matrix so workspace owner can edit what is on the master record
+            const normalized = (list ?? []).map((u) => ({
+                ...u,
+                // null = never configured on record; object = stored master access
+                access: !u.access ? null : accessService.resolveAccess(u),
+            }));
+
+            return res.ok(normalized, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
 
@@ -79,6 +86,24 @@ module.exports = {
             return res.ok(syncData, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
+    getAccessMatrix: async (req, res, next) => {
+        try {
+            if (!req.user.isOwner) {
+                throw global.config.message.OPERATION_NOT_PERMITTED;
+            }
+
+            const data = {
+                modules: accessService.MODULE_WISE_ACCESS
+            };
+
+            return res.ok(data, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+
             return res.serverError(error);
         }
     },
@@ -205,7 +230,7 @@ module.exports = {
 
             const targetUser = await userService.findOneV2({ _id: userId, workspaceId: user.workspaceId }, {
                 useLean: true,
-                projection: 'userType'
+                projection: { userType: 1, access: 1 }
             });
             if (!targetUser) throw global.config.message.NOT_FOUND;
 
@@ -214,10 +239,11 @@ module.exports = {
                 updateObj.fullname = body.fullname.trim();
             }
             if (typeof body.userName === 'string' && body.userName.trim()) {
-                updateObj.userName = userService.validateUserName(body.userName);
-                if (!updateObj.userName?.normalized) {
+                const userNameObj = userService.validateUserName(body.userName);
+                if (!userNameObj?.normalized) {
                     throw global.config.message.BAD_REQUEST;
                 }
+                updateObj.userName = userNameObj;
             }
             if (typeof body.password === 'string' && body.password.trim()) {
                 updateObj.password = body.password.trim();
@@ -247,10 +273,25 @@ module.exports = {
                 updateObj.isActive = body.isActive;
             }
 
-            // Master-only fields: workspace owner updating a master user
-            if (isOwner && targetUser.userType === USERS_TYPE.MASTER) {
+            let nextUserType = targetUser.userType;
+            if (isOwner && !isSelf && body.userType !== undefined && body.userType !== null) {
+                if (!global.config.USERS?.TYPE_OPTIONS?.some?.((type) => type.value === body.userType)) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                nextUserType = body.userType;
+                if (nextUserType !== targetUser.userType) {
+                    updateObj.userType = nextUserType;
+                }
+            }
+
+            // Master-only fields: workspace owner updating a master user (including admin → master)
+            if (isOwner && nextUserType === USERS_TYPE.MASTER) {
+                const isBecomingMaster = targetUser.userType !== USERS_TYPE.MASTER;
+
                 if (Array.isArray(body.shift)) {
                     updateObj.shift = userService.validateShift(body.shift);
+                } else if (isBecomingMaster) {
+                    throw global.config.message.INVALID_SHIFT;
                 }
 
                 if (Array.isArray(body.machineIds)) {
@@ -267,7 +308,21 @@ module.exports = {
                     if (machineCount !== machineIds.length) throw global.config.message.INVALID_MACHINE_IDS;
 
                     updateObj.machineIds = machineIds;
+                } else if (isBecomingMaster) {
+                    throw global.config.message.MASTER_MACHINES_REQUIRED;
                 }
+
+                if (body.access && typeof body.access === 'object') {
+                    updateObj.access = accessService.sanitizeAccess(body.access, true);
+                } else if (isBecomingMaster && !targetUser.access) {
+                    updateObj.access = accessService.getReadOnlyAccess();
+                }
+            }
+
+            if (isOwner && updateObj.userType === USERS_TYPE.ADMIN) {
+                updateObj.shift = null;
+                updateObj.machineIds = null;
+                updateObj.access = null;
             }
 
             if (Object.keys(updateObj).length === 0) {
@@ -281,7 +336,10 @@ module.exports = {
                         $regex: `^${updateObj.userName.escaped}$`,
                         $options: 'i'
                     }
-                }, { useLean: true, projection: '_id' });
+                }, {
+                    useLean: true,
+                    projection: '_id'
+                });
                 if (duplicate) throw global.config.message.USER_EXISTS;
 
                 updateObj.userName = updateObj.userName.normalized;

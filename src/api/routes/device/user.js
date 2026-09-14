@@ -13,6 +13,8 @@ router.get('/profile', auth, controller.getProfile);
 
 router.get('/sync/data', controller.syncData);
 
+router.get('/access-matrix', auth, requireAccess(MODULE_KEYS.USER, ACTION_KEYS.UPDATE), controller.getAccessMatrix);
+
 router.post('/', auth, requireAccess(MODULE_KEYS.USER, ACTION_KEYS.CREATE), controller.create);
 
 router.put('/:id', auth, requireAccess(MODULE_KEYS.USER, ACTION_KEYS.UPDATE), controller.update);

@@ -515,7 +515,7 @@ module.exports = {
         return recipientsByType;
     },
 
-    async dispatchAlert({ machineId, workspaceId, title, description, data, recipients }) {
+    async dispatchAlert({ machineId, workspaceId, title, description, data, recipients, extraData }) {
         try {
             const { category, ...restData } = data || {};
             await notificationService.createNotification({
@@ -530,6 +530,7 @@ module.exports = {
             utilService.log(error);
         }
 
+        if (data?.category !== 'machine_stopped') return;
         if (!recipients.whatsapp.length || !whatsappService.isEnabled()) {
             return;
         }
@@ -538,6 +539,10 @@ module.exports = {
             console.log('No whatsapp recipients with mobile number');
             return;
         }
+
+        /* NOTE: only for machine stopped alerts */
+        title = `${data?.machineCode} - ${data?.reason} - ${data?.duration}+ min`;
+        description = `Stopped from - ${extraData?.lastStopTime}`;
 
         await Promise.allSettled(
             users.map(user => whatsappService.sendNotification({

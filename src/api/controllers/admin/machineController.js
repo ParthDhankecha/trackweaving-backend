@@ -84,7 +84,7 @@ module.exports = {
             }
 
             body.panna = utilService.parsePanna(body.panna);
-            if (body.hasOwnProperty('cards')) {
+            if (body.hasOwnProperty('cards') && body.cards !== null) {
                 if (!utilService.isNumber(body.cards, { min: 0 })) {
                     throw global.config.message.BAD_REQUEST;
                 }
@@ -245,7 +245,7 @@ module.exports = {
             }
 
             // refresh machine list for master users
-            if (String(machine.workspaceId) !== String(result.workspaceId)) {
+            if (String(machine.workspaceId) !== String(result.workspaceId?._id)) {
                 const refreshed = await userService.updateMany({
                     workspaceId: machine.workspaceId,
                     machineIds: { $in: [machine._id] }

@@ -146,6 +146,11 @@ module.exports = {
             message: "Your account is inactive. Please contact to admin.",
             status: 401
         },
+        INACTIVE_ACCOUNT_SIGNIN :{
+            code: "E_FORBIDDEN",
+            message: "You are not authorized to sign in. Please contact to admin.",
+            status: 403
+        },
 
 
 

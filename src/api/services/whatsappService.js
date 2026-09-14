@@ -231,7 +231,7 @@ module.exports = {
                             { type: "text", text: workspaceName },
                             { type: "text", text: shiftLabel },
                             { type: "text", text: moment(shiftDate).format('DD MMM YYYY') },
-                            { type: "text", text: `${productionMeter} Meters` },
+                            { type: "text", text: `${productionMeter == null || productionMeter === '' ? '-' : Number(productionMeter).toFixed(2)} Meters` },
                             { type: "text", text: picks },
                             { type: "text", text: `${efficiency}%` },
                             { type: "text", text: `${realEfficiency}%` },

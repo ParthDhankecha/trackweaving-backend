@@ -367,7 +367,9 @@ function drawSummaryTableHead(doc, x, y, width, widths, title, valueLabel) {
     return hy + SUMMARY_ROW_H;
 }
 
-function drawSummaryGroup(doc, x, y, widths, { qualityLines, machines, total, valueKey, groupH, highlightLow }) {
+function drawSummaryGroup(doc, x, y, widths, {
+    qualityLines, machines, total, valueKey, groupH, highlightLow, showTotal = true, stripeOffset = 0,
+}) {
     const { qualityW, machineW, valueW, totalW } = widths;
     const rowH = groupH / machines.length;
     const machineX = x + qualityW;
@@ -383,7 +385,7 @@ function drawSummaryGroup(doc, x, y, widths, { qualityLines, machines, total, va
     for (let i = 0; i < machines.length; i++) {
         const row = machines[i];
         const ry = y + i * rowH;
-        const rowBg = i % 2 === 0 ? C.rowBg : C.altBg;
+        const rowBg = (stripeOffset + i) % 2 === 0 ? C.rowBg : C.altBg;
         const value = row[valueKey];
         const valueBg = (highlightLow && Number.isFinite(Number(value)) && Number(value) < 1000) ? C.beamLow : rowBg;
 
@@ -391,9 +393,13 @@ function drawSummaryGroup(doc, x, y, widths, { qualityLines, machines, total, va
         cell(doc, valueX, ry, valueW, rowH, fmtNum(value, valueFormat), { ...base, bg: valueBg, align: 'right' });
     }
 
-    cell(doc, totalX, y, totalW, groupH, fmtNum(total, valueFormat), {
-        ...base, bg: C.subtotalBg, bold: true, align: 'right',
-    });
+    if (showTotal) {
+        cell(doc, totalX, y, totalW, groupH, fmtNum(total, valueFormat), {
+            ...base, bg: C.subtotalBg, bold: true, align: 'right',
+        });
+    } else {
+        cell(doc, totalX, y, totalW, groupH, '', { ...base, bg: C.altBg });
+    }
     return y + groupH;
 }
 
@@ -410,50 +416,100 @@ function drawQualitySummarySection(doc, x, y, groups, grandProd, grandBeam, { on
     const rightX = x + tableW + SUMMARY_GAP;
     const widths = getSummaryColWidths(tableW);
     const pad = 4;
+    const sectionHeadH = SUMMARY_HDR_H + SUMMARY_ROW_H;
+    const pageBottom = PAGE_H - MARGIN;
     let cy = y;
+    let headsDrawn = false;
 
-    function drawHeads() {
-        drawSummaryTableHead(doc, leftX, cy, tableW, widths, 'Quality-wise Production', 'Prod (Mtrs)');
-        cy = drawSummaryTableHead(doc, rightX, cy, tableW, widths, 'Quality-wise Beam Left', 'Beam Left');
+    function breakPage() {
+        if (typeof onPageBreak === 'function') cy = onPageBreak();
+        else { doc.addPage(); cy = MARGIN; }
+        headsDrawn = false;
     }
 
-    function ensureSpace(neededH) {
-        if (cy + neededH <= PAGE_H - MARGIN) return;
-        if (typeof onPageBreak === 'function') {
-            cy = onPageBreak();
-            drawHeads();
+    function drawBothHeads() {
+        const leftEnd = drawSummaryTableHead(doc, leftX, cy, tableW, widths, 'Quality-wise Production', 'Prod (Mtrs)');
+        const rightEnd = drawSummaryTableHead(doc, rightX, cy, tableW, widths, 'Quality-wise Beam Left', 'Beam Left');
+        cy = Math.max(leftEnd, rightEnd);
+        headsDrawn = true;
+    }
+
+    function rowsThatFit(reserveGrandTotal = false) {
+        const reserve = reserveGrandTotal ? SUMMARY_ROW_H : 0;
+        const available = pageBottom - cy - reserve;
+        if (!headsDrawn) return Math.max(1, Math.floor((available - sectionHeadH) / SUMMARY_ROW_H));
+        return Math.max(1, Math.floor(available / SUMMARY_ROW_H));
+    }
+
+    function ensureRows(rowsNeeded, reserveGrandTotal = false) {
+        const neededH = rowsNeeded * SUMMARY_ROW_H;
+        const headH = headsDrawn ? 0 : sectionHeadH;
+        const reserve = reserveGrandTotal ? SUMMARY_ROW_H : 0;
+        if (cy + headH + neededH <= pageBottom - reserve) {
+            if (!headsDrawn) drawBothHeads();
+            return;
         }
+        breakPage();
+        drawBothHeads();
     }
 
-    drawHeads();
+    if (cy + sectionHeadH + SUMMARY_ROW_H > pageBottom) breakPage();
+    drawBothHeads();
 
     if (!groups.length) {
-        ensureSpace(SUMMARY_ROW_H);
         const empty = { bg: C.altBg, color: C.muted, fontSize: SUMMARY_FS, align: 'center' };
         cell(doc, leftX, cy, tableW, SUMMARY_ROW_H, 'No data', empty);
         cell(doc, rightX, cy, tableW, SUMMARY_ROW_H, 'No data', empty);
         return cy + SUMMARY_ROW_H;
     }
 
-    for (const group of groups) {
+    for (let gi = 0; gi < groups.length; gi++) {
+        const group = groups[gi];
         const qualityLines = wrapTextToWidth(doc, group.quality, widths.qualityW - pad * 2, SUMMARY_FS, true);
-        const groupH = Math.max(
-            group.machines.length * SUMMARY_ROW_H,
-            heightForLines(qualityLines.length, SUMMARY_FS, SUMMARY_ROW_H, pad)
-        );
-        ensureSpace(groupH);
+        const isLastGroup = gi === groups.length - 1;
+        let machineIdx = 0;
 
-        drawSummaryGroup(doc, leftX, cy, widths, {
-            qualityLines, machines: group.machines, total: group.production,
-            valueKey: 'production', groupH,
-        });
-        cy = drawSummaryGroup(doc, rightX, cy, widths, {
-            qualityLines, machines: group.machines, total: group.beamLeft,
-            valueKey: 'beamLeft', groupH, highlightLow: true,
-        });
+        while (machineIdx < group.machines.length) {
+            const remaining = group.machines.length - machineIdx;
+            const reserveGrand = isLastGroup && remaining <= rowsThatFit(true);
+            ensureRows(Math.min(remaining, rowsThatFit(reserveGrand)), reserveGrand);
+
+            const chunkSize = Math.min(rowsThatFit(reserveGrand), remaining);
+            const chunkMachines = group.machines.slice(machineIdx, machineIdx + chunkSize);
+            const isLastChunk = machineIdx + chunkSize >= group.machines.length;
+            const groupH = Math.max(
+                chunkSize * SUMMARY_ROW_H,
+                heightForLines(qualityLines.length, SUMMARY_FS, SUMMARY_ROW_H, pad)
+            );
+
+            drawSummaryGroup(doc, leftX, cy, widths, {
+                qualityLines,
+                machines: chunkMachines,
+                total: group.production,
+                valueKey: 'production',
+                groupH,
+                showTotal: isLastChunk,
+                stripeOffset: machineIdx,
+            });
+            cy = drawSummaryGroup(doc, rightX, cy, widths, {
+                qualityLines,
+                machines: chunkMachines,
+                total: group.beamLeft,
+                valueKey: 'beamLeft',
+                groupH,
+                highlightLow: true,
+                showTotal: isLastChunk,
+                stripeOffset: machineIdx,
+            });
+
+            machineIdx += chunkSize;
+        }
     }
 
-    ensureSpace(SUMMARY_ROW_H);
+    if (cy + SUMMARY_ROW_H > pageBottom) {
+        breakPage();
+        drawBothHeads();
+    }
     drawSummaryGrandTotal(doc, leftX, cy, widths, grandProd, 'production');
     drawSummaryGrandTotal(doc, rightX, cy, widths, grandBeam, 'beamLeft');
     return cy + SUMMARY_ROW_H;

@@ -12,6 +12,8 @@ router.post('/shift', controller.createShiftLogs);
 
 router.post('/list', auth, controller.getList);
 
+router.put('/beam-left', auth, controller.updateBeamLeft);
+
 router.post('/machine-list', controller.getMachineList);
 
 

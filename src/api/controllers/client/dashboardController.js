@@ -1,7 +1,7 @@
 const moment = require('moment');
 
 const machineLogsService = require('../../services/machineLogsService');
-const machineService = require('../../services/machineService');
+const machineAttentionService = require('../../services/machineAttentionService');
 const machineGroupService = require('../../services/machineGroupService');
 const operatorService = require('../../services/operatorService');
 const utilService = require('../../services/utilService');
@@ -46,8 +46,11 @@ const toOneDecimal = (value) => Math.round((Number(value) || 0) * 10) / 10;
 module.exports = {
     getList: async (req, res, next) => {
         try {
-            const body = req.body || {};
-            body.workspaceId = req.user.workspaceId;
+            const body = req.body;
+            const { workspaceId, isMaster } = req.user;
+            body.workspaceId = workspaceId;
+            if (isMaster) body.masterMachineIds = req.user.machineIds;
+
             const machineLogsData = await machineLogsService.getMachineLogsWithPagination(body);
 
             const groupingConfig = {};
@@ -93,6 +96,10 @@ module.exports = {
                 let data = {};
                 data.machineCode = logData.machineId.machineCode;
                 data.machineName = logData.machineId.machineName;
+                data.canUpdateBeamLeft = machineLogsService.canUpdateBeamLeft(logData.machineId.displayType);
+                if (data.canUpdateBeamLeft) {
+                    data.machineId = logData.machineId._id;
+                }
                 data.reed = logData.machineId.reed || '';
                 data.quality = logData.machineId.quality || '';
                 data.machineType = logData.machineId.machineType || 'rapier';
@@ -141,6 +148,14 @@ module.exports = {
                 };
 
                 machineData.push(data);
+            }
+
+            if (machineAttentionService.shouldIncludeAttention(body)) {
+                await machineAttentionService.attachAttentionGroups(
+                    machineData,
+                    machineLogsData.data,
+                    workspaceId
+                );
             }
 
             const response = {

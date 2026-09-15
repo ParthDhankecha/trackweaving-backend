@@ -16,10 +16,14 @@ const utilService = require("./utilService");
 const CRON_TIMEZONE = process.env.CRON_TIMEZONE || 'Asia/Kolkata';
 
 
+const RUNNING_CRON_MAP = new Map();
+
+
 module.exports = {
     async startCronJob() {
         await this.updateNightShiftLogs();
         await this.updateDayShiftLogs();
+        await this.updateItemaBeamLeft();
         await this.sendMorningShiftReports();
         await this.sendEveningShiftReports();
         await this.removeOldNotifications();
@@ -41,6 +45,15 @@ module.exports = {
         }, null, true);
         job.start();
         utilService.log("Cron job scheduled for day shift logs successfully.");
+    },
+
+    updateItemaBeamLeft: async function () {
+        var job = new CronJob("*/30 * * * *", async function () {
+            utilService.log("Starting cron job for itema beam left update...");
+            await machineLogsService.updateItemaBeamLeftCron(RUNNING_CRON_MAP);
+        }, null, false, CRON_TIMEZONE);
+        job.start();
+        utilService.log("Cron job scheduled for itema beam left update every 30 minutes successfully.");
     },
 
     sendMorningShiftReports: async function () {

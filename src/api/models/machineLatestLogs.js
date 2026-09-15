@@ -80,6 +80,18 @@ const machineLatestLogsSchema = new Schema({
         type: Number,
         default: 0
     },
+    beamData: {
+        type: getSubSchema({
+            beam: {
+                type: Number,
+                default: 0
+            },
+            loadedAt: {
+                type: Date,
+                default: null
+            }
+        }),
+    },
     setPicks: {
         type: Number,
         default: 0
@@ -220,6 +232,7 @@ const machineLatestLogsSchema = new Schema({
 });
 
 machineLatestLogsSchema.index({ machineId: 1, workspaceId: 1, createdAt: -1 });
+
 
 const machineLatestLogs = mongoose.model('machineLatestLogs', machineLatestLogsSchema, 'machineLatestLogs');
 module.exports = machineLatestLogs;

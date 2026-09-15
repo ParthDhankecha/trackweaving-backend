@@ -312,5 +312,36 @@ module.exports = {
             utilService.log(error);
             return res.serverError(error);
         }
+    },
+
+    updateBeamLeft: async (req, res, next) => {
+        try {
+            const { machineId, beamLeft, date } = req.body;
+
+            if (!utilService.isValidObjectId(machineId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            const beamLeftNum = Math.round(Number(beamLeft) * 10) / 10;
+            if (!utilService.isNumber(beamLeftNum, { min: 0, max: 9999999 })) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const { workspaceId, isMaster, machineIds } = req.user;
+            if (isMaster && machineIds && !machineIds.some(mId => String(mId) === machineId)) {
+                throw global.config.message.ACCESS_DENIED;
+            }
+
+            const data = await machineLogsService.updateBeamLeft({
+                workspaceId,
+                machineId,
+                beamLeft: beamLeftNum,
+                date
+            });
+
+            return res.ok(data, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
     }
 }

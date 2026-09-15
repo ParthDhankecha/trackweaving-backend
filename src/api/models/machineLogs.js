@@ -94,6 +94,18 @@ const machineLogsSchema = new Schema({
         type: Number,
         default: 0
     },
+    beamData: {
+        type: getSubSchema({
+            beam: {
+                type: Number,
+                default: 0
+            },
+            loadedAt: {
+                type: Date,
+                default: null
+            }
+        }),
+    },
     setPicks: {
         type: Number,
         default: 0

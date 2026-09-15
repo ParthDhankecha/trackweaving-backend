@@ -1,4 +1,5 @@
 const moment = require('moment');
+const { ObjectId } = require('mongoose').Types;
 
 const machineService = require('./machineService');
 const alertConfigService = require('./alertConfigService');
@@ -359,6 +360,73 @@ function resolveShiftDate(shift, updatedTime) {
     return null;
 }
 
+
+const ITEMA_DISPLAY_TYPE = 'itema';
+
+function roundBeamMeters(value) {
+    return Math.round((Number(value) || 0) * 10) / 10;
+}
+
+function omitItemaBeamFields(body) {
+    if (!body || body.displayType !== ITEMA_DISPLAY_TYPE) return;
+    delete body.beamLeft;
+    delete body.beamData;
+}
+
+async function getProducedMetersSince({ workspaceId, machineId, loadedAt }) {
+    const [result] = await machineLogsModel.aggregate([{
+        $match: {
+            machineId: ObjectId(machineId),
+            workspaceId: ObjectId(workspaceId),
+            isDeleted: false,
+            shiftDate: { $gte: loadedAt }
+        }
+    }, {
+        $group: {
+            _id: null,
+            produced: { $sum: { $ifNull: ['$pieceLengthM', 0] } }
+        }
+    }]);
+    return Number(result?.produced) || 0;
+}
+
+function currentBeamLeft(beam, produced) {
+    return Math.max(0, roundBeamMeters(beam - produced));
+}
+
+async function recalculateBeamLeftFromDate({ workspaceId, machineId, beam, loadedAt }) {
+    const logs = await machineLogsModel.find({
+        machineId,
+        workspaceId,
+        isDeleted: false,
+        shiftDate: { $gte: loadedAt }
+    }).sort({ shiftDate: 1, shift: 1 }).select({ pieceLengthM: 1 }).lean();
+
+    let produced = 0;
+    const ops = [];
+    for (const log of logs) {
+        produced += Number(log.pieceLengthM) || 0;
+        ops.push({
+            updateOne: {
+                filter: { _id: log._id },
+                update: {
+                    $set: {
+                        beamLeft: Math.max(0, roundBeamMeters(beam - produced)),
+                        beamData: { beam, loadedAt }
+                    }
+                }
+            }
+        });
+    }
+
+    if (ops.length) {
+        await machineLogsModel.bulkWrite(ops);
+    }
+
+    return Math.max(0, roundBeamMeters(ops.length ? beam - produced : beam));
+}
+
+
 function buildPowerOffFields(body) {
     const fields = {
         powerOff: true,
@@ -537,6 +605,7 @@ module.exports = {
         }
 
         body.powerOff = false;
+        omitItemaBeamFields(body);
 
         let machineLog = await machineLatestLogsModel.findOneAndUpdate({ machineId: body.machineId }, body, { upsert: true, returnDocument: 'before' });
         let shiftDate;
@@ -561,7 +630,7 @@ module.exports = {
                     console.log(JSON.stringify(body));
                     return;
                 }
-        
+
                 await machineLatestLogsModel.updateOne(
                     { machineId: body.machineId },
                     { $set: { stopsData: body.stopsData, stopCount: 0 } }
@@ -586,7 +655,7 @@ module.exports = {
             await upsertShiftLog(body, shiftDate);
         }
     },
-    
+
     async createClosedShiftLog(body) {
         body.powerOff = false;
 
@@ -600,6 +669,7 @@ module.exports = {
         }
 
         body.shiftDate = shiftDate;
+        omitItemaBeamFields(body);
         await upsertShiftLog(body, shiftDate, { incrementSpeed: false });
     },
 
@@ -694,6 +764,69 @@ module.exports = {
             { _id: { $in: logIds }, powerOff: true },
             { $set: { stop: getPowerOffStopCode(), speedRpm: 0 } }
         );
+    },
+
+    async updateItemaBeamLeftCron(runningCronMap) {
+        if (runningCronMap.has('updateItemaBeamLeftCron')) {
+            console.log('updateItemaBeamLeftCron is already running');
+            return;
+        }
+
+        runningCronMap.set('updateItemaBeamLeftCron', true);
+        try {
+            const machines = await machineService.find(
+                { displayType: ITEMA_DISPLAY_TYPE },
+                { useLean: true, projection: { _id: 1 } }
+            );
+            if (!machines.length) return;
+    
+            const latestLogs = await machineLatestLogsModel.find({
+                machineId: { $in: machines.map((machine) => machine._id) },
+                isDeleted: false,
+                'beamData.beam': { $gt: 0 },
+                'beamData.loadedAt': { $ne: null }
+            }).select({ machineId: 1, workspaceId: 1, beamData: 1, shift: 1, shiftDate: 1 }).lean();
+    
+            for (const latest of latestLogs) {
+                try {
+                    const loadedAt = moment(latest.beamData.loadedAt).startOf('day').toDate();
+                    const beam = Number(latest.beamData.beam) || 0;
+                    const produced = await getProducedMetersSince({
+                        workspaceId: latest.workspaceId,
+                        machineId: latest.machineId,
+                        loadedAt
+                    });
+                    const beamLeft = currentBeamLeft(beam, produced);
+                    const beamData = { beam, loadedAt };
+                    const shiftDate = latest.shiftDate || resolveShiftDate(latest.shift);
+    
+                    await machineLatestLogsModel.updateOne(
+                        { _id: latest._id },
+                        { $set: { beamLeft, beamData } }
+                    );
+    
+                    if (Number.isInteger(latest.shift) && shiftDate) {
+                        await machineLogsModel.updateOne({
+                            machineId: latest.machineId,
+                            workspaceId: latest.workspaceId,
+                            shift: latest.shift,
+                            shiftDate,
+                            isDeleted: false
+                        }, {
+                            $set: { beamLeft, beamData }
+                        });
+                    }
+                } catch (err) {
+                    utilService.errLog(`Itema beam left update error for ${latest.machineId}: ${err.message}`);
+                }
+            }
+
+            console.log('Itema beam left cron completed successfully');
+        } catch (error) {
+            console.log('Itema beam left update cron error:', error);
+        } finally {
+            runningCronMap.delete('updateItemaBeamLeftCron');
+        }
     },
 
     async checkAlertNotification(machineLog, body) {
@@ -1100,6 +1233,44 @@ module.exports = {
             .map(q => String(q).trim())
             .filter(Boolean)
             .sort((a, b) => a.localeCompare(b));
+    },
+
+
+    canUpdateBeamLeft(displayType) {
+        return displayType === ITEMA_DISPLAY_TYPE;
+    },
+
+    async updateBeamLeft({ workspaceId, machineId, beamLeft, date }) {
+        date = date && moment(new Date(date).toISOString())?.startOf?.('day');
+        if (!date || !date?.isValid() || date.isAfter(moment(), 'day')) {
+            throw global.config.message.BAD_REQUEST;
+        }
+
+        const loadedAt = date.toDate();
+        const machine = await machineService.findOne(
+            { _id: machineId, workspaceId },
+            { useLean: true, projection: { displayType: 1, quality: 1 } }
+        );
+        if (!machine) throw global.config.message.RECORD_NOT_FOUND;
+        if (!this.canUpdateBeamLeft(machine.displayType)) {
+            throw global.config.message.BAD_REQUEST;
+        }
+
+        const latest = await machineLatestLogsModel.findOne({ machineId, workspaceId, isDeleted: false });
+        if (!latest) throw global.config.message.RECORD_NOT_FOUND;
+
+        const nextBeamLeft = await recalculateBeamLeftFromDate({
+            workspaceId,
+            machineId,
+            beam: beamLeft,
+            loadedAt
+        });
+
+        latest.beamLeft = nextBeamLeft;
+        latest.beamData = { beam: beamLeft, loadedAt };
+        await latest.save();
+
+        return { machineId, beamLeft: nextBeamLeft };
     },
 
 

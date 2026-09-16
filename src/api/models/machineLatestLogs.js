@@ -56,6 +56,11 @@ const machineLatestLogsSchema = new Schema({
         enum: [0, 1, 2],
         required: true
     },
+    quality: {
+        type: String,
+        trim: true,
+        default: null
+    },
     speedRpm: {
         type: Number,
         default: 0

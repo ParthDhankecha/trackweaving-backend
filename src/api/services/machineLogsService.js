@@ -68,6 +68,12 @@ async function recordBeamCycleChange(body, machine, newBeam) {
 
 const toUint32 = (hi, lo) => (((hi << 16) >>> 0) + (lo >>> 0)) >>> 0;
 const get16 = (r, csvRegister) => { return r[csvRegister - 1] ?? 0; }
+const getRegisterText = (r, csvRegister) => {
+    const value = r?.[csvRegister - 1];
+    if (value == null || value === '') return null;
+    const text = String(value).trim();
+    return text || null;
+};
 
 function decodePickwellAlarms(at) {
     const bitMap = global.config.PICKWELL_ALARM_BITS || {};
@@ -287,6 +293,7 @@ const register = {
         pieceLengthM: 6,
         picksCurrentShift: 7,
         speedRpm: 18,
+        quality: 19,
         stopsCount: {
             warp: { count: 8, duration: 9 },
             weft: { count: 10, duration: 11 },
@@ -441,9 +448,32 @@ function buildPowerOffFields(body) {
     return fields;
 }
 
+function normalizeLogQuality(value) {
+    if (value == null || value === '') return null;
+    const text = String(value).trim();
+    return text || null;
+}
+
+async function syncMachineQualityIfChanged(previousLog, body) {
+    const quality = normalizeLogQuality(body.quality);
+    if (!quality || body.displayType !== ITEMA_DISPLAY_TYPE) return;
+
+    const previousQuality = normalizeLogQuality(previousLog?.quality);
+    if (previousQuality === quality) return;
+
+    await machineService.findOneAndUpdate(
+        { _id: body.machineId },
+        { quality },
+        { useLean: true }
+    );
+}
+
 async function upsertShiftLog(body, shiftDate, options = {}) {
     const { updateMachineQuality = true, incrementSpeed = true } = options;
-    if (updateMachineQuality) {
+    const parsedQuality = normalizeLogQuality(body.quality);
+    if (parsedQuality) {
+        body.quality = parsedQuality;
+    } else if (updateMachineQuality) {
         const machine = await machineService.findOne({ _id: body.machineId }, { useLean: true, projection: { quality: 1 } });
         body.quality = machine?.quality || null;
     }
@@ -608,6 +638,9 @@ module.exports = {
         omitItemaBeamFields(body);
 
         let machineLog = await machineLatestLogsModel.findOneAndUpdate({ machineId: body.machineId }, body, { upsert: true, returnDocument: 'before' });
+        if(body.displayType === ITEMA_DISPLAY_TYPE) {
+            await syncMachineQualityIfChanged(machineLog, body);
+        }
         let shiftDate;
         if (body.displayType == 'biana' && body.speedRpm == 0) {
             return;
@@ -1390,7 +1423,11 @@ module.exports = {
                 const duration = (value.duration ? get16(body, value.duration) : 0) * 60;
                 stopsCount[key] = { count, duration };
             }
-            let beamCompletionDate = get16(body, register[displayType].beamCompletionDate) || null;
+            const qualityRegister = register[displayType].quality;
+            const quality = qualityRegister ? getRegisterText(body, qualityRegister) : null;
+            let beamCompletionDate = register[displayType].beamCompletionDate
+                ? get16(body, register[displayType].beamCompletionDate) || null
+                : null;
             if (beamCompletionDate) {
                 if (displayType == "haiwell") {
                     beamCompletionDate = moment(
@@ -1407,7 +1444,7 @@ module.exports = {
                 stop: get16(body, register[displayType].stopCode),
                 picksCurrentShift: get16(body, register[displayType].picksCurrentShift),
                 pieceLengthM: get16(body, register[displayType].pieceLengthM),
-                beamLeft: get16(body, register[displayType].beamLeft),
+                beamLeft: register[displayType].beamLeft ? get16(body, register[displayType].beamLeft) : undefined,
                 beamCompletionDate: beamCompletionDate,
                 setPicks: get16(body, register[displayType].currentDensity),
                 shift: get16(body, register[displayType].shift),
@@ -1418,7 +1455,8 @@ module.exports = {
                         .padStart(2, '0')}:${Math.floor(get16(body, register[displayType].runTime) % 60)
                             .toString()
                             .padStart(2, '0')}`
-                    : ''
+                    : '',
+                ...(quality ? { quality } : {}),
             }
         }
     },

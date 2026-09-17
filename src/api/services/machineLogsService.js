@@ -1547,6 +1547,9 @@ module.exports = {
             all: running + stopped
         };
 
+        // sort machineLogs by machineCode
+        machineLogs.sort((a, b) => a.machineId.machineCode.localeCompare(b.machineId.machineCode));
+
         return { data: machineLogs, aggregateReport };
         /*
         let data1 = await machineLogsModel.aggregate([

@@ -28,7 +28,8 @@ exports.setGlobalConfigs = () => {
      */
     const dirsToCreate = [
         path.join(__dirname, '..', '..', 'public'),
-        path.join(__dirname, '..', '..', 'public', 'upload')
+        path.join(__dirname, '..', '..', 'public', 'upload'),
+        path.join(__dirname, '..', '..', 'public', 'operators')
     ];
     for (const dirPath of dirsToCreate) {
         if (!fs.existsSync(dirPath)) {

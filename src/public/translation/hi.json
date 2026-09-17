@@ -203,5 +203,21 @@
     "nOfMActions": "{n} में से {m} एक्शन्स",
     "moduleAccess": "मॉड्यूल परवानगी",
     "allModules": "सभी मॉड्यूल्स",
-    "manageModulesDescription": "प्रत्येक मॉड्यूल में यह उपयोगकर्ता क्या एक्सेस कर सकता है, इसे प्रबंधित करें।"
+    "manageModulesDescription": "प्रत्येक मॉड्यूल में यह उपयोगकर्ता क्या एक्सेस कर सकता है, इसे प्रबंधित करें।",
+    "next": "नेक्स्ट",
+    "back": "बैक",
+    "confirm": "कन्फर्म करें",
+    "saving": "सेव हो रहा है...",
+    "updateBeamLeft": "बीम लेफ्ट अपडेट करें",
+    "confirmBeamLeft": "बीम लेफ्ट कन्फर्म करें",
+    "beamLeftWarningTitle": "सेव करने से पहले जांच लें।",
+    "beamLeftWarningDescription": "इस मशीन का बीम लेफ्ट चुनी हुई तारीख से आज तक बदल जाएगा। पुरानी रिपोर्ट भी बदल जाएंगी।",
+    "beamLeftMeters": "बीम लेफ्ट (मीटर)",
+    "beamLeftHint": "बीम लोड होने पर बचे हुए मीटर दर्ज करें। अभी का: {value}",
+    "loadedDate": "लोड की तारीख",
+    "loadedDateHint": "जिस दिन बीम लोड किया गया था। भविष्य की तारीख नहीं चलेंगी।",
+    "beamLeftConfirmDescription": "{machine} के लिए {date} से बीम लेफ्ट {value} मीटर सेट करें?",
+    "beamLeftConfirmNote": "इस तारीख से आज तक के रिकॉर्ड अपडेट होंगे।",
+    "enterValidBeamLeft": "कृपया मान्य बीम लेफ्ट वैल्यू दर्ज करें।",
+    "selectLoadedDate": "तारीख चुनें। भविष्य की तारीख नहीं चलेंगी।"
 }

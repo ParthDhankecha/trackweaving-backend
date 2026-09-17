@@ -12,6 +12,7 @@ expressApp.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 expressApp.use(bodyParser.json({ limit: '10mb' }));
 
 expressApp.use(express.static(path.join(__dirname, '..', 'public')));
+expressApp.use(express.static(path.join(__dirname, '..', 'public', 'operators')));
 expressApp.use(express.static(path.join(__dirname, '..', '..', 'client')));
 
 expressApp.use(cors());

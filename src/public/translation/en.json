@@ -203,5 +203,21 @@
     "nOfMActions": "{n} of {m} Actions",
     "moduleAccess": "Module Access",
     "allModules": "All Modules",
-    "manageModulesDescription": "Manage what this user can access in each module."
+    "manageModulesDescription": "Manage what this user can access in each module.",
+    "next": "Next",
+    "back": "Back",
+    "confirm": "Confirm",
+    "saving": "Saving...",
+    "updateBeamLeft": "Update Beam Left",
+    "confirmBeamLeft": "Confirm Beam Left",
+    "beamLeftWarningTitle": "Please check before saving.",
+    "beamLeftWarningDescription": "Beam left for this machine will change from the selected date till today. Old reports will also change.",
+    "beamLeftMeters": "Beam left (meters)",
+    "beamLeftHint": "Enter remaining meters when the beam was loaded. Current: {value}",
+    "loadedDate": "Loaded date",
+    "loadedDateHint": "Date the beam was loaded. Future dates are not allowed.",
+    "beamLeftConfirmDescription": "Set beam left to {value} meters from {date} for {machine}?",
+    "beamLeftConfirmNote": "Records from this date till today will be updated.",
+    "enterValidBeamLeft": "Enter a valid beam left value.",
+    "selectLoadedDate": "Select a date. Future dates are not allowed."
 }

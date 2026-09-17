@@ -1,4 +1,11 @@
+const fs = require('fs');
+const path = require('path');
+const sharp = require('sharp');
+
 const utilService = require('./utilService');
+
+const PROFILE_SIZE = 400;
+const OPERATORS_DIR = path.join(__dirname, '..', '..', 'public', 'operators');
 
 
 module.exports = {
@@ -94,18 +101,40 @@ module.exports = {
         return await operatorModel.countDocuments({ ...filter, isDeleted: false });
     },
 
+    /**
+     * @param {object} userdata - User data to handle profile for delete
+     * @returns {Promise<object>} Modified userdata if successful, null otherwise
+     */
+    async handleProfileAfterDeletion(userdata) {
+        if (!userdata || !userdata.profile) return null;
+        if (typeof userdata.save !== 'function') return null;
+
+        const base = path.basename(String(userdata.profile));
+        if (!base || base.startsWith('del-')) return null;
+
+        const sourcePath = path.join(OPERATORS_DIR, base);
+        if (fs.existsSync(sourcePath)) {
+            userdata.profile = `del-${base}`;
+            fs.renameSync(sourcePath, path.join(OPERATORS_DIR, userdata.profile));
+
+            await userdata.save();
+        }
+
+        return userdata;
+    },
+
 
     /**
      * @param {number} shift - Shift value to validate
      * @returns {number} Shift value after validation
      */
     validateShift(shift) {
-        if (!utilService.isNumber(shift)) {
+        const value = Number(shift);
+        if (!Number.isInteger(value)) {
             throw global.config.message.INVALID_SHIFT;
         }
-        const value = Number(shift);
         const allowed = Object.values(global.config.SHIFT_TYPE ?? {});
-        if (!Number.isInteger(value) || !allowed.includes(value)) {
+        if (!allowed.includes(value)) {
             throw global.config.message.INVALID_SHIFT;
         }
         return value;
@@ -172,5 +201,36 @@ module.exports = {
         }
 
         return uniqueIds;
+    },
+
+
+    /**
+     * @param {string} filename
+     * @returns {string} Profile image path
+     */
+    getProfilePath(filename) {
+        return path.join(OPERATORS_DIR, path.basename(filename));
+    },
+    /**
+     * @param {File} file
+     * @param {object} [options]
+     * @param {boolean} [options.deleteSource=true] - Whether to delete the original source file after saving the profile image.
+     * @returns {Promise<string>} Pending profile image filename
+     */
+    async saveProfileImage(file, options = {}) {
+        const filename = `${Array(8).fill(null).map(() => (Math.round(Math.random() * 9)).toString(16)).join('')}${Date.now()}.jpg`;
+        const outputPath = path.join(OPERATORS_DIR, filename);
+
+        await sharp(file.path)
+            .resize(PROFILE_SIZE, PROFILE_SIZE, { fit: 'cover' })
+            .jpeg({ quality: 100 })
+            .toFile(outputPath);
+
+        const { deleteSource = true } = options;
+        if (deleteSource && file.path && fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+        }
+
+        return filename;
     }
 };

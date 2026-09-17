@@ -1548,7 +1548,7 @@ module.exports = {
         };
 
         // sort machineLogs by machineCode
-        machineLogs.sort((a, b) => a.machineId.machineCode.localeCompare(b.machineId.machineCode));
+        machineLogs.sort((a, b) => a.machineId.machineCode.localeCompare(b.machineId.machineCode, undefined, { numeric: true }));
 
         return { data: machineLogs, aggregateReport };
         /*

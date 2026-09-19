@@ -6,50 +6,50 @@ const DEFAULT_MACHINE_STOPPED_MINUTES = '10,20';
 
 const ALERT_CONFIG_SCHEMA = {
     pickChange: {
-        title: "pickChange"
+        title: "dyn_pickChange"
     },
     maxSpeed: {
-        title: "maxSpeed"
+        title: "dyn_maxSpeed"
     },
     lowSpeed: {
-        title: "lowSpeed"
+        title: "dyn_lowSpeed"
     },
     beamLeft: {
-        title: "beamLeft",
+        title: "dyn_beamLeft",
         fields: {
             thresholds: {
-                title: "beamLeftThreshold",
-                placeholder: "beamLeftThresholdPlaceholder",
+                title: "dyn_beamLeftThreshold",
+                placeholder: "dyn_beamLeftThresholdPlaceholder",
                 required: false
             }
         }
     },
     machineStopped: {
-        title: "machineStopped",
+        title: "dyn_machineStopped",
         fields: {
             minutes: {
-                title: "stopAlertMinutes",
-                placeholder: "stopAlertMinutesPlaceholder",
+                title: "dyn_stopAlertMinutes",
+                placeholder: "dyn_stopAlertMinutesPlaceholder",
                 required: false
             },
             warpMinutes: {
-                title: "warpStopMinutes",
-                placeholder: "stopAlertMinutesPlaceholder",
+                title: "dyn_warpStopMinutes",
+                placeholder: "dyn_stopAlertMinutesPlaceholder",
                 required: false
             },
             weftMinutes: {
-                title: "weftStopMinutes",
-                placeholder: "stopAlertMinutesPlaceholder",
+                title: "dyn_weftStopMinutes",
+                placeholder: "dyn_stopAlertMinutesPlaceholder",
                 required: false
             },
             feederMinutes: {
-                title: "feederStopMinutes",
-                placeholder: "stopAlertMinutesPlaceholder",
+                title: "dyn_feederStopMinutes",
+                placeholder: "dyn_stopAlertMinutesPlaceholder",
                 required: false
             },
             otherMinutes: {
-                title: "otherStopMinutes",
-                placeholder: "stopAlertMinutesPlaceholder",
+                title: "dyn_otherStopMinutes",
+                placeholder: "dyn_stopAlertMinutesPlaceholder",
                 required: false
             }
         }

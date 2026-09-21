@@ -43,6 +43,117 @@ const getPerformanceLabel = (efficiency) => {
 const toOneDecimal = (value) => Math.round((Number(value) || 0) * 10) / 10;
 
 
+// Custom Dashboard 2 Helpers -- Start
+const TV_ATTENTION_REASON_MAP = {
+    LOW_SPEED: 'Low RPM',
+    REPEATED_STOP: 'High Stops',
+    HIGH_RECENT_DOWNTIME: 'High Stops',
+    LOW_EFFICIENCY: 'Low Efficiency',
+    BELOW_FACTORY_AVERAGE: 'Low Efficiency',
+};
+const EFFICIENCY_BUCKET_DEFS = [
+    { key: 'excellent', min: 94, max: null },
+    { key: 'good', min: 88, max: 94 },
+    { key: 'watch', min: 80, max: 88 },
+    { key: 'low', min: null, max: 80 },
+];
+const LONG_STOPPED_MIN_MINUTES = 10;
+const ATTENTION_BOARD_GROUPS = [
+    { key: 'fixnow', label: 'Fix Now' },
+    { key: 'needsattention', label: 'Needs Attention' },
+    { key: 'watch', label: 'Watch' },
+    { key: 'good', label: 'Good' },
+];
+
+function getShiftName(shift) {
+    return Number(shift) === global.config.SHIFT_TYPE.NIGHT ? 'Night Shift' : 'Day Shift';
+}
+
+function getEfficiencyBucketKey(efficiency) {
+    if (efficiency >= 94) return 'excellent';
+    if (efficiency >= 88) return 'good';
+    if (efficiency >= 80) return 'watch';
+    return 'low';
+}
+
+function emptyEfficiencyBuckets() {
+    return EFFICIENCY_BUCKET_DEFS.reduce((acc, def) => {
+        acc[def.key] = {
+            ...(def.min != null ? { min: def.min } : {}),
+            ...(def.max != null ? { max: def.max } : {}),
+            count: 0,
+            machines: [],
+        };
+        return acc;
+    }, {});
+}
+
+function toTvAttentionReason(reasons = []) {
+    for (const reason of reasons) {
+        const label = TV_ATTENTION_REASON_MAP[reason?.code];
+        if (label) return label;
+    }
+    return null;
+}
+
+function formatDurationHHmm(from) {
+    if (!from) return '00:00';
+    const seconds = Math.max(0, moment().diff(moment(from), 'seconds'));
+    return moment.utc(seconds * 1000).format('HH:mm') || '00:00';
+}
+
+function computeGroupMetrics(machines = []) {
+    const count = machines.length;
+    if (!count) {
+        return { efficiency: 0, pick: 0, avgPicks: 0, avgSpeed: 0, count: 0 };
+    }
+
+    let efficiencySum = 0;
+    let efficiencyCount = 0;
+    let pickSum = 0;
+    let speedSum = 0;
+    let running = 0;
+
+    for (const machine of machines) {
+        if (Number(machine.efficiency) > 0) {
+            efficiencySum += Number(machine.efficiency);
+            efficiencyCount += 1;
+        }
+        pickSum += Number(machine.picks) || 0;
+        speedSum += Number(machine.speed) || 0;
+        if (Number(machine.speed) > 0) running += 1;
+    }
+
+    return {
+        efficiency: Math.round(efficiencySum / (efficiencyCount || 1)),
+        pick: pickSum,
+        avgPicks: Math.round(pickSum / count),
+        avgSpeed: running ? Math.round(speedSum / running) : 0,
+        count,
+    };
+}
+
+function buildAttentionBoardMachine(log, attention = {}) {
+    const machine = log.machineId || {};
+    const isRunning = Number(log.stop) === 0;
+    const durationFrom = isRunning ? (machine.lastStartTime || log.lastStartTime) : (machine.lastStopTime || log.lastStopTime);
+    return {
+        machineId: String(machine._id || ''),
+        machineCode: machine.machineCode || '',
+        quality: machine.quality || '',
+        efficiency: Number.isFinite(Number(log.efficiencyPercent)) ? toOneDecimal(log.efficiencyPercent) : 0,
+        picks: Number(log.picksCurrentShift) || 0,
+        speed: Number(log.speedRpm) || 0,
+        currentStop: log.stop || 0,
+        stopReason: machineLogsService.getStopReason(log.stop, machine.displayType),
+        totalDuration: formatDurationHHmm(durationFrom),
+        attentiongroup: attention.attentiongroup || 'good',
+        attentionReasons: attention.attentionReasons || [],
+    };
+}
+// Custom Dashboard 2 Helpers -- End
+
+
 module.exports = {
     getList: async (req, res, next) => {
         try {
@@ -253,6 +364,188 @@ module.exports = {
             data.overallEfficiency = toOneDecimal(overallEfficiency / (overallEfficiencyCount || 1));
             data.efficiencyChartList.sort((a, b) => String(a.lineKey).localeCompare(String(b.lineKey), undefined, { numeric: true }));
 
+
+            return res.ok(data, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
+    customView2: async (req, res, next) => {
+        try {
+            const body = req.body;
+            const screen = body.screen;
+            const machineGroupId = body.machineGroupId;
+            if (!utilService.isValidObjectId(machineGroupId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const CUSTOM_DASHBOARD_2_SCREEN = global.config.CUSTOM_DASHBOARD_2_SCREEN;
+            if (!CUSTOM_DASHBOARD_2_SCREEN?._list?.includes(screen)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+
+            const { workspaceId } = req.user;
+            const group = await machineGroupService.findOne(
+                { _id: machineGroupId, workspaceId },
+                { useLean: true, projection: { groupName: 1 } }
+            );
+            if (!group) throw global.config.message.RECORD_NOT_FOUND;
+
+            const { machineLogs } = await machineLogsService.customDashboardView2({
+                workspaceId,
+                machineGroupId,
+            });
+
+            // TODO: upcoming feature (`machines` came from .customDashboardView2 service)
+            // const weeklyTopPerformers = await machineLogsService.getWeeklyTopPerformers({
+            //     workspaceId,
+            //     machineIds: machines.map(machine => machine._id),
+            // });
+
+            const isOverviewScreen = screen === CUSTOM_DASHBOARD_2_SCREEN.OVERVIEW;
+            const isAttentionScreen = screen === CUSTOM_DASHBOARD_2_SCREEN.ATTENTION;
+            const validLogs = machineLogs.filter(log => log?.machineId?._id);
+            const now = moment();
+
+            const data = {
+                group: {
+                    _id: group._id,
+                    name: group.groupName,
+                },
+            };
+
+            const attentionRows = validLogs.map(log => ({
+                machineCode: log.machineId.machineCode,
+                machineId: log.machineId._id,
+            }));
+
+            await machineAttentionService.attachAttentionGroups(attentionRows, validLogs, workspaceId);
+            const attentionByCode = attentionRows.reduce((acc, row) => {
+                acc[row.machineCode] = {
+                    attentiongroup: row.attentiongroup,
+                    attentionReasons: row.attentionReasons || [],
+                };
+                return acc;
+            }, {});
+
+            const shiftCounts = {};
+            let efficiencySum = 0;
+            let efficiencyCount = 0;
+            const running = [];
+            const longStoppedMachines = [];
+            const efficiencyBuckets = emptyEfficiencyBuckets();
+            const logsByAttentionGroup = {};
+            const longStopThresholdSec = LONG_STOPPED_MIN_MINUTES * 60;
+
+            for (const log of validLogs) {
+                const rawEfficiency = Number(log.efficiencyPercent);
+                const hasEfficiency = Number.isFinite(rawEfficiency);
+                const efficiency = hasEfficiency ? toOneDecimal(rawEfficiency) : 0;
+
+                if (Number.isInteger(log.shift)) {
+                    shiftCounts[log.shift] = (shiftCounts[log.shift] || 0) + 1;
+                }
+                if (hasEfficiency && rawEfficiency > 0) {
+                    efficiencySum += rawEfficiency;
+                    efficiencyCount += 1;
+                }
+
+                const machine = log.machineId;
+                const machineId = String(machine._id);
+                const machineCode = machine.machineCode;
+
+                if (isAttentionScreen) {
+                    const attentionKey = attentionByCode[machineCode]?.attentiongroup || 'good';
+                    (logsByAttentionGroup[attentionKey] ??= []).push(log);
+                }
+
+                if (isOverviewScreen) {
+                    efficiencyBuckets[getEfficiencyBucketKey(hasEfficiency ? rawEfficiency : 0)].machines.push({
+                        machineId,
+                        machineCode,
+                        efficiency,
+                    });
+
+                    const isRunning = Number(log.stop) === 0;
+                    if (isRunning) {
+                        running.push({
+                            machineId,
+                            machineCode,
+                            efficiency,
+                            attentionReasons: attentionByCode[machineCode]?.attentionReasons || [],
+                        });
+                    } else {
+                        const lastStopTime = machine.lastStopTime || log.lastStopTime;
+                        if (lastStopTime) {
+                            const stopDurationSeconds = Math.max(0, now.diff(moment(lastStopTime), 'seconds'));
+                            if (stopDurationSeconds >= longStopThresholdSec) {
+                                longStoppedMachines.push({
+                                    machineId,
+                                    machineCode,
+                                    stopMinutes: Math.floor(stopDurationSeconds / 60),
+                                    stopReason: machineLogsService.getStopReason(log.stop, machine.displayType),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            const shiftValue = Object.entries(shiftCounts).reduce(
+                (acc, [shift, count]) => (count > acc.maxCount ? { value: Number(shift), maxCount: count } : acc),
+                { value: global.config.SHIFT_TYPE.DAY, maxCount: 0 }
+            ).value;
+            data.shift = {
+                name: getShiftName(shiftValue),
+            };
+            data.overallEfficiency = efficiencyCount ? toOneDecimal(efficiencySum / efficiencyCount) : 0;
+
+            if (isOverviewScreen) {
+                for (const bucket of Object.values(efficiencyBuckets)) {
+                    bucket.machines.sort((a, b) => b.efficiency - a.efficiency);
+                    bucket.count = bucket.machines.length;
+                }
+
+                running.sort((a, b) => b.efficiency - a.efficiency);
+                data.topRunningMachines = running.slice(0, 5).map(({ machineId, machineCode, efficiency }) => ({
+                    machineId,
+                    machineCode,
+                    efficiency,
+                }));
+
+                data.needsAttentionMachines = [...running].sort((a, b) => a.efficiency - b.efficiency).slice(0, 5)
+                    .map(({ machineId, machineCode, efficiency, attentionReasons }) => {
+                        const attentionReason = toTvAttentionReason(attentionReasons);
+                        return {
+                            machineId,
+                            machineCode,
+                            efficiency,
+                            ...(attentionReason ? { attentionReason } : {}),
+                        };
+                    });
+
+                data.longStoppedMachines = longStoppedMachines;
+                data.efficiencyBuckets = efficiencyBuckets;
+            }
+
+            if (isAttentionScreen) {
+                data.attentionBoard = ATTENTION_BOARD_GROUPS.map(def => {
+                    const groupMachines = (logsByAttentionGroup[def.key] || []).map(log =>
+                        buildAttentionBoardMachine(log, attentionByCode[log.machineId.machineCode])
+                    );
+                    return {
+                        key: def.key,
+                        label: def.label,
+                        machines: groupMachines,
+                        ...computeGroupMetrics(groupMachines),
+                    };
+                });
+            }
+
+            data.totalMachines = validLogs.length;
+            data.generatedAt = new Date().toISOString();
 
             return res.ok(data, global.config.message.OK);
         } catch (error) {

@@ -6,10 +6,10 @@ Inspired by hosted MCP patterns such as [Pulsetic MCP](https://pulsetic.com/mcp/
 
 ## Prerequisites
 
-1. Install MCP runtime dependencies once:
+1. Install backend dependencies (includes MCP SDK):
 
 ```bash
-cd trackweaving-mcp && npm install
+cd trackweaving-backend && npm install
 ```
 
 2. Backend environment (`.env`):

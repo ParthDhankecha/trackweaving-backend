@@ -25,7 +25,31 @@ expressApp.get('/dev', function (req, res, next) {
 
 expressApp.use('/api', routes);
 
-expressApp.get('*', function (req, res) {
+try {
+    const { mountTrackWeavingMcp } = require('../mcp/mount');
+    mountTrackWeavingMcp(expressApp);
+} catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('TrackWeaving MCP not mounted:', error.message);
+    if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error(error.stack);
+    }
+}
+
+expressApp.get('*', function (req, res, next) {
+    if (
+        req.path.startsWith('/mcp')
+        || req.path.startsWith('/oauth')
+        || req.path.startsWith('/.well-known')
+        || req.path.startsWith('/docs/mcp')
+        || req.path === '/authorize'
+        || req.path === '/token'
+        || req.path === '/register'
+        || req.path === '/revoke'
+    ) {
+        return next();
+    }
     return res.sendFile(path.join(__dirname, '..', '..', 'client', 'index.html'));
 });
 

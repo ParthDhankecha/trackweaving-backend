@@ -1791,6 +1791,199 @@ module.exports = {
     },
 
 
+    getStopReasonForStopEvent(category, stopEvent, displayType = 'nazon') {
+        const STOP_CATEGORY_CODE = {
+            warp: 1,
+            weft: 2,
+            feeder: 7,
+            manual: 4,
+            h1: 8,
+            h2: 9,
+        };
+        const stopCode = category === 'other'
+            ? stopEvent?.statusCode
+            : (stopEvent?.statusCode ?? STOP_CATEGORY_CODE[category]);
+        if (stopCode == null) {
+            return category;
+        }
+        return this.getStopReason(stopCode, displayType);
+    },
+
+    enrichStopsDataWithReasons(stopsData = {}, displayType = 'nazon') {
+        const ALL_STOP_DATA_KEYS = ['h1', 'h2', 'warp', 'weft', 'feeder', 'manual', 'other'];
+        const enriched = {};
+        for (const key of ALL_STOP_DATA_KEYS) {
+            enriched[key] = (stopsData?.[key] || []).map((stop) => ({
+                start: stop.start,
+                end: stop.end,
+                duration: stop.duration,
+                statusCode: stop.statusCode,
+                stopReason: this.getStopReasonForStopEvent(key, stop, displayType),
+            }));
+        }
+        return enriched;
+    },
+
+    async getMachineLogsFullDetails(options = {}) {
+        utilService.checkRequiredParams(['workspaceId', 'startDate', 'endDate'], options);
+
+        const page = Math.max(parseInt(options.page, 10) || 1, 1);
+        const defaultLimit = parseInt(global.config?.RECORD_LIMIT, 10) || 50;
+        const limit = Math.min(Math.max(parseInt(options.limit, 10) || defaultLimit, 1), 200);
+        const skip = (page - 1) * limit;
+
+        let machineIds = [];
+        if (options.machineGroupId) {
+            if (!utilService.isValidObjectId(options.machineGroupId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            const groupedMachines = await machineService.find({
+                workspaceId: options.workspaceId,
+                machineGroupId: options.machineGroupId,
+                isDeleted: false,
+            }, { useLean: true, projection: { _id: 1 } });
+            machineIds = groupedMachines.map((m) => m._id);
+        } else if (Array.isArray(options.machineIds) && options.machineIds.length) {
+            machineIds = options.machineIds.filter((id) => utilService.isValidObjectId(id));
+            if (!machineIds.length) {
+                throw global.config.message.BAD_REQUEST;
+            }
+        } else {
+            const allMachines = await machineService.find({
+                workspaceId: options.workspaceId,
+                isDeleted: false,
+            }, { useLean: true, projection: { _id: 1 } });
+            machineIds = allMachines.map((m) => m._id);
+        }
+
+        if (options.masterMachineIds?.length) {
+            const allowed = new Set(options.masterMachineIds.map(String));
+            machineIds = machineIds.filter((id) => allowed.has(String(id)));
+        }
+
+        if (options.operatorId) {
+            if (!utilService.isValidObjectId(options.operatorId)) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            const operator = await operatorService.findOne({
+                _id: options.operatorId,
+                workspaceId: options.workspaceId,
+            }, { projection: { machineIds: 1 }, useLean: true });
+            if (!operator) {
+                throw global.config.message.BAD_REQUEST;
+            }
+            const operatorMachineIds = new Set((operator.machineIds || []).map(String));
+            machineIds = machineIds.filter((id) => operatorMachineIds.has(String(id)));
+        }
+
+        if (!machineIds.length) {
+            return {
+                data: [],
+                pagination: { page, limit, totalCount: 0, totalPages: 0 },
+            };
+        }
+
+        const condition = {
+            workspaceId: options.workspaceId,
+            machineId: { $in: machineIds },
+            shiftDate: {
+                $gte: moment(new Date(options.startDate).toISOString()).startOf('day').toDate(),
+                $lte: moment(new Date(options.endDate).toISOString()).endOf('day').toDate(),
+            },
+        };
+
+        if (options.shift !== undefined && options.shift !== null) {
+            const shiftFilter = Array.isArray(options.shift) ? options.shift : [options.shift];
+            condition.shift = { $in: shiftFilter.map((s) => parseInt(s, 10)) };
+        }
+
+        if (options.quality) {
+            const qualities = Array.isArray(options.quality) ? options.quality : [options.quality];
+            const cleaned = qualities.map((q) => String(q).trim()).filter(Boolean);
+            if (cleaned.length === 1) {
+                condition.quality = cleaned[0];
+            } else if (cleaned.length > 1) {
+                condition.quality = { $in: cleaned };
+            }
+        }
+
+        if (options.operatorId) {
+            condition.operatorId = options.operatorId;
+        }
+
+        const [logs, totalCount, machines] = await Promise.all([
+            this.find(condition, {
+                sort: { shiftDate: -1, machineId: 1, shift: 1 },
+                skip,
+                limit,
+                projection: { rawData: 0 },
+                useLean: true,
+            }),
+            this.countDocuments(condition),
+            machineService.find(
+                { _id: { $in: machineIds }, workspaceId: options.workspaceId },
+                {
+                    useLean: true,
+                    projection: {
+                        machineCode: 1,
+                        machineName: 1,
+                        displayType: 1,
+                        machineType: 1,
+                        quality: 1,
+                        machineGroupId: 1,
+                        reed: 1,
+                    },
+                }
+            ),
+        ]);
+
+        const machineMap = machines.reduce((acc, machine) => {
+            acc[String(machine._id)] = machine;
+            return acc;
+        }, {});
+
+        const data = logs.map((log) => {
+            const machine = machineMap[String(log.machineId)] || {};
+            const displayType = machine.displayType || 'nazon';
+            return {
+                _id: log._id,
+                machineId: log.machineId,
+                machineCode: machine.machineCode,
+                machineName: machine.machineName,
+                machineType: machine.machineType,
+                machineGroupId: machine.machineGroupId,
+                displayType,
+                shift: log.shift,
+                shiftDate: log.shiftDate,
+                quality: log.quality ?? machine.quality ?? null,
+                operatorId: log.operatorId,
+                speedRpm: log.speedRpm,
+                efficiencyPercent: log.efficiencyPercent,
+                picksCurrentShift: log.picksCurrentShift,
+                pieceLengthM: log.pieceLengthM,
+                beamLeft: log.beamLeft,
+                setPicks: log.setPicks,
+                stopCount: log.stopCount,
+                stopsCount: log.stopsCount,
+                runTime: log.runTime,
+                powerOff: log.powerOff === true,
+                stopsData: this.enrichStopsDataWithReasons(log.stopsData, displayType),
+                createdAt: log.createdAt,
+                updatedAt: log.updatedAt,
+            };
+        });
+
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                totalCount,
+                totalPages: Math.ceil(totalCount / limit),
+            },
+        };
+    },
+
     getStopReasonGroup(stopCode, displayType = 'nazon') {
         const byGroup = STOP_REASON_GROUPS[displayType] || STOP_REASON_GROUPS.nazon;
         if (!byGroup) return null;

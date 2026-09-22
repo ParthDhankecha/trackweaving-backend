@@ -314,6 +314,33 @@ module.exports = {
         }
     },
 
+    getFullDetails: async (req, res, next) => {
+        try {
+            const body = req.body || {};
+            utilService.checkRequiredParams(['startDate', 'endDate'], body);
+
+            const { workspaceId, isMaster, machineIds: masterMachineIds } = req.user;
+            const result = await machineLogsService.getMachineLogsFullDetails({
+                workspaceId,
+                masterMachineIds: isMaster ? masterMachineIds : undefined,
+                machineIds: body.machineIds,
+                startDate: body.startDate,
+                endDate: body.endDate,
+                shift: body.shift,
+                quality: body.quality,
+                operatorId: body.operatorId,
+                machineGroupId: body.machineGroupId,
+                page: body.page,
+                limit: body.limit,
+            });
+
+            return res.ok(result, global.config.message.OK);
+        } catch (error) {
+            utilService.log(error);
+            return res.serverError(error);
+        }
+    },
+
     updateBeamLeft: async (req, res, next) => {
         try {
             const { machineId, beamLeft, date } = req.body;

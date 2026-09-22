@@ -195,6 +195,14 @@ const machineLogsSchema = new Schema({
                 type: [machineStopsDataSubSchema],
                 default: []
             },
+            h1: {
+                type: [machineStopsDataSubSchema],
+                default: []
+            },
+            h2: {
+                type: [machineStopsDataSubSchema],
+                default: []
+            },
             other: {
                 type: [{
                     start: {

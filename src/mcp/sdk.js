@@ -38,4 +38,7 @@ module.exports = {
     getRateLimit() {
         return resolveFromMcpPackage('express-rate-limit');
     },
+    getMetadataHandler() {
+        return resolveFromMcpPackage('@modelcontextprotocol/sdk/server/auth/handlers/metadata.js').metadataHandler;
+    },
 };

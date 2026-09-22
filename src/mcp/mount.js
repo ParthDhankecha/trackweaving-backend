@@ -49,6 +49,17 @@ function mountTrackWeavingMcp(app) {
         baseUrl: mcpConfig.issuerUrl,
         scopesSupported: mcpConfig.scopesSupported,
     });
+    oauthMetadata.issuer = mcpConfig.issuerOrigin;
+
+    const protectedResourceMetadata = {
+        resource: mcpConfig.mcpResourceUrl.href,
+        authorization_servers: [mcpConfig.issuerOrigin],
+        scopes_supported: mcpConfig.scopesSupported,
+        resource_name: mcpConfig.resourceName,
+        resource_documentation: mcpConfig.serviceDocumentationUrl?.href,
+    };
+
+    const metaHandler = mcpSdk.getMetadataHandler();
 
     app.use(mcpAuthMetadataRouter({
         oauthMetadata,
@@ -56,6 +67,14 @@ function mountTrackWeavingMcp(app) {
         scopesSupported: mcpConfig.scopesSupported,
         resourceName: mcpConfig.resourceName,
         serviceDocumentationUrl: mcpConfig.serviceDocumentationUrl,
+    }));
+
+    app.use('/.well-known/oauth-protected-resource', metaHandler(protectedResourceMetadata));
+    app.use('/.well-known/openid-configuration', metaHandler({
+        ...oauthMetadata,
+        subject_types_supported: ['public'],
+        id_token_signing_alg_values_supported: ['RS256'],
+        response_modes_supported: ['query'],
     }));
 
     const tokenVerifier = {

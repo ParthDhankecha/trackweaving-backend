@@ -16,14 +16,22 @@ const baseUrl = getPublicBaseUrl();
 const mcpPath = process.env.MCP_HTTP_PATH || '/mcp';
 const oauthPathPrefix = process.env.MCP_OAUTH_PATH_PREFIX || '/oauth';
 
+function resolveIssuerOrigin() {
+    if (process.env.MCP_OAUTH_ISSUER_URL) {
+        return new URL(process.env.MCP_OAUTH_ISSUER_URL).origin;
+    }
+    return baseUrl.origin;
+}
+
+const issuerOrigin = resolveIssuerOrigin();
+
 module.exports = {
     enabled: process.env.MCP_ENABLED !== 'false',
     env,
     baseUrl,
+    issuerOrigin,
     mcpResourceUrl: new URL(mcpPath, baseUrl),
-    issuerUrl: process.env.MCP_OAUTH_ISSUER_URL
-        ? new URL(process.env.MCP_OAUTH_ISSUER_URL)
-        : baseUrl,
+    issuerUrl: new URL(issuerOrigin),
     oauthPathPrefix,
     scopesSupported: ['mcp:read'],
     resourceName: 'TrackWeaving API',

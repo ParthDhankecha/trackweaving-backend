@@ -8,6 +8,10 @@ const routes = require('../api/routes/indexRoute');
 
 const expressApp = express();
 
+if (process.env.MCP_TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production') {
+    expressApp.set('trust proxy', 1);
+}
+
 expressApp.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 expressApp.use(bodyParser.json({ limit: '10mb' }));
 

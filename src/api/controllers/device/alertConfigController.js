@@ -2,7 +2,7 @@ const alertConfigService = require('../../services/alertConfigService');
 const machineAttentionService = require('../../services/machineAttentionService');
 const workspaceService = require('../../services/workspaceService');
 const { ALERT_CONFIG_SCHEMA } = require('../../../config/constant/alert');
-const { MACHINE_ATTENTION_SCHEMA_WEB } = require('../../../config/constant/machineAttention');
+const { MACHINE_ATTENTION_SCHEMA } = require('../../../config/constant/machineAttention');
 const utilService = require('../../services/utilService');
 
 const { ALERT_KEYS } = alertConfigService;
@@ -89,7 +89,7 @@ module.exports = {
 
             const data = {
                 schema: ALERT_CONFIG_SCHEMA,
-                machineAttentionSchema: MACHINE_ATTENTION_SCHEMA_WEB,
+                attentionSchema: MACHINE_ATTENTION_SCHEMA,
                 workspaceAlerts,
                 workspaceMachineAttention: machineAttentionService.normalizeMachineAttentionConfig(
                     workspaceConfig.machineAttention
@@ -103,6 +103,7 @@ module.exports = {
             return res.serverError(error);
         }
     },
+
     upsertWorkspace: async (req, res) => {
         try {
             const alerts = pickAlertBody(req.body);

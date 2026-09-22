@@ -8,5 +8,7 @@ router.post('/list', auth, controller.getList);
 
 router.post('/custom', auth, controller.customView);
 
+router.post('/custom-2', auth, controller.customView2);
+
 
 module.exports = router;

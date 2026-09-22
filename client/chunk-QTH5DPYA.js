@@ -1,0 +1,1 @@
+import{Hb as r,qb as e,ub as o,v as t}from"./chunk-H7M4P3GV.js";var v=(a,u)=>{let s=t(e),c=t(r);return(a.data?.accessModules||["default"]).some(n=>c.utils.can(n,"read"))?!0:(s.navigateByUrl(`/${o.AUTH.BASE}`),!1)};export{v as a};

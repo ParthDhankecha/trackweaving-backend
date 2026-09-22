@@ -45,9 +45,82 @@ const DEFAULT_MACHINE_ATTENTION_CONFIG = {
     },
 };
 
+const MACHINE_ATTENTION_SCHEMA = {
+    fixnow: {
+        title: "dyn_fixNow",
+        description: "dyn_fixNowDescription",
+        fields: {
+            currentStop: {
+                title: "dyn_currentStop",
+                inlineFields: "dyn_currentStopInlineFields"
+            },
+            efficiency: {
+                title: "dyn_efficiency",
+                inlineFields: "dyn_efficiencyInlineFields"
+            },
+            repeatedSameStop: {
+                title: "dyn_repeatedSameStop",
+                inlineFields: "dyn_repeatedSameStopInlineFields"
+            },
+            downtime: {
+                title: "dyn_downtime",
+                inlineFields: "dyn_downtimeInlineFields"
+            }
+        }
+    },
+    needsattention: {
+        title: "dyn_needsAttention",
+        description: "dyn_needsAttentionDescription",
+        fields: {
+            currentStop: {
+                title: "dyn_currentStop",
+                inlineFields: "dyn_currentStopInlineFields"
+            },
+            efficiency: {
+                title: "dyn_efficiency",
+                inlineFields: "dyn_efficiencyInlineFields"
+            },
+            repeatedSameStop: {
+                title: "dyn_repeatedSameStop",
+                inlineFields: "dyn_repeatedSameStopInlineFields"
+            },
+            downtime: {
+                title: "dyn_downtime",
+                inlineFields: "dyn_downtimeInlineFields"
+            },
+            lowSpeed: {
+                title: "dyn_lowSpeed",
+                inlineFields: "dyn_lowSpeedInlineFields"
+            }
+        }
+    },
+    watch: {
+        title: "dyn_watch",
+        description: "dyn_watchDescription",
+        fields: {
+            efficiency: {
+                title: "dyn_efficiency",
+                inlineFields: "dyn_efficiencyInlineFields"
+            },
+            repeatedSameStop: {
+                title: "dyn_repeatedSameStop",
+                inlineFields: "dyn_repeatedSameStopInlineFields"
+            },
+            lowSpeed: {
+                title: "dyn_lowSpeed",
+                inlineFields: "dyn_lowSpeedInlineFields"
+            },
+            belowFactoryAverage: {
+                title: "dyn_belowFactoryAverage",
+                inlineFields: "dyn_belowFactoryAverageInlineFields"
+            }
+        }
+    }
+};
+
 const MACHINE_ATTENTION_SCHEMA_WEB = {
     fixnow: {
-        title: enTranslation.machineAttentionFixNow || 'Fix Now',
+        title: enTranslation.dyn_fixNow || 'Fix Now',
         criteria: {
             currentStop: {
                 title: 'Current Stop',
@@ -78,7 +151,7 @@ const MACHINE_ATTENTION_SCHEMA_WEB = {
         },
     },
     needsattention: {
-        title: enTranslation.machineAttentionNeedsAttention || 'Needs Attention',
+        title: enTranslation.dyn_needsAttention || 'Needs Attention',
         criteria: {
             currentStop: {
                 title: 'Current Stop',
@@ -116,7 +189,7 @@ const MACHINE_ATTENTION_SCHEMA_WEB = {
         },
     },
     watch: {
-        title: enTranslation.machineAttentionWatch || 'Watch',
+        title: enTranslation.dyn_watch || 'Watch',
         criteria: {
             efficiency: {
                 title: 'Efficiency',
@@ -148,10 +221,12 @@ const MACHINE_ATTENTION_SCHEMA_WEB = {
     },
 };
 
+
 module.exports = {
     MACHINE_ATTENTION_GROUP,
     ATTENTION_REASON_CODE,
     ATTENTION_GROUP_ORDER,
     DEFAULT_MACHINE_ATTENTION_CONFIG,
     MACHINE_ATTENTION_SCHEMA_WEB,
+    MACHINE_ATTENTION_SCHEMA,
 };

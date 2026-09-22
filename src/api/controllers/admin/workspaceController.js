@@ -50,11 +50,23 @@ module.exports = {
             if (wDuplicate) throw global.config.message.IS_DUPLICATE;
 
 
-            const { workspaceName, GSTNo, isActive, startTime, endTime } = body;
             const workspaceObj = {
                 firmName: workspaceNameObj.normalized,
                 userId: null, // will be set after user creation
             };
+
+            if (body.manufacturerId) {
+                if (!utilService.isValidObjectId(body.manufacturerId)) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                const manufacturer = await manufacturerService.findOne({ _id: body.manufacturerId }, {
+                    projection: { _id: 1 },
+                    useLean: true,
+                });
+                if (!manufacturer) throw global.config.message.BAD_REQUEST;
+
+                workspaceObj.manufacturerId = manufacturer._id;
+            }
             if (typeof body?.dayShift === 'object') {
                 workspaceObj.dayShift = body.dayShift;
             }

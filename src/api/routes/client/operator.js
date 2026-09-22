@@ -2,6 +2,7 @@ const router = require('express').Router();
 
 const auth = require('../../middleware/auth');
 const requireAccess = require('../../middleware/requireAccess');
+const { uploadSingleOrArray } = require('../../middleware/upload');
 const controller = require('../../controllers/client/operatorController');
 
 const { MODULE_KEYS, ACTION_KEYS } = require('../../services/accessService');
@@ -9,9 +10,9 @@ const { MODULE_KEYS, ACTION_KEYS } = require('../../services/accessService');
 
 router.post('/list', auth, requireAccess(MODULE_KEYS.OPERATOR, ACTION_KEYS.READ), controller.getList);
 
-router.post('/', auth, requireAccess(MODULE_KEYS.OPERATOR, ACTION_KEYS.CREATE), controller.create);
+router.post('/', auth, requireAccess(MODULE_KEYS.OPERATOR, ACTION_KEYS.CREATE), uploadSingleOrArray('profile'), controller.create);
 
-router.put('/:id', auth, requireAccess(MODULE_KEYS.OPERATOR, ACTION_KEYS.UPDATE), controller.update);
+router.put('/:id', auth, requireAccess(MODULE_KEYS.OPERATOR, ACTION_KEYS.UPDATE), uploadSingleOrArray('profile'), controller.update);
 
 router.delete('/:id', auth, requireAccess(MODULE_KEYS.OPERATOR, ACTION_KEYS.DELETE), controller.delete);
 

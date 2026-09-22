@@ -3,6 +3,7 @@ const { ObjectId } = require('mongoose').Types;
 
 const machineService = require('./machineService');
 const alertConfigService = require('./alertConfigService');
+const operatorService = require('./operatorService');
 const utilService = require('./utilService');
 
 
@@ -638,7 +639,7 @@ module.exports = {
         omitItemaBeamFields(body);
 
         let machineLog = await machineLatestLogsModel.findOneAndUpdate({ machineId: body.machineId }, body, { upsert: true, returnDocument: 'before' });
-        if(body.displayType === ITEMA_DISPLAY_TYPE) {
+        if (body.displayType === ITEMA_DISPLAY_TYPE) {
             await syncMachineQualityIfChanged(machineLog, body);
         }
         let shiftDate;
@@ -812,14 +813,14 @@ module.exports = {
                 { useLean: true, projection: { _id: 1 } }
             );
             if (!machines.length) return;
-    
+
             const latestLogs = await machineLatestLogsModel.find({
                 machineId: { $in: machines.map((machine) => machine._id) },
                 isDeleted: false,
                 'beamData.beam': { $gt: 0 },
                 'beamData.loadedAt': { $ne: null }
             }).select({ machineId: 1, workspaceId: 1, beamData: 1, shift: 1, shiftDate: 1 }).lean();
-    
+
             for (const latest of latestLogs) {
                 try {
                     const loadedAt = moment(latest.beamData.loadedAt).startOf('day').toDate();
@@ -832,12 +833,12 @@ module.exports = {
                     const beamLeft = currentBeamLeft(beam, produced);
                     const beamData = { beam, loadedAt };
                     const shiftDate = latest.shiftDate || resolveShiftDate(latest.shift);
-    
+
                     await machineLatestLogsModel.updateOne(
                         { _id: latest._id },
                         { $set: { beamLeft, beamData } }
                     );
-    
+
                     if (Number.isInteger(latest.shift) && shiftDate) {
                         await machineLogsModel.updateOne({
                             machineId: latest.machineId,
@@ -1547,6 +1548,9 @@ module.exports = {
             all: running + stopped
         };
 
+        // sort machineLogs by machineCode
+        machineLogs.sort((a, b) => a.machineId.machineCode.localeCompare(b.machineId.machineCode, undefined, { numeric: true }));
+
         return { data: machineLogs, aggregateReport };
         /*
         let data1 = await machineLogsModel.aggregate([
@@ -1680,6 +1684,110 @@ module.exports = {
         }, machineGroupMap);
 
         return { machineLogs, machineGroupMap };
+    },
+
+
+    async customDashboardView2(options = {}) {
+        const { workspaceId, machineGroupId } = options;
+        if (!workspaceId || !machineGroupId) {
+            throw global.config.message.BAD_REQUEST;
+        }
+
+        const machines = await machineService.find({ workspaceId, machineGroupId, }, { useLean: true });
+        if (!machines.length) {
+            return { machineLogs: [], machines };
+        }
+
+        const machineMap = machines.reduce((acc, machine) => {
+            acc[String(machine._id)] = machine;
+            return acc;
+        }, {});
+
+        const machineLogs = await machineLatestLogsModel.find({
+            workspaceId,
+            machineId: { $in: machines.map(machine => machine._id) },
+            isDeleted: false,
+        }).sort({ machineId: 1 }).lean();
+
+        for (const log of machineLogs) {
+            if (log.powerOff === true) {
+                log.stop = getPowerOffStopCode();
+                log.speedRpm = 0;
+            }
+            log.machineId = {
+                ...machineMap[String(log.machineId)],
+                stopsCount: log.stopsCount,
+                lastStartTime: log.lastStartTime,
+                lastStopTime: log.lastStopTime,
+                stopsData: log.stopsData
+            };
+        }
+
+        return { machineLogs, machines };
+    },
+
+    /**
+     * Average efficiency while each operator was assigned this week (Mon–Sun, IST).
+     * Swap the $group metric here if ranking should use another production measure later.
+     * TODO: upcoming feature
+     */
+    async getWeeklyTopPerformers(options = {}) {
+        const { workspaceId, machineIds = [] } = options;
+        const bonuses = global.config.WEEKLY_OPERATOR_BONUSES;
+        if (!workspaceId || !machineIds.length || !bonuses) return [];
+
+        const factoryNow = moment().utcOffset(330);
+        const weekStart = factoryNow.clone().startOf('isoWeek').startOf('day').toDate();
+        const workspaceObjectId = ObjectId.isValid(workspaceId) ? new ObjectId(String(workspaceId)) : workspaceId;
+        const machineObjectIds = machineIds.map(id => (id instanceof ObjectId ? id : new ObjectId(String(id))));
+
+        const rows = await machineLogsModel.aggregate([{
+            $match: {
+                workspaceId: workspaceObjectId,
+                machineId: { $in: machineObjectIds },
+                shiftDate: { $gte: weekStart },
+                operatorId: { $ne: null, $exists: true },
+                efficiencyPercent: { $gt: 0 },
+                isDeleted: { $ne: true },
+            },
+        }, {
+            $group: {
+                _id: '$operatorId',
+                performance: { $avg: '$efficiencyPercent' },
+            },
+        }, {
+            $sort: { performance: -1 }
+        }, {
+            $limit: 3
+        }]);
+
+        if (!rows.length) return [];
+
+        const operators = await operatorService.find({
+            _id: { $in: rows.map(row => row._id) },
+        }, {
+            useLean: true,
+            projection: { operatorName: 1, profile: 1 },
+        });
+        const operatorMap = operators.reduce((acc, operator) => {
+            acc[String(operator._id)] = operator;
+            return acc;
+        }, {});
+
+        const toOneDecimal = (value) => Math.round((Number(value) || 0) * 10) / 10;
+
+        return rows.map((row, index) => {
+            const rank = index + 1;
+            const operator = operatorMap[String(row._id)] || {};
+            return {
+                rank,
+                operatorId: String(row._id),
+                operatorName: operator.operatorName || 'Unknown',
+                operatorImage: operator.profile || null,
+                performance: toOneDecimal(row.performance),
+                bonus: bonuses[rank] || 0,
+            };
+        });
     },
 
 

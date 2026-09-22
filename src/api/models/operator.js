@@ -15,6 +15,11 @@ const operatorSchema = new Schema({
         trim: true,
         required: true
     },
+    profile: {
+        type: String,
+        trim: true,
+        default: null
+    },
     shift: {
         type: Number,
         enum: Object.values(SHIFT_TYPE),

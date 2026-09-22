@@ -11,6 +11,7 @@
 
 # production
 src/public/upload/*
+src/public/operators/*
 
 # misc
 .DS_Store

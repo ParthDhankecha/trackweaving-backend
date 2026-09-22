@@ -12,6 +12,7 @@ module.exports = {
             const syncData = {
                 publicUrl: global.config.SERVER_URL || '',
                 clientUrl: global.config.CLIENT_URL || '',
+                assetUrl: global.config.SERVER_URL || '',
                 roles: {
                     SUPER_ADMIN: global.config.USERS.TYPE.SUPER_ADMIN,
                     ADMIN: global.config.USERS.TYPE.ADMIN,

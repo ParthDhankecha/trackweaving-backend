@@ -1,3 +1,6 @@
+const path = require('path');
+const fs = require('fs');
+
 const { hash } = require('bcrypt');
 const moment = require('moment');
 const { ObjectId } = require('mongoose').Types;
@@ -294,27 +297,4 @@ module.exports = {
             }
         });
     },
-
-    async moveImageToDesign(filename) {
-        try {
-            const uploadDir = path.join(__dirname, '..', 'public', 'upload');
-            const designDir = path.join(__dirname, '..', 'public', 'design');
-
-            // Ensure design folder exists
-            await fs.mkdir(designDir, { recursive: true });
-
-            const oldPath = path.join(uploadDir, filename);
-            const newPath = path.join(designDir, filename);
-
-            // Move (copy + delete original)
-            await fs.rename(oldPath, newPath);
-
-            // Return relative path to store in DB
-            return `/design/${filename}`;
-
-        } catch (error) {
-            console.error("Error moving file:", error);
-            throw error;
-        }
-    }
 }

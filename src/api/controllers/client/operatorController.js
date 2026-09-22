@@ -4,6 +4,21 @@ const utilService = require('../../services/utilService');
 const _projection = { updatedAt: 0, createdAt: 0, workspaceId: 0, isDeleted: 0 };
 const _populate = { path: 'machineIds', select: { machineCode: 1 } };
 
+const getRequestBody = (req) => {
+    try {
+        const raw = req.body?.data;
+        if (typeof raw === 'string') {
+            return JSON.parse(raw);
+        }
+        if (raw && typeof raw === 'object') {
+            return raw;
+        }
+        return req.body || {};
+    } catch (error) {
+        throw global.config.message.BAD_REQUEST;
+    }
+};
+
 
 module.exports = {
     getList: async (req, res, next) => {
@@ -32,8 +47,10 @@ module.exports = {
 
     create: async (req, res, next) => {
         let alreadyAssigned = [];
+        const file = req.file;
+        let pendingProfile = null;
         try {
-            const body = req.body;
+            const body = getRequestBody(req);
             const nameObj = utilService.escapeRegex(body.operatorName, { throwError: true });
             if (!nameObj?.normalized) {
                 throw global.config.message.BAD_REQUEST;
@@ -55,16 +72,26 @@ module.exports = {
                 throw global.config.message.OPERATOR_ALREADY_EXIST;
             }
 
-            await operatorService.create({
+            const createObj = {
                 operatorName: nameObj.normalized,
                 shift,
                 machineIds,
                 workspaceId
-            });
+            };
+            if (file) {
+                createObj.profile = await operatorService.saveProfileImage(file);
+                pendingProfile = operatorService.getProfilePath(createObj.profile);
+            }
+
+            await operatorService.create(createObj);
+            pendingProfile = null;
 
             return res.created(null, global.config.message.CREATED);
         } catch (error) {
             utilService.log(error);
+            if (pendingProfile) utilService.deleteLocalFile(pendingProfile);
+            if (file?.path) utilService.deleteLocalFile(file.path);
+
             if (alreadyAssigned?.length > 0) {
                 return res.serverError(error, { alreadyAssigned });
             }
@@ -74,41 +101,57 @@ module.exports = {
 
     update: async (req, res, next) => {
         let alreadyAssigned = [];
+        const file = req.file;
+        let pendingProfile = null;
         try {
             const operatorId = req.params.id;
             if (!utilService.isValidObjectId(operatorId)) {
                 throw global.config.message.BAD_REQUEST;
             }
 
-            const updateObj = {}, body = req.body;
+            const body = getRequestBody(req);
+            const { workspaceId } = req.user;
+            const updateObj = {};
 
-            let nameObj = null;
+            const query = { _id: operatorId, workspaceId };
             if (body.hasOwnProperty('operatorName')) {
-                nameObj = utilService.escapeRegex(body.operatorName, { throwError: true });
+                const nameObj = utilService.escapeRegex(body.operatorName, { throwError: true });
                 if (!nameObj?.normalized) {
                     throw global.config.message.BAD_REQUEST;
                 }
+
                 updateObj.operatorName = nameObj.normalized;
-            }
-
-            const { workspaceId } = req.user;
-            const needsAssignmentCheck = body.hasOwnProperty('machineIds') || body.hasOwnProperty('shift');
-            let existing = null;
-            if (needsAssignmentCheck && (!body.hasOwnProperty('machineIds') || !body.hasOwnProperty('shift'))) {
-                existing = await operatorService.findOne({ _id: operatorId, workspaceId }, {
-                    useLean: true,
-                    projection: 'shift machineIds'
+                delete query._id;
+                Object.assign(query, {
+                    $or: [{
+                        operatorName: { $regex: `^${nameObj.escaped}$`, $options: 'i' },
+                        _id: { $ne: operatorId }
+                    }, {
+                        _id: operatorId
+                    }]
                 });
-                if (!existing) throw global.config.message.NOT_UPDATED;
             }
-
             if (body.hasOwnProperty('shift')) {
                 updateObj.shift = operatorService.validateShift(body.shift);
             }
+            if (body.hasOwnProperty('machineIds')) {
+                if (!Array.isArray(body.machineIds) || body.machineIds.some((id) => !utilService.isValidObjectId(id))) {
+                    throw global.config.message.BAD_REQUEST;
+                }
+                updateObj.machineIds = [...new Set(body.machineIds)];
+            }
 
-            if (needsAssignmentCheck) {
-                const shift = updateObj.hasOwnProperty('shift') ? updateObj.shift : existing.shift;
-                const machineIds = body.hasOwnProperty('machineIds') ? body.machineIds : (existing.machineIds || []).map((id) => String(id));
+            const existing = await operatorService.findOne(query, {
+                projection: { shift: 1, machineIds: 1, profile: 1 }
+            });
+            if (!existing) throw global.config.message.NOT_FOUND;
+            if (String(existing._id) !== String(operatorId)) {
+                throw global.config.message.OPERATOR_ALREADY_EXIST;
+            }
+
+            if (updateObj.hasOwnProperty('machineIds') || updateObj.hasOwnProperty('shift')) {
+                const shift = updateObj.shift ?? existing.shift;
+                const machineIds = updateObj.machineIds ?? (existing.machineIds || []).map((id) => String(id));
                 updateObj.machineIds = await operatorService.validateMachineIds(workspaceId, machineIds, {
                     checkUniqueAssignment: true,
                     excludeOperatorId: operatorId,
@@ -117,20 +160,14 @@ module.exports = {
                 });
             }
 
-            if (Object.keys(updateObj).length === 0) {
-                throw global.config.message.BAD_REQUEST;
-            }
-
-            if (updateObj.operatorName) {
-                const duplicate = await operatorService.findOne({
-                    workspaceId,
-                    operatorName: { $regex: `^${nameObj.escaped}$`, $options: 'i' },
-                    _id: { $ne: operatorId },
-                }, {
-                    useLean: true,
-                    projection: '_id'
-                });
-                if (duplicate) throw global.config.message.OPERATOR_ALREADY_EXIST;
+            let oldProfile = null;
+            if (file) {
+                oldProfile = existing.profile;
+                updateObj.profile = await operatorService.saveProfileImage(file);
+                pendingProfile = operatorService.getProfilePath(updateObj.profile);
+            } else if (body.removeProfile) {
+                oldProfile = existing.profile;
+                updateObj.profile = null;
             }
 
             const entry = await operatorService.findOneAndUpdate({ _id: operatorId, workspaceId }, updateObj, {
@@ -139,9 +176,17 @@ module.exports = {
             });
             if (!entry) throw global.config.message.NOT_UPDATED;
 
+            pendingProfile = null;
+            if (oldProfile) {
+                utilService.deleteLocalFile(operatorService.getProfilePath(oldProfile));
+            }
+
             return res.ok(entry, global.config.message.OK);
         } catch (error) {
             utilService.log(error);
+            if (pendingProfile) utilService.deleteLocalFile(pendingProfile);
+            if (file?.path) utilService.deleteLocalFile(file.path);
+
             if (alreadyAssigned?.length > 0) {
                 return res.serverError(error, { alreadyAssigned });
             }
@@ -159,8 +204,10 @@ module.exports = {
             const { workspaceId } = req.user;
             const entry = await operatorService.findOneAndDelete({ _id: operatorId, workspaceId }, {
                 projection: { ..._projection },
+                useLean: false,
             });
             if (!entry) throw global.config.message.NOT_DELETED;
+            await operatorService.handleProfileAfterDeletion(entry);
 
             return res.ok(null, global.config.message.OK);
         } catch (error) {

@@ -26,6 +26,30 @@ function withUser(authInfo, handler) {
     };
 }
 
+const MCP_PARAM_HINT =
+    'Call list_machines and pass `_id` values in machineIds. Dates: YYYY-MM-DD. Shift: 0 (day), 1 (night), or [0,1] (all).';
+
+function assertMcpReportBody(args, { requireMachineIds = false, requireMinStopMinutes = false, requireQuality = false } = {}) {
+    const missing = [];
+    if (!args.startDate) missing.push('startDate');
+    if (!args.endDate) missing.push('endDate');
+    if (args.shift === undefined || args.shift === null || (Array.isArray(args.shift) && args.shift.length === 0)) {
+        missing.push('shift');
+    }
+    if (requireMachineIds && (!Array.isArray(args.machineIds) || args.machineIds.length === 0)) {
+        missing.push('machineIds');
+    }
+    if (requireQuality && !String(args.quality || '').trim()) {
+        missing.push('quality');
+    }
+    if (requireMinStopMinutes && (!args.minStopMinutes || args.minStopMinutes <= 0)) {
+        missing.push('minStopMinutes');
+    }
+    if (missing.length) {
+        throw new Error(`Missing or invalid required fields: ${missing.join(', ')}. ${MCP_PARAM_HINT}`);
+    }
+}
+
 module.exports = {
     createReadHandlers(authInfo) {
         return {
@@ -111,7 +135,7 @@ module.exports = {
 
             get_production_report: withUser(authInfo, async (user, args) => {
                 assertReadAccess(user, MODULE_KEYS.REPORT);
-                utilService.checkRequiredParams(['startDate', 'endDate', 'shift', 'machineIds'], args);
+                assertMcpReportBody(args, { requireMachineIds: true });
                 const data = await reportService.generateProductionShiftWiseReport({
                     workspaceId: user.workspaceId,
                     machineIds: args.machineIds,
@@ -124,7 +148,7 @@ module.exports = {
 
             get_quality_production_report: withUser(authInfo, async (user, args) => {
                 assertReadAccess(user, MODULE_KEYS.REPORT);
-                utilService.checkRequiredParams(['quality', 'startDate', 'endDate', 'shift'], args);
+                assertMcpReportBody(args, { requireQuality: true });
                 const data = await reportService.generateQualityProductionReport({
                     workspaceId: user.workspaceId,
                     quality: args.quality,
@@ -137,7 +161,7 @@ module.exports = {
 
             get_stoppage_report: withUser(authInfo, async (user, args) => {
                 assertReadAccess(user, MODULE_KEYS.REPORT);
-                utilService.checkRequiredParams(['startDate', 'endDate', 'shift', 'machineIds', 'minStopMinutes'], args);
+                assertMcpReportBody(args, { requireMachineIds: true, requireMinStopMinutes: true });
                 const data = await reportService.generateStoppageReport({
                     workspaceId: user.workspaceId,
                     machineIds: args.machineIds,

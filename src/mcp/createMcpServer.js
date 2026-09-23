@@ -1,15 +1,26 @@
 const mcpSdk = require('./sdk');
 
-const MCP_WORKFLOW =
-    'Before any report call: run list_machines and collect machine `_id` values (MongoDB ObjectId strings). ' +
-    'Dates must be YYYY-MM-DD. Shift: 0=day, 1=night; use [0,1] for all shifts.';
+const MCP_DATES =
+    'Dates: YYYY-MM-DD inclusive. Shift: 0=day, 1=night, [0,1]=all shifts.';
+
+const MCP_TOOL_ROUTING =
+    'Call the minimum tools needed—never fetch the same date range via both log details and a report tool. ' +
+    'Pick exactly ONE data tool per user question unless the user explicitly asks for two different views. ' +
+    'Routing: (1) Current/live machine status now → list_live_machine_logs only. ' +
+    '(2) Official shiftwise production totals matching the web Production report (efficiency, meters, shift/day aggregates) → get_production_report only; call list_machines first for machineIds. ' +
+    '(3) Production by quality name (not by machine pick list) → list_machine_log_qualities then get_quality_production_report only. ' +
+    '(4) Stoppage list filtered by minimum minutes (web Stoppage report) → get_stoppage_report only; call list_machines first. ' +
+    '(5) Per-shift raw logs, individual stop events/times/reasons, operator/group filters, or drill-down on one machine → get_machine_logs_details only (paginate with page/limit until totalPages exhausted). ' +
+    'Do NOT call get_machine_logs_details together with get_production_report or get_stoppage_report for the same question—they overlap; reports are pre-aggregated, log details are raw rows. ' +
+    'Call list_machines only when you need machine `_id` values for report tools or to map codes to ids—not before list_live_machine_logs.';
 
 const TOOL_DEFINITIONS = [
     {
         name: 'list_machines',
         description:
             'List configured machines in the signed-in workspace. ' +
-            'Always call this before report tools. Use each machine `_id` (string) in `machineIds` arrays.',
+            'Call only when you need machine `_id` for get_production_report or get_stoppage_report, or to resolve machineCode/name to id. ' +
+            'Skip if using get_machine_logs_details with no machineIds (all machines) or list_live_machine_logs.',
         inputSchema: {},
     },
     {
@@ -39,7 +50,9 @@ const TOOL_DEFINITIONS = [
     },
     {
         name: 'list_live_machine_logs',
-        description: 'Latest/live machine log snapshot per machine (dashboard view).',
+        description:
+            'Latest/live machine log snapshot per machine (dashboard “now”). ' +
+            'Use for current running/stopped status—not for historical dates. Do not use with report or get_machine_logs_details for the same query.',
         inputSchema: {
             page: { type: 'number' },
             limit: { type: 'number' },
@@ -49,9 +62,10 @@ const TOOL_DEFINITIONS = [
     {
         name: 'get_machine_logs_details',
         description:
-            'Historical machine logs with full stopsData and stop reason mapping. ' +
-            MCP_WORKFLOW +
-            ' machineIds is optional (omit for all accessible machines).',
+            'Historical raw shift logs (paginated) with stopsData and stop reasons. ' +
+            MCP_DATES +
+            ' Use for drill-down, per-stop timelines, operator/group/quality filters—not for official report totals. ' +
+            'Do NOT also call get_production_report or get_stoppage_report for the same question. machineIds optional.',
         inputSchema: {
             startDate: { type: 'string', description: 'ISO date or YYYY-MM-DD (required)' },
             endDate: { type: 'string', description: 'ISO date or YYYY-MM-DD (required)' },
@@ -67,9 +81,10 @@ const TOOL_DEFINITIONS = [
     {
         name: 'get_production_report',
         description:
-            'Shift-wise production report for selected machines and date range. ' +
-            MCP_WORKFLOW +
-            ' Required body: machineIds (non-empty), startDate, endDate, shift.',
+            'Official Production Shiftwise report (web parity): grouped totals/averages per date and shift. ' +
+            MCP_DATES +
+            ' Use when the user wants production/efficiency/meters summary—not raw logs. ' +
+            'Requires list_machines → machineIds, startDate, endDate, shift. Do NOT also call get_machine_logs_details.',
         inputSchema: {
             machineIds: { type: 'array', items: { type: 'string' } },
             startDate: { type: 'string' },
@@ -80,9 +95,10 @@ const TOOL_DEFINITIONS = [
     {
         name: 'get_quality_production_report',
         description:
-            'Production report filtered by quality (not by machine list). ' +
-            MCP_WORKFLOW +
-            ' Required body: quality (from list_machine_log_qualities), startDate, endDate, shift.',
+            'Official quality-based production report (web parity). ' +
+            MCP_DATES +
+            ' Use when filtering by quality name, not by selected machines. ' +
+            'Call list_machine_log_qualities for quality, then this tool only—do not use get_production_report or get_machine_logs_details for the same question.',
         inputSchema: {
             quality: { type: 'string' },
             startDate: { type: 'string' },
@@ -93,9 +109,10 @@ const TOOL_DEFINITIONS = [
     {
         name: 'get_stoppage_report',
         description:
-            'Stoppage events above a minimum duration. ' +
-            MCP_WORKFLOW +
-            ' Required body: machineIds (non-empty), startDate, endDate, shift, minStopMinutes (positive number; web default is 5).',
+            'Official Stoppage report (web parity): flat list of stops ≥ minStopMinutes. ' +
+            MCP_DATES +
+            ' Use for “stoppage report” style answers—not raw log pagination. ' +
+            'Requires list_machines → machineIds, startDate, endDate, shift, minStopMinutes (default 5). Do NOT also call get_machine_logs_details.',
         inputSchema: {
             machineIds: { type: 'array', items: { type: 'string' } },
             startDate: { type: 'string' },
@@ -158,7 +175,7 @@ function buildInputSchema(toolName, z) {
                 operatorId: z.string().optional().describe('Operator MongoDB ObjectId from list_operators.'),
                 machineGroupId: z.string().optional().describe('Machine group ObjectId from list_machine_groups.'),
                 page: z.number().optional().describe('Page number (default 1).'),
-                limit: z.number().optional().describe('Page size (default 50, max 100).'),
+                limit: z.number().optional().describe('Page size (default 50, max 200). Paginate until totalPages is reached.'),
             };
         case 'get_production_report':
             return {
@@ -226,11 +243,7 @@ function createMcpServer(authInfo) {
             name: 'trackweaving-mcp',
             version: '1.0.0',
             websiteUrl: 'https://trackweaving.com',
-            instructions:
-                'TrackWeaving read-only MCP. For production, quality production, or stoppage reports you MUST ' +
-                'call list_machines first, pass non-empty machineIds (except quality report), YYYY-MM-DD startDate/endDate, ' +
-                'shift (0 day, 1 night, or [0,1] for all), and for stoppage reports minStopMinutes (> 0). ' +
-                'Quality reports require quality from list_machine_log_qualities instead of machineIds.',
+            instructions: 'TrackWeaving read-only MCP. ' + MCP_TOOL_ROUTING,
         },
         {
             capabilities: {

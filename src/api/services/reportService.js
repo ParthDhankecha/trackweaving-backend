@@ -477,6 +477,188 @@ module.exports = {
         };
     },
 
+    async generateStopTimelineReport({ workspaceId, machineIds, startDate, endDate, shift }) {
+        if (!Array.isArray(machineIds) || machineIds.length === 0) {
+            throw global.config.message.BAD_REQUEST;
+        }
+
+        const shiftFilter = (Array.isArray(shift) ? shift : [shift])
+            .map((value) => parseInt(value, 10))
+            .filter((value) => !Number.isNaN(value));
+        if (!shiftFilter.length) {
+            throw global.config.message.BAD_REQUEST;
+        }
+
+        const condition = {
+            machineId: { $in: machineIds },
+            workspaceId,
+            shiftDate: {
+                $gte: moment(new Date(startDate).toISOString()).startOf('day').toISOString(),
+                $lte: moment(new Date(endDate).toISOString()).endOf('day').toISOString()
+            },
+            shift: { $in: shiftFilter }
+        };
+
+        const [machines, workspace, reportData] = await Promise.all([
+            machineService.find(
+                { _id: { $in: machineIds }, workspaceId },
+                { projection: { machineCode: 1, displayType: 1 }, useLean: true }
+            ),
+            workspaceService.findOne(
+                { _id: workspaceId },
+                { projection: { dayShift: 1, nightShift: 1 }, useLean: true }
+            ),
+            machineLogsService.find(condition, {
+                projection: {
+                    machineId: 1,
+                    shift: 1,
+                    shiftDate: 1,
+                    stopsData: 1
+                },
+                sort: { shiftDate: 1, machineId: 1 },
+                useLean: true
+            })
+        ]);
+
+        machines.sort((a, b) => (a.machineCode || '').localeCompare(b.machineCode || '', undefined, { numeric: true }));
+
+        const logMap = new Map();
+        for (const log of reportData) {
+            const reportDateKey = moment(log.shiftDate).startOf('day').valueOf();
+            logMap.set(`${reportDateKey}|${log.shift}|${log.machineId.toString()}`, log);
+        }
+
+        const resolveWindow = (shiftDate, shiftKey) => {
+            const shiftConfig = workspace?.[shiftKey];
+            let window = getShiftWindow(shiftDate, shiftConfig);
+            let usedFallback = false;
+            if (!window) {
+                usedFallback = true;
+                window = {
+                    start: moment(shiftDate).startOf('day'),
+                    end: moment(shiftDate).endOf('day')
+                };
+            }
+            const durationMs = Math.max(window.end.diff(window.start), 1);
+            return {
+                start: window.start.toISOString(),
+                end: window.end.toISOString(),
+                startTimeLabel: shiftConfig?.startTime || window.start.format('HH:mm'),
+                endTimeLabel: shiftConfig?.endTime || window.end.format('HH:mm'),
+                durationMinutes: Math.round(durationMs / 60000),
+                usedFallback,
+                durationMs,
+                momentStart: window.start,
+                momentEnd: window.end
+            };
+        };
+
+        const entries = [];
+        const segments = [];
+        const rangeStart = moment(new Date(startDate).toISOString()).startOf('day');
+        const rangeEnd = moment(new Date(endDate).toISOString()).startOf('day');
+
+        for (let cursor = rangeStart.clone(); cursor.isSameOrBefore(rangeEnd); cursor.add(1, 'day')) {
+            for (const shiftValue of shiftFilter) {
+                const shiftKey = shiftValue === global.config.SHIFT_TYPE.DAY ? 'dayShift' : 'nightShift';
+                const shiftLabel = shiftValue === global.config.SHIFT_TYPE.DAY ? 'Day Shift' : 'Night Shift';
+                const reportDate = cursor.clone().startOf('day').toISOString();
+                const reportDateKey = cursor.clone().startOf('day').valueOf();
+                const windowMeta = resolveWindow(cursor.toDate(), shiftKey);
+                const { momentStart, momentEnd, durationMs, ...shiftWindow } = windowMeta;
+
+                const machineRows = machines.map((machine) => {
+                    const log = logMap.get(`${reportDateKey}|${shiftValue}|${machine._id.toString()}`);
+                    const displayType = machine.displayType || 'nazon';
+                    const stops = [];
+                    let totalStopSeconds = 0;
+                    const stopsData = log?.stopsData || {};
+
+                    for (const key of ALL_STOP_DATA_KEYS) {
+                        for (const stop of stopsData[key] || []) {
+                            const duration = Number(stop.duration) || 0;
+                            if (duration <= 0 || !stop.start || !stop.end) continue;
+
+                            const stopStart = moment(stop.start);
+                            const stopEnd = moment(stop.end);
+                            if (!stopStart.isValid() || !stopEnd.isValid()) continue;
+
+                            const effectiveStart = moment.max(momentStart, stopStart);
+                            const effectiveEnd = moment.min(momentEnd, stopEnd);
+                            if (!effectiveEnd.isAfter(effectiveStart)) continue;
+
+                            const effectiveDuration = effectiveEnd.diff(effectiveStart, 'seconds');
+                            const startOffsetPct = ((effectiveStart.diff(momentStart) / durationMs) * 100);
+                            const widthPct = ((effectiveEnd.diff(effectiveStart) / durationMs) * 100);
+                            const stopReason = getStopReasonForEvent(key, stop, displayType);
+
+                            const stopEntry = {
+                                category: key,
+                                stopReason,
+                                from: effectiveStart.toISOString(),
+                                to: effectiveEnd.toISOString(),
+                                duration: effectiveDuration,
+                                stopTime: formatStopDurationSeconds(effectiveDuration),
+                                startOffsetPct: Math.max(0, Math.min(100, startOffsetPct)),
+                                widthPct: Math.max(0, Math.min(100 - startOffsetPct, widthPct))
+                            };
+
+                            stops.push(stopEntry);
+                            totalStopSeconds += effectiveDuration;
+
+                            entries.push({
+                                reportDate,
+                                machineCode: machine.machineCode || '',
+                                machineId: machine._id,
+                                shift: shiftValue,
+                                shiftLabel,
+                                category: key,
+                                stopReason,
+                                from: stopEntry.from,
+                                to: stopEntry.to,
+                                stopTime: stopEntry.stopTime
+                            });
+                        }
+                    }
+
+                    stops.sort((a, b) => new Date(a.from).getTime() - new Date(b.from).getTime());
+
+                    return {
+                        machineId: machine._id,
+                        machineCode: machine.machineCode || '',
+                        stops,
+                        totalStopSeconds,
+                        totalStopTime: formatStopDurationSeconds(totalStopSeconds)
+                    };
+                });
+
+                segments.push({
+                    reportDate,
+                    shift: shiftValue,
+                    shiftLabel,
+                    shiftWindow,
+                    machines: machineRows
+                });
+            }
+        }
+
+        entries.sort((a, b) => {
+            const dateCompare = new Date(a.reportDate) - new Date(b.reportDate);
+            if (dateCompare !== 0) return dateCompare;
+            if (a.shift !== b.shift) return a.shift - b.shift;
+            const machineCompare = (a.machineCode || '').localeCompare(b.machineCode || '', undefined, { numeric: true });
+            if (machineCompare !== 0) return machineCompare;
+            return new Date(a.from || 0) - new Date(b.from || 0);
+        });
+
+        return {
+            segments,
+            entries,
+            totalStops: entries.length,
+            shiftTimingConfigured: !!(workspace?.dayShift?.startTime && workspace?.nightShift?.startTime)
+        };
+    },
+
     async generateBeamProductionReport({ workspaceId, machineIds, startDate, endDate }) {
         if (!Array.isArray(machineIds) || machineIds.length === 0) {
             throw global.config.message.BAD_REQUEST;

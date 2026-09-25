@@ -374,6 +374,16 @@ module.exports = {
                     });
                     break;
 
+                case 'stopTimelineReport':
+                    resObj = await reportService.generateStopTimelineReport({
+                        workspaceId: body.workspaceId,
+                        machineIds: body.machineIds,
+                        startDate: body.startDate,
+                        endDate: body.endDate,
+                        shift: body.shift
+                    });
+                    break;
+
                 case 'beamProductionReport':
                     resObj = await reportService.generateBeamProductionReport({
                         workspaceId: body.workspaceId,

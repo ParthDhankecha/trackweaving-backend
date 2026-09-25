@@ -500,8 +500,13 @@ async function upsertShiftLog(body, shiftDate, options = {}) {
         update.$inc = { totalSpeed: speedRpm, totalSpeedCount: 1 };
     }
 
-    const updateObj = { machineId: body.machineId, workspaceId: body.workspaceId, shift: body.shift, shiftDate: shiftDate };
-    if (body.operatorId) updateObj.operatorId = body.operatorId;
+    // One shift log per machine/shift/date — operatorId is stored on the document only, not part of the upsert key.
+    const updateObj = {
+        machineId: body.machineId,
+        workspaceId: body.workspaceId,
+        shift: body.shift,
+        shiftDate: shiftDate
+    };
 
     await machineLogsModel.findOneAndUpdate(updateObj, update, { upsert: true });
 }

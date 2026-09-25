@@ -32,6 +32,14 @@ function parseDurationToMinutes(value = '') {
     return Math.max(0, (parts[0] * 60) + parts[1]);
 }
 
+const WORKSPACE_UTC_OFFSET_MINUTES = 330;
+
+function momentInWorkspaceTz(input) {
+    return input == null
+        ? moment().utcOffset(WORKSPACE_UTC_OFFSET_MINUTES)
+        : moment(input).utcOffset(WORKSPACE_UTC_OFFSET_MINUTES);
+}
+
 function getShiftWindow(shiftDate, shiftConfig = {}) {
     if (!shiftConfig?.startTime || !shiftConfig?.endTime) {
         return null;
@@ -43,6 +51,24 @@ function getShiftWindow(shiftDate, shiftConfig = {}) {
     }
     const start = moment(shiftDate).startOf('day').hour(startHour).minute(startMinute).second(0).millisecond(0);
     let end = moment(shiftDate).startOf('day').hour(endHour).minute(endMinute).second(0).millisecond(0);
+    if (!end.isAfter(start)) {
+        end.add(1, 'day');
+    }
+    return { start, end };
+}
+
+function getShiftWindowInWorkspaceTz(shiftDate, shiftConfig = {}) {
+    if (!shiftConfig?.startTime || !shiftConfig?.endTime) {
+        return null;
+    }
+    const [startHour = 0, startMinute = 0] = String(shiftConfig.startTime).split(':').map(Number);
+    const [endHour = 0, endMinute = 0] = String(shiftConfig.endTime).split(':').map(Number);
+    if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) {
+        return null;
+    }
+    const dayStart = momentInWorkspaceTz(shiftDate).startOf('day');
+    const start = dayStart.clone().hour(startHour).minute(startMinute).second(0).millisecond(0);
+    let end = dayStart.clone().hour(endHour).minute(endMinute).second(0).millisecond(0);
     if (!end.isAfter(start)) {
         end.add(1, 'day');
     }
@@ -481,19 +507,20 @@ module.exports = {
 
         const logMap = new Map();
         for (const log of reportData) {
-            const reportDateKey = moment(log.shiftDate).startOf('day').valueOf();
+            const reportDateKey = momentInWorkspaceTz(log.shiftDate).startOf('day').valueOf();
             logMap.set(`${reportDateKey}|${log.shift}|${log.machineId.toString()}`, log);
         }
 
         const resolveWindow = (shiftDate, shiftKey) => {
             const shiftConfig = workspace?.[shiftKey];
-            let window = getShiftWindow(shiftDate, shiftConfig);
+            let window = getShiftWindowInWorkspaceTz(shiftDate, shiftConfig);
             let usedFallback = false;
             if (!window) {
                 usedFallback = true;
+                const day = momentInWorkspaceTz(shiftDate);
                 window = {
-                    start: moment(shiftDate).startOf('day'),
-                    end: moment(shiftDate).endOf('day')
+                    start: day.clone().startOf('day'),
+                    end: day.clone().endOf('day')
                 };
             }
             const durationMs = Math.max(window.end.diff(window.start), 1);
@@ -512,8 +539,8 @@ module.exports = {
 
         const entries = [];
         const segments = [];
-        const rangeStart = moment(new Date(startDate).toISOString()).startOf('day');
-        const rangeEnd = moment(new Date(endDate).toISOString()).startOf('day');
+        const rangeStart = momentInWorkspaceTz(startDate).startOf('day');
+        const rangeEnd = momentInWorkspaceTz(endDate).startOf('day');
 
         for (let cursor = rangeStart.clone(); cursor.isSameOrBefore(rangeEnd); cursor.add(1, 'day')) {
             for (const shiftValue of shiftFilter) {
@@ -521,7 +548,7 @@ module.exports = {
                 const shiftLabel = shiftValue === global.config.SHIFT_TYPE.DAY ? 'Day Shift' : 'Night Shift';
                 const reportDate = cursor.clone().startOf('day').toISOString();
                 const reportDateKey = cursor.clone().startOf('day').valueOf();
-                const windowMeta = resolveWindow(cursor.toDate(), shiftKey);
+                const windowMeta = resolveWindow(cursor.clone().startOf('day').toDate(), shiftKey);
                 const { momentStart, momentEnd, durationMs, ...shiftWindow } = windowMeta;
 
                 const machineRows = machines.map((machine) => {
